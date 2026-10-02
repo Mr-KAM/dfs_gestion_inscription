@@ -4,7 +4,7 @@ Application web interne de la **Digital Farming School** pour piloter une sessio
 import des candidats, contrôle des dossiers via KoboToolbox, test de motivation (numéro de pièce + code examen),
 puis test technique chronométré avec attribution des salles et ordinateurs.
 
-Flask · PostgreSQL · SQLAlchemy 2 · Alembic · Gunicorn · Bootstrap 5 (servi localement, fonctionne sans Internet côté client) · Docker Compose.
+Flask · PostgreSQL · SQLAlchemy 2 · Alembic · Gunicorn · Bootstrap 5 + Space Grotesk / JetBrains Mono (servis localement, fonctionne sans Internet côté client) · Docker Compose.
 
 ---
 

@@ -2,7 +2,7 @@
 {% block title %}Dashboard technique{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-  <h1 class="page-title">Tests techniques</h1>
+  <div><div class="eyebrow mb-1">Salle de test</div><h1 class="page-title">Tests techniques</h1></div>
   <div class="d-flex gap-2">
     <a class="btn btn-outline-primary" href="{{ url_for('technical.rooms') }}"><i class="bi bi-pc-display"></i> Salles</a>
     <a class="btn btn-primary" href="{{ url_for('candidates.index', technical='waiting') }}"><i class="bi bi-people"></i> Candidats en attente</a>

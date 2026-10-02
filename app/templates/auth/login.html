@@ -1,31 +1,39 @@
 {% extends "base.html" %}
 {% from "_macros.html" import csrf %}
+{% import "_brand.html" as brand %}
 {% block title %}Connexion{% endblock %}
 {% block public %}
-<div class="login-wrap">
-  <div class="card login-card shadow-sm">
-    <div class="card-body p-4 p-sm-5">
-      <div class="text-center mb-4">
-        <span class="brand-mark mb-3" style="width:52px;height:52px;font-size:1.6rem"><i class="bi bi-flower1"></i></span>
-        <h1 class="h5 fw-bold mb-0">Digital Farming School</h1>
-        <div class="text-muted">Recruitment &amp; Testing</div>
+<div class="login-page">
+  {{ brand.pixels() }}
+  {{ brand.edge_glyphs() }}
+  <div class="login-top">{{ brand.logo(40) }}</div>
+  <div class="login-body">
+    <section class="login-hero">
+      <div class="eyebrow">Plateforme de recrutement</div>
+      <h1>Recruitment<br>&amp; Testing</h1>
+      {{ brand.logo(72) }}
+      <p>Dossiers, entretiens de motivation et tests techniques de la Digital Farming School.</p>
+    </section>
+    <section class="login-card" aria-labelledby="login-title">
+      <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+          <h2 id="login-title">Accès équipe</h2>
+          <div class="sub mt-1">Authentification</div>
+        </div>
+        <i class="bi bi-person-badge fs-4 text-primary" aria-hidden="true"></i>
       </div>
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% for category, message in messages %}<div class="alert alert-{{ category }} py-2">{{ message }}</div>{% endfor %}
       {% endwith %}
       <form method="post" novalidate>
         {{ csrf() }}
-        <div class="mb-3">
-          <label class="form-label" for="email">Email</label>
-          <input class="form-control" type="email" id="email" name="email" autocomplete="username" required autofocus>
-        </div>
-        <div class="mb-4">
-          <label class="form-label" for="password">Mot de passe</label>
-          <input class="form-control" type="password" id="password" name="password" autocomplete="current-password" required>
-        </div>
-        <button class="btn btn-primary w-100 py-2">Se connecter</button>
+        <label class="visually-hidden" for="email">Email</label>
+        <input class="form-control mb-3" type="email" id="email" name="email" placeholder="Email" autocomplete="username" required autofocus>
+        <label class="visually-hidden" for="password">Mot de passe</label>
+        <input class="form-control mb-3" type="password" id="password" name="password" placeholder="Mot de passe" autocomplete="current-password" required>
+        <button class="btn btn-primary btn-lg w-100">Se connecter</button>
       </form>
-    </div>
+    </section>
   </div>
 </div>
 {% endblock %}

@@ -1,0 +1,42 @@
+{# DFS pixel identity: three tiles D / F / S. Glyphs live on a 40x40 grid per tile. #}
+{% macro glyph(letter, x=0, y=0, fill='#fff') -%}
+  <g transform="translate({{ x }} {{ y }})" fill="{{ fill }}">
+  {%- if letter == 'D' -%}
+    <rect x="7" y="8" width="20" height="6"/><rect x="27" y="8" width="6" height="24"/><rect x="7" y="26" width="20" height="6"/><rect x="7" y="19" width="10" height="5"/>
+  {%- elif letter == 'F' -%}
+    <rect x="7" y="8" width="26" height="6"/><rect x="7" y="8" width="6" height="24"/><rect x="7" y="19" width="19" height="5"/>
+  {%- else -%}
+    <rect x="7" y="8" width="26" height="6"/><rect x="7" y="8" width="6" height="14"/><rect x="7" y="17" width="26" height="5"/><rect x="27" y="17" width="6" height="15"/><rect x="7" y="26" width="26" height="6"/>
+  {%- endif -%}
+  </g>
+{%- endmacro %}
+
+{% macro logo(height=36, wordmark=True, cls='') -%}
+  <span class="dfs-logo {{ cls }}" style="--logo-h: {{ height }}px">
+    <svg viewBox="0 0 128 40" height="{{ height }}" role="img" aria-label="Digital Farming School">
+      <rect width="40" height="40" fill="var(--dfs-navy)"/>{{ glyph('D') }}
+      <rect x="44" width="40" height="40" fill="var(--dfs-blue)"/>{{ glyph('F', 44) }}
+      <rect x="88" width="40" height="40" fill="var(--dfs-green)"/>{{ glyph('S', 88) }}
+    </svg>
+    {% if wordmark %}<span class="dfs-wordmark" aria-hidden="true">Digital<br>Farming<br>School</span>{% endif %}
+  </span>
+{%- endmacro %}
+
+{# Large blue glyphs bleeding off the right edge (decoration only). #}
+{% macro edge_glyphs() -%}
+  <svg class="edge-glyphs" viewBox="0 0 40 132" aria-hidden="true" focusable="false">
+    {{ glyph('D', 0, 0, 'var(--dfs-blue)') }}{{ glyph('F', 0, 46, 'var(--dfs-blue)') }}{{ glyph('S', 0, 92, 'var(--dfs-blue)') }}
+  </svg>
+{%- endmacro %}
+
+{% macro pixels() -%}
+  <div class="pixels" aria-hidden="true">
+    <i style="left:7%;top:11%;width:58px;height:58px"></i>
+    <i style="left:36%;top:7%;width:36px;height:36px"></i>
+    <i style="left:48%;top:18%;width:24px;height:66px"></i>
+    <i style="left:41%;top:34%;width:32px;height:84px"></i>
+    <i style="left:32%;top:70%;width:76px;height:26px"></i>
+    <i style="left:14%;top:79%;width:44px;height:44px"></i>
+    <i style="left:52%;top:82%;width:20px;height:54px"></i>
+  </div>
+{%- endmacro %}
