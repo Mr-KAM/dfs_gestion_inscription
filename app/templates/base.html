@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ app_name }}{% endblock %} · DFS</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body>
+{% if current_user.is_authenticated %}
+{% set role = current_user.role %}
+{% macro nav(endpoint, icon, label, match=None) -%}
+  {% set active = request.endpoint == endpoint or (match and request.endpoint and request.endpoint.startswith(match)) %}
+  <a class="nav-link {{ 'active' if active }}" href="{{ url_for(endpoint) }}"><i class="bi bi-{{ icon }}"></i>{{ label }}</a>
+{%- endmacro %}
+<header class="app-header d-flex align-items-center px-3 gap-3">
+  <button class="btn btn-sm btn-light d-lg-none js-sidebar-toggle" aria-label="Menu"><i class="bi bi-list"></i></button>
+  <a class="brand d-flex align-items-center gap-2" href="{{ url_for('dashboard.index') }}">
+    <span class="brand-mark"><i class="bi bi-flower1"></i></span>
+    <span class="d-none d-sm-inline">{{ app_name }}</span>
+  </a>
+  <div class="ms-auto d-flex align-items-center gap-3">
+    <div class="text-end lh-sm d-none d-md-block">
+      <div class="fw-semibold">{{ current_user.display_name }}</div>
+      <small class="text-muted">{{ current_user.role_label }}</small>
+    </div>
+    <form method="post" action="{{ url_for('auth.logout') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-box-arrow-right"></i><span class="d-none d-sm-inline"> Déconnexion</span></button>
+    </form>
+  </div>
+</header>
+<div class="d-flex">
+  <nav class="sidebar p-2 flex-shrink-0">
+    <div class="nav flex-column gap-1">
+      {{ nav('dashboard.index', 'speedometer2', 'Dashboard') }}
+      {% if role == 'technical_tester' %}
+        {{ nav('candidates.index', 'people', 'Candidats éligibles', 'candidates.') }}
+        {{ nav('technical.sessions', 'stopwatch', 'Tests en cours') }}
+        {{ nav('technical.rooms', 'pc-display', 'Salles') }}
+      {% else %}
+        {{ nav('candidates.index', 'people', 'Candidats', 'candidates.') }}
+        {{ nav('motivation.index', 'chat-square-text', 'Motivation') }}
+      {% endif %}
+      {% if role == 'admin' %}
+        {{ nav('technical.sessions', 'stopwatch', 'Tests techniques') }}
+        {{ nav('technical.rooms', 'grid-3x3-gap', 'Vue des salles') }}
+        <div class="nav-section">Administration</div>
+        {{ nav('admin.rooms', 'pc-display', 'Salles & ordinateurs') }}
+        {{ nav('kobo.index', 'cloud-arrow-down', 'KoboToolbox', 'kobo.') }}
+        {{ nav('admin.users', 'person-gear', 'Utilisateurs', 'admin.user') }}
+        {{ nav('admin.imports', 'upload', 'Imports', 'admin.import') }}
+        {{ nav('admin.exports', 'download', 'Exports') }}
+        {{ nav('admin.audit', 'journal-text', 'Audit') }}
+        {{ nav('admin.settings', 'gear', 'Paramètres') }}
+      {% endif %}
+    </div>
+  </nav>
+  <main class="main flex-grow-1 p-3 p-lg-4">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+          {{ message }}<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
+        </div>
+      {% endfor %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+{% else %}
+  {% block public %}{% endblock %}
+{% endif %}
+<script src="{{ url_for('static', filename='vendor/bootstrap.bundle.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

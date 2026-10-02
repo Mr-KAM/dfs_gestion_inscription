@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status, motivation_badge, sort_th, pagination, timer %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h1 class="page-title">{{ title }}</h1>
+  {% if current_user.role == 'admin' %}
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-primary" href="{{ url_for('admin.imports') }}"><i class="bi bi-upload"></i> Importer</a>
+    <a class="btn btn-primary" href="{{ url_for('candidates.create') }}"><i class="bi bi-plus-lg"></i> Nouveau</a>
+  </div>
+  {% endif %}
+</div>
+
+<form class="card card-body mb-3" method="get">
+  {% if args.get('sort') %}<input type="hidden" name="sort" value="{{ args.sort }}"><input type="hidden" name="dir" value="{{ args.get('dir', 'asc') }}">{% endif %}
+  <div class="row g-2 align-items-end">
+    <div class="col-12 col-lg-4">
+      <label class="form-label small mb-1" for="q">Recherche</label>
+      <input class="form-control" id="q" name="q" value="{{ args.get('q', '') }}" placeholder="Nom, email, téléphone, CNI, code examen, n° pièce">
+    </div>
+    <div class="col-6 col-md-3 col-lg-2">
+      <label class="form-label small mb-1" for="group">Groupe</label>
+      <select class="form-select" id="group" name="group"><option value="">Tous</option>
+        {% for g in groups %}<option {{ 'selected' if args.get('group') == g }}>{{ g }}</option>{% endfor %}</select>
+    </div>
+    <div class="col-6 col-md-3 col-lg-2">
+      <label class="form-label small mb-1" for="date">Date</label>
+      <input class="form-control" type="date" id="date" name="date" value="{{ args.get('date', '') }}">
+    </div>
+    <div class="col-6 col-md-3 col-lg-1">
+      <label class="form-label small mb-1" for="gender">Sexe</label>
+      <select class="form-select" id="gender" name="gender"><option value="">—</option>
+        <option value="M" {{ 'selected' if args.get('gender') == 'M' }}>M</option><option value="F" {{ 'selected' if args.get('gender') == 'F' }}>F</option></select>
+    </div>
+    <div class="col-6 col-md-3 col-lg-1">
+      <label class="form-label small mb-1" for="kobo">Dossier</label>
+      <select class="form-select" id="kobo" name="kobo"><option value="">Tous</option>
+        {% for v, l in [('validated', 'Conforme'), ('problem', 'Non conforme'), ('pending', 'À vérifier'), ('none', 'Non synchronisé')] %}
+          <option value="{{ v }}" {{ 'selected' if args.get('kobo') == v }}>{{ l }}</option>{% endfor %}</select>
+    </div>
+    {% if view == 'technical' %}
+    <div class="col-6 col-md-3 col-lg-2">
+      <label class="form-label small mb-1" for="technical">Test technique</label>
+      <select class="form-select" id="technical" name="technical"><option value="">Tous</option>
+        {% for v, l in [('waiting', 'En attente'), ('running', 'En cours'), ('done', 'Terminé')] %}
+          <option value="{{ v }}" {{ 'selected' if args.get('technical') == v }}>{{ l }}</option>{% endfor %}</select>
+    </div>
+    {% else %}
+    <div class="col-6 col-md-3 col-lg-2">
+      <label class="form-label small mb-1" for="motivation">Motivation</label>
+      <select class="form-select" id="motivation" name="motivation"><option value="">Tous</option>
+        <option value="done" {{ 'selected' if args.get('motivation') == 'done' }}>Passé</option>
+        <option value="pending" {{ 'selected' if args.get('motivation') == 'pending' }}>Non passé</option></select>
+    </div>
+    {% endif %}
+  </div>
+  <div class="d-flex gap-2 mt-2">
+    <button class="btn btn-primary"><i class="bi bi-search"></i> Filtrer</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for(request.endpoint) }}?page=1">Réinitialiser les filtres</a>
+  </div>
+</form>
+
+{% set a = args %}
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover table-sm">
+      <thead><tr>
+      {% if view == 'motivation' %}
+        {{ sort_th('N°', 'number', a) }}{{ sort_th('Groupe', 'group', a) }}{{ sort_th('Ordre', 'order', a) }}{{ sort_th('Nom et prénoms', 'name', a) }}
+        <th>Sexe</th><th>Email</th><th>Téléphone</th>{{ sort_th('Ville', 'city', a) }}<th>CNI</th><th>Statut Kobo</th>
+        <th>N° pièce</th>{{ sort_th('Code examen', 'exam_code', a) }}<th>Motivation</th><th></th>
+      {% elif view == 'technical' %}
+        {{ sort_th('Nom et prénoms', 'name', a) }}{{ sort_th('Groupe', 'group', a) }}{{ sort_th('Code examen', 'exam_code', a) }}
+        <th>N° pièce</th><th>Kobo</th><th>Salle</th><th>PC</th><th>Durée</th><th>Chrono</th><th>Test</th><th></th>
+      {% else %}
+        {{ sort_th('#', 'number', a) }}{{ sort_th('Groupe', 'group', a) }}{{ sort_th('Ordre', 'order', a) }}{{ sort_th('Nom', 'name', a) }}
+        <th>Sexe</th><th>Téléphone</th><th>CNI</th><th>Kobo</th><th>Motivation</th>{{ sort_th('Code examen', 'exam_code', a) }}
+        <th>Technique</th><th>Salle</th><th>PC</th><th></th>
+      {% endif %}
+      </tr></thead>
+      <tbody>
+      {% for c in page.items %}
+        {% set s = c.latest_session %}
+        {% set open_url = url_for('candidates.detail', candidate_id=c.id) %}
+        <tr>
+        {% if view == 'motivation' %}
+          <td>{{ c.candidate_number or '' }}</td><td>{{ c.group_name or '' }}</td><td>{{ c.passage_order or '' }}</td>
+          <td class="fw-semibold">{{ c.full_name }}</td><td>{{ c.gender or '' }}</td><td>{{ c.email or '' }}</td><td>{{ c.phone or '' }}</td>
+          <td>{{ c.city or '' }}</td><td>{{ c.cni or '' }}</td><td>{{ status(c.kobo_badge) }}</td><td>{{ c.piece_number or '' }}</td>
+          <td><code>{{ c.exam_code or '' }}</code></td><td>{{ motivation_badge(c) }}</td>
+          <td class="text-end"><a class="btn btn-sm btn-primary" href="{{ open_url }}">{{ 'Voir' if c.motivation_completed else 'Évaluer' }}</a></td>
+        {% elif view == 'technical' %}
+          <td class="fw-semibold">{{ c.full_name }}</td><td>{{ c.group_name or '' }}</td><td><code>{{ c.exam_code }}</code></td>
+          <td>{{ c.piece_number or '' }}</td><td>{{ status(c.kobo_badge) }}</td>
+          <td>{{ s.room.name if s else '' }}</td><td>{{ s.workstation.name if s else '' }}</td>
+          <td>{{ (s.duration_seconds // 60 ~ ' min') if s else '' }}</td>
+          <td>{% if s and s.is_active %}{{ timer(s) }}{% endif %}</td>
+          <td>{{ status(c.technical_badge) }}</td>
+          <td class="text-end"><a class="btn btn-sm btn-primary" href="{{ open_url }}">Ouvrir</a></td>
+        {% else %}
+          <td>{{ c.candidate_number or '' }}</td><td>{{ c.group_name or '' }}</td><td>{{ c.passage_order or '' }}</td>
+          <td class="fw-semibold">{{ c.full_name }}</td><td>{{ c.gender or '' }}</td><td>{{ c.phone or '' }}</td><td>{{ c.cni or '' }}</td>
+          <td>{{ status(c.kobo_badge) }}</td><td>{{ motivation_badge(c) }}</td><td><code>{{ c.exam_code or '' }}</code></td>
+          <td>{{ status(c.technical_badge) }}</td><td>{{ s.room.name if s else '' }}</td><td>{{ s.workstation.name if s else '' }}</td>
+          <td class="text-end text-nowrap">
+            <a class="btn btn-sm btn-outline-primary" href="{{ open_url }}" title="Ouvrir"><i class="bi bi-eye"></i></a>
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('candidates.edit', candidate_id=c.id) }}" title="Modifier"><i class="bi bi-pencil"></i></a>
+          </td>
+        {% endif %}
+        </tr>
+      {% else %}
+        <tr><td colspan="15" class="text-center text-muted py-4">Aucun candidat ne correspond aux filtres.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{{ pagination(page, args) }}
+{% endblock %}

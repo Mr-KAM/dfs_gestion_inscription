@@ -1,0 +1,26 @@
+{% from "_macros.html" import stat, status %}
+{% set today = day.isoformat() %}
+<div class="row g-3 mb-3">
+  {{ stat("Candidats aujourd'hui", stats.today, 'calendar-day', url_for('candidates.index', date=today)) }}
+  {{ stat('En attente', stats.waiting, 'hourglass-split', url_for('candidates.index', date=today, motivation='pending')) }}
+  {{ stat('Dossier conforme', stats.file_ok, 'folder-check', url_for('candidates.index', date=today, kobo='validated')) }}
+  {{ stat('Dossier problématique', stats.file_problem, 'folder-x', url_for('candidates.index', date=today, kobo='problem')) }}
+  {{ stat('Motivation terminée', stats.done, 'check2-circle', url_for('candidates.index', date=today, motivation='done')) }}
+</div>
+<div class="card">
+  <div class="card-header">Prochains candidats</div>
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead><tr><th>Ordre</th><th>Groupe</th><th>Heure</th><th>Nom et prénoms</th><th>Dossier Kobo</th><th></th></tr></thead>
+      <tbody>
+      {% for c in upcoming %}
+        <tr><td class="fw-semibold">{{ c.passage_order or '—' }}</td><td>{{ c.group_name or '' }}</td><td>{{ c.scheduled_time or '' }}</td>
+          <td>{{ c.full_name }}</td><td>{{ status(c.kobo_badge) }}</td>
+          <td class="text-end"><a class="btn btn-sm btn-primary" href="{{ url_for('candidates.detail', candidate_id=c.id) }}">Ouvrir</a></td></tr>
+      {% else %}
+        <tr><td colspan="6" class="text-center text-muted py-4">Aucun candidat en attente aujourd'hui.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>

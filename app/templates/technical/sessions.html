@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Tests en cours{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Tests en cours</h1>
+  <small class="text-muted"><i class="bi bi-arrow-repeat"></i> Actualisé toutes les 5 s</small>
+</div>
+<div data-poll="{{ url_for('technical.sessions', partial=1) }}">{% include "technical/_sessions.html" %}</div>
+{% endblock %}

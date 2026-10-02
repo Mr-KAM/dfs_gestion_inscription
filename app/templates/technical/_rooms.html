@@ -1,0 +1,36 @@
+{% from "_macros.html" import timer %}
+{% for room in rooms %}
+<div class="card mb-3">
+  <div class="card-header d-flex justify-content-between">
+    <span>{{ room.name }}</span>
+    {% set busy = room.workstations | selectattr('id', 'in', occupied) | list | length %}
+    <small class="text-muted">{{ busy }} occupé(s) / {{ room.workstations | selectattr('active') | list | length }} actif(s)</small>
+  </div>
+  <div class="card-body">
+    <div class="ws-grid">
+    {% for ws in room.workstations %}
+      {% set s = occupied.get(ws.id) %}
+      <div class="ws {{ 'off' if not ws.active else ('paused' if s and s.status == 'paused' else ('busy' if s else 'free')) }}">
+        <div class="d-flex justify-content-between align-items-center">
+          <strong>{{ ws.name }}</strong>
+          {% if not ws.active %}<span class="status status-secondary">Inactif</span>
+          {% elif s and s.status == 'paused' %}<span class="status status-warning">Pause</span>
+          {% elif s %}<span class="status status-danger">Occupé</span>
+          {% else %}<span class="status status-success">Libre</span>{% endif %}
+        </div>
+        {% if s %}
+          <div class="small mt-1 text-truncate" title="{{ s.candidate.full_name }}">
+            <code>{{ s.candidate.exam_code }}</code><br>{{ s.candidate.full_name }}
+          </div>
+          <div class="small">{{ timer(s) }}</div>
+        {% endif %}
+      </div>
+    {% else %}
+      <p class="text-muted mb-0">Aucun ordinateur dans cette salle.</p>
+    {% endfor %}
+    </div>
+  </div>
+</div>
+{% else %}
+<p class="text-muted">Aucune salle active.</p>
+{% endfor %}

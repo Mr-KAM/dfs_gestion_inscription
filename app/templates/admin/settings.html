@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}Paramètres{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Paramètres</h1>
+<form method="post">
+  {{ csrf() }}
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="card h-100"><div class="card-header">Recrutement</div><div class="card-body">
+        <div class="mb-3"><label class="form-label" for="campaign_name">Nom campagne</label>
+          <input class="form-control" id="campaign_name" name="campaign_name" value="{{ v.campaign_name }}"></div>
+        <div class="mb-3"><label class="form-label" for="campaign_year">Année</label>
+          <input class="form-control" id="campaign_year" name="campaign_year" value="{{ v.campaign_year }}"></div>
+        <div class="row g-2 mb-3">
+          <div class="col-5"><label class="form-label" for="exam_code_prefix">Préfixe code examen</label>
+            <input class="form-control" id="exam_code_prefix" name="exam_code_prefix" value="{{ v.exam_code_prefix }}"></div>
+          <div class="col-7"><label class="form-label" for="exam_code_format">Format</label>
+            <input class="form-control font-monospace" id="exam_code_format" name="exam_code_format" value="{{ v.exam_code_format }}"></div>
+          <div class="form-text">Variables : {prefix}, {year}, {seq:04d}. Prochain code : <code>{{ next_code }}</code></div>
+        </div>
+        <div><label class="form-label" for="technical_duration">Durée test technique (minutes)</label>
+          <input class="form-control" id="technical_duration" name="technical_duration" type="number" min="1" max="480" value="{{ v.technical_duration }}"></div>
+      </div></div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card mb-3"><div class="card-header">Application</div><div class="card-body">
+        <div class="mb-3"><label class="form-label" for="app_name">Nom application</label>
+          <input class="form-control" id="app_name" name="app_name" value="{{ v.app_name }}"></div>
+        <div><label class="form-label" for="timezone">Timezone</label>
+          <input class="form-control" id="timezone" name="timezone" value="{{ v.timezone }}" placeholder="Africa/Abidjan"></div>
+      </div></div>
+      <div class="card"><div class="card-header d-flex justify-content-between">Kobo <a href="{{ url_for('kobo.index') }}">Configurer</a></div><div class="card-body">
+        <dl class="kv row mb-0">
+          <dt class="col-5">URL</dt><dd class="col-7 text-break">{{ kobo_url or '—' }}</dd>
+          <dt class="col-5">Asset UID</dt><dd class="col-7 text-break">{{ kobo_uid or '—' }}</dd>
+          <dt class="col-5">Token</dt><dd class="col-7">{{ '•••••• configuré' if kobo_token_set else 'non configuré' }}</dd>
+          <dt class="col-5">Dernière synchronisation</dt><dd class="col-7">{{ kobo_last_sync | dt or 'jamais' }}</dd>
+        </dl>
+      </div></div>
+    </div>
+  </div>
+  <button class="btn btn-primary mt-3">Enregistrer</button>
+</form>
+{% endblock %}

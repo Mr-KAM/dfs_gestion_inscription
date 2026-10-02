@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Salles{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h1 class="page-title">Salles de test</h1>
+  <form class="d-flex gap-2" method="get">
+    <select class="form-select form-select-sm" name="room" onchange="this.form.submit()" aria-label="Filtrer par salle">
+      <option value="">Toutes les salles</option>
+      {% for r in all_rooms %}<option value="{{ r.id }}" {{ 'selected' if r.id == room_id }}>{{ r.name }}</option>{% endfor %}
+    </select>
+  </form>
+</div>
+<div data-poll="{{ url_for('technical.rooms', partial=1, room=room_id) }}">{% include "technical/_rooms.html" %}</div>
+{% endblock %}

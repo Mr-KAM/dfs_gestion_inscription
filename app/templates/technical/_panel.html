@@ -1,0 +1,32 @@
+{# Live chronometer for the candidate's active session (polled every 5 s). #}
+{% from "_macros.html" import status, timer, csrf %}
+{% set s = c.active_session %}
+{% if s %}
+<div class="text-center js-timer-wrap py-2">
+  <div class="mb-2">{{ status(s.status_badge) }} · {{ s.room.name }} · <strong>{{ s.workstation.name }}</strong> · {{ s.duration_seconds // 60 }} min</div>
+  {{ timer(s, xl=True) }}
+  <div class="timer-expired-label fs-4 fw-bold text-danger mt-2">TEMPS ÉCOULÉ</div>
+  <div class="d-flex flex-wrap justify-content-center gap-2 mt-3">
+    {% if s.status == 'running' %}
+      <form method="post" action="{{ url_for('technical.control', session_id=s.id, action='pause') }}">{{ csrf() }}
+        <button class="btn btn-warning"><i class="bi bi-pause-fill"></i> Pause</button></form>
+    {% else %}
+      <form method="post" action="{{ url_for('technical.control', session_id=s.id, action='resume') }}">{{ csrf() }}
+        <button class="btn btn-primary"><i class="bi bi-play-fill"></i> Reprendre</button></form>
+    {% endif %}
+    <form method="post" action="{{ url_for('technical.control', session_id=s.id, action='stop') }}"
+          data-confirm="Voulez-vous réellement arrêter ce test ?">{{ csrf() }}
+      <button class="btn btn-outline-danger"><i class="bi bi-stop-fill"></i> Arrêter</button></form>
+    <form method="post" action="{{ url_for('technical.control', session_id=s.id, action='complete') }}"
+          data-confirm="Confirmer la fin du test technique ?">{{ csrf() }}
+      <button class="btn btn-success"><i class="bi bi-check2-circle"></i> Test technique terminé</button></form>
+  </div>
+  <small class="text-muted d-block mt-2">Démarré le {{ s.started_at | dt }} par {{ s.tester.display_name if s.tester else '—' }}
+    {% if s.total_pause_seconds %} · pauses : {{ s.total_pause_seconds | hms }}{% endif %}</small>
+</div>
+{% elif c.technical_completed %}
+<div class="text-center py-3">{{ status(('success', 'Test technique terminé')) }}
+  <div class="text-muted small mt-2">le {{ c.technical_completed_at | dt }}</div></div>
+{% else %}
+<div class="text-center text-muted py-3">Aucun test en cours. Rechargez la page pour lancer un test.</div>
+{% endif %}

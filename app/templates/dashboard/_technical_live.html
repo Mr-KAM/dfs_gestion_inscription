@@ -1,0 +1,14 @@
+{% from "_macros.html" import stat %}
+<div class="row g-3 mb-3">
+  {{ stat('Éligibles au test', stats.eligible, 'person-check', url_for('candidates.index')) }}
+  {{ stat('En attente', stats.waiting, 'hourglass-split', url_for('candidates.index', technical='waiting')) }}
+  {{ stat('Tests en cours', stats.running, 'play-circle', url_for('technical.sessions')) }}
+  {{ stat('Tests en pause', stats.paused, 'pause-circle', url_for('technical.sessions')) }}
+</div>
+<div class="row g-3 mb-3">
+  {{ stat('Tests terminés', stats.done, 'trophy', url_for('candidates.index', technical='done')) }}
+  {{ stat('Ordinateurs libres', stats.free, 'pc-display', url_for('technical.rooms')) }}
+  {{ stat('Ordinateurs occupés', stats.occupied, 'pc-display-horizontal', url_for('technical.rooms')) }}
+</div>
+<h2 class="h6 fw-bold mt-4 mb-2">Tests actuellement en cours</h2>
+{% include "technical/_sessions.html" %}

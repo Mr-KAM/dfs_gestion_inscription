@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}Utilisateur{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">{{ 'Modifier ' ~ user.email if user.id else 'Nouvel utilisateur' }}</h1>
+{% set f = request.form %}
+<form class="card card-body" method="post" style="max-width: 640px" autocomplete="off">
+  {{ csrf() }}
+  <div class="mb-3">
+    <label class="form-label" for="full_name">Nom complet</label>
+    <input class="form-control" id="full_name" name="full_name" value="{{ f.get('full_name', user.full_name or '') }}">
+  </div>
+  <div class="mb-3">
+    <label class="form-label" for="email">Email <span class="text-danger">*</span></label>
+    <input class="form-control" id="email" name="email" type="email" required value="{{ f.get('email', user.email or '') }}">
+  </div>
+  <div class="mb-3">
+    <label class="form-label" for="role">Rôle</label>
+    <select class="form-select" id="role" name="role">
+      {% for key, label in ROLES.items() %}<option value="{{ key }}" {{ 'selected' if f.get('role', user.role) == key }}>{{ label }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="mb-3">
+    <label class="form-label" for="password">{{ 'Nouveau mot de passe' if user.id else 'Mot de passe' }}{% if not user.id %} <span class="text-danger">*</span>{% endif %}</label>
+    <input class="form-control" id="password" name="password" type="password" minlength="8" autocomplete="new-password" {{ 'required' if not user.id }}>
+    <div class="form-text">{{ 'Laisser vide pour conserver le mot de passe actuel. ' if user.id }}8 caractères minimum.</div>
+  </div>
+  <div class="d-flex gap-2">
+    <button class="btn btn-primary">Enregistrer</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('admin.users') }}">Annuler</a>
+  </div>
+</form>
+{% endblock %}

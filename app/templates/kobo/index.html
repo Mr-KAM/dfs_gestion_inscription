@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, stat %}
+{% block title %}KoboToolbox{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h1 class="page-title">Intégration KoboToolbox</h1>
+  <div class="d-flex gap-2">
+    <form method="post" action="{{ url_for('kobo.test_connection') }}">{{ csrf() }}
+      <button class="btn btn-outline-primary"><i class="bi bi-plug"></i> Tester la connexion Kobo</button></form>
+    <form method="post" action="{{ url_for('kobo.sync_now') }}">{{ csrf() }}
+      <button class="btn btn-primary"><i class="bi bi-arrow-repeat"></i> Synchroniser maintenant</button></form>
+  </div>
+</div>
+<p class="text-muted">Dernière synchronisation : {{ last_sync | dt or 'jamais' }}</p>
+
+<div class="row g-3 mb-3">
+  {{ stat('Associées', counts.get('matched', 0) + counts.get('manual', 0), 'link-45deg') }}
+  {{ stat('Correspondances à vérifier', counts.get('ambiguous', 0), 'exclamation-triangle') }}
+  {{ stat('Sans correspondance', counts.get('unmatched', 0), 'question-circle') }}
+</div>
+
+<form class="card mb-3" method="post" action="{{ url_for('kobo.save_config') }}" autocomplete="off">
+  {{ csrf() }}
+  <div class="card-header">Configuration</div>
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-md-6"><label class="form-label" for="kobo_base_url">URL API Kobo</label>
+        <input class="form-control" id="kobo_base_url" name="kobo_base_url" value="{{ base_url }}" placeholder="https://kf.kobotoolbox.org" required></div>
+      <div class="col-md-6"><label class="form-label" for="kobo_asset_uid">Asset / Form ID</label>
+        <input class="form-control" id="kobo_asset_uid" name="kobo_asset_uid" value="{{ asset_uid }}" required></div>
+      <div class="col-md-6"><label class="form-label" for="kobo_token">Token API</label>
+        <input class="form-control" id="kobo_token" name="kobo_token" type="password" autocomplete="new-password"
+               placeholder="{{ '•••••• configuré — laisser vide pour conserver' if token_set else 'Coller le token' }}">
+        <div class="form-text">Chiffré côté serveur, jamais renvoyé au navigateur.</div></div>
+    </div>
+    <h2 class="h6 fw-bold mt-4">Champs du formulaire Kobo</h2>
+    <p class="small text-muted">Nom du champ (ex. <code>cni</code> ou <code>groupe_identite/cni</code>). Ordre de correspondance : CNI → Email → Téléphone → Code candidat → Nom complet.</p>
+    <div class="row g-3">
+      {% for key, label in field_labels.items() %}
+      <div class="col-md-4"><label class="form-label" for="{{ key }}">{{ label }}</label>
+        <input class="form-control font-monospace" id="{{ key }}" name="{{ key }}" value="{{ fields[key] }}"></div>
+      {% endfor %}
+    </div>
+    <button class="btn btn-primary mt-3">Enregistrer la configuration</button>
+  </div>
+</form>
+
+<div class="card">
+  <div class="card-header">Soumissions à vérifier</div>
+  <datalist id="candidate-list">{% for c in candidates %}<option value="{{ c.id }} — {{ c.full_name }}{{ ' — ' ~ c.cni if c.cni }}">{% endfor %}</datalist>
+  <div class="table-responsive"><table class="table table-sm">
+    <thead><tr><th>Statut</th><th>Soumise le</th><th>Données clés</th><th>Associer à</th></tr></thead>
+    <tbody>
+    {% for s in to_check %}
+      <tr>
+        <td>{% if s.match_status == 'ambiguous' %}<span class="status status-warning">Correspondance à vérifier</span>
+            <div class="small text-muted">plusieurs candidats ({{ s.match_field }})</div>
+            {% else %}<span class="status status-secondary">Aucun candidat</span>{% endif %}</td>
+        <td class="text-nowrap">{{ s.submitted_at | dt }}</td>
+        <td class="small">{% for key, label in field_labels.items() %}{% set val = get_field(s.data, fields[key]) %}{% if val %}
+          <div><span class="text-muted">{{ label }} :</span> {{ val }}</div>{% endif %}{% endfor %}</td>
+        <td><form class="d-flex gap-1" method="post" action="{{ url_for('kobo.resolve', submission_id=s.id) }}">{{ csrf() }}
+          <input class="form-control form-control-sm" name="candidate" list="candidate-list" placeholder="Rechercher un candidat" required>
+          <button class="btn btn-sm btn-primary">Associer</button></form></td>
+      </tr>
+    {% else %}<tr><td colspan="4" class="text-center text-muted py-4">Rien à vérifier.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

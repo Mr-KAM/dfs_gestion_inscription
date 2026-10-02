@@ -1,0 +1,49 @@
+{% macro status(badge) -%}
+  <span class="status status-{{ badge[0] }}">{{ badge[1] }}</span>
+{%- endmacro %}
+
+{% macro motivation_badge(c) -%}
+  {{ status(('success', 'Terminé') if c.motivation_completed else ('secondary', 'En attente')) }}
+{%- endmacro %}
+
+{% macro csrf() -%}
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+{%- endmacro %}
+
+{% macro stat(label, value, icon, href=None) -%}
+  <div class="col-6 col-md-4 col-xl">
+    <{{ 'a' if href else 'div' }} {% if href %}href="{{ href }}"{% endif %} class="card stat-card h-100 text-decoration-none text-reset">
+      <div class="card-body d-flex justify-content-between align-items-start">
+        <div><div class="stat-value">{{ value }}</div><div class="stat-label">{{ label }}</div></div>
+        <span class="stat-icon"><i class="bi bi-{{ icon }}"></i></span>
+      </div>
+    </{{ 'a' if href else 'div' }}>
+  </div>
+{%- endmacro %}
+
+{% macro timer(session, xl=False) -%}
+  <span class="js-timer timer {{ 'timer-xl' if xl }}" data-remaining="{{ session.remaining_seconds() }}"
+        data-status="{{ session.status }}">{{ session.remaining_seconds() | hms }}</span>
+{%- endmacro %}
+
+{% macro sort_th(label, key, args) -%}
+  {% set is_current = args.get('sort') == key %}
+  {% set next_dir = 'desc' if is_current and args.get('dir') != 'desc' else 'asc' %}
+  <th><a class="sort" href="{{ url_for(request.endpoint, **dict(args, sort=key, dir=next_dir, page=1)) }}">{{ label }}
+    {% if is_current %}<i class="bi bi-caret-{{ 'down' if args.get('dir') == 'desc' else 'up' }}-fill"></i>{% endif %}</a></th>
+{%- endmacro %}
+
+{% macro pagination(page, args) -%}
+  {% if page.pages > 1 %}
+  <nav class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
+    <small class="text-muted">{{ page.first }}–{{ page.last }} sur {{ page.total }}</small>
+    <ul class="pagination pagination-sm mb-0">
+      {% for p in page.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+        {% if p %}
+          <li class="page-item {{ 'active' if p == page.page }}"><a class="page-link" href="{{ url_for(request.endpoint, **dict(args, page=p)) }}">{{ p }}</a></li>
+        {% else %}<li class="page-item disabled"><span class="page-link">…</span></li>{% endif %}
+      {% endfor %}
+    </ul>
+  </nav>
+  {% else %}<small class="text-muted d-block mt-3">{{ page.total }} résultat(s)</small>{% endif %}
+{%- endmacro %}

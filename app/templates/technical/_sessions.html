@@ -1,0 +1,22 @@
+{% from "_macros.html" import status, timer %}
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead><tr><th>Candidat</th><th>Code examen</th><th>Salle</th><th>PC</th><th>Statut</th><th>Temps restant</th><th></th></tr></thead>
+      <tbody>
+      {% for s in sessions %}
+        <tr>
+          <td class="fw-semibold">{{ s.candidate.full_name }}</td>
+          <td><code>{{ s.candidate.exam_code }}</code></td>
+          <td>{{ s.room.name }}</td><td>{{ s.workstation.name }}</td>
+          <td>{{ status(s.status_badge) }}</td>
+          <td class="fs-5">{{ timer(s) }}</td>
+          <td class="text-end"><a class="btn btn-sm btn-primary" href="{{ url_for('candidates.detail', candidate_id=s.candidate_id) }}">Piloter</a></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7" class="text-center text-muted py-4">Aucun test en cours.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>

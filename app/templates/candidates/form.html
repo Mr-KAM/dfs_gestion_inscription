@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}{{ 'Modifier' if c.id else 'Nouveau candidat' }}{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">{{ 'Modifier ' ~ c.full_name if c.id else 'Nouveau candidat' }}</h1>
+{% set f = request.form %}
+{% macro field(name, label, value, type='text', col='col-md-4', required=False) %}
+  <div class="{{ col }}">
+    <label class="form-label" for="{{ name }}">{{ label }}{% if required %} <span class="text-danger">*</span>{% endif %}</label>
+    <input class="form-control" id="{{ name }}" name="{{ name }}" type="{{ type }}" value="{{ request.form.get(name, value if value is not none else '') }}" {{ 'required' if required }}>
+  </div>
+{% endmacro %}
+<form class="card card-body" method="post">
+  {{ csrf() }}
+  <div class="row g-3">
+    {{ field('full_name', 'Nom et prénoms', c.full_name, col='col-md-8', required=True) }}
+    {{ field('candidate_number', 'N°', c.candidate_number) }}
+    {{ field('group_name', 'Groupe', c.group_name) }}
+    {{ field('scheduled_date', 'Date', c.scheduled_date.isoformat() if c.scheduled_date else '', 'date') }}
+    {{ field('scheduled_time', 'Heure', c.scheduled_time) }}
+    {{ field('passage_order', 'Ordre', c.passage_order, 'number') }}
+    {{ field('birth_date', 'Date de naissance', c.birth_date.isoformat() if c.birth_date else '', 'date') }}
+    <div class="col-md-4">
+      <label class="form-label" for="gender">Sexe</label>
+      <select class="form-select" id="gender" name="gender">
+        <option value="">—</option>
+        {% for g in ['M', 'F'] %}<option {{ 'selected' if f.get('gender', c.gender) == g }}>{{ g }}</option>{% endfor %}
+      </select>
+    </div>
+    {{ field('email', 'Email', c.email, 'email') }}
+    {{ field('phone', 'Téléphone', c.phone) }}
+    {{ field('city', 'Ville', c.city) }}
+    {{ field('cni', 'CNI', c.cni) }}
+    <div class="col-md-4">
+      <label class="form-label" for="physical_file_status">Dossier physique</label>
+      <select class="form-select" id="physical_file_status" name="physical_file_status">
+        <option value="">Non synchronisé</option>
+        {% for k, v in file_statuses.items() %}<option value="{{ k }}" {{ 'selected' if f.get('physical_file_status', c.physical_file_status) == k }}>{{ v }}</option>{% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="d-flex gap-2 mt-4">
+    <button class="btn btn-primary">Enregistrer</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('candidates.detail', candidate_id=c.id) if c.id else url_for('candidates.index') }}">Annuler</a>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Dashboard technique{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h1 class="page-title">Tests techniques</h1>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-primary" href="{{ url_for('technical.rooms') }}"><i class="bi bi-pc-display"></i> Salles</a>
+    <a class="btn btn-primary" href="{{ url_for('candidates.index', technical='waiting') }}"><i class="bi bi-people"></i> Candidats en attente</a>
+  </div>
+</div>
+<div data-poll="{{ url_for('dashboard.index', partial=1) }}" data-poll-interval="5000">
+  {% include "dashboard/_technical_live.html" %}
+</div>
+{% endblock %}

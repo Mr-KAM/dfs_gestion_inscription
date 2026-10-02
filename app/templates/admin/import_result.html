@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% from "_macros.html" import stat %}
+{% block title %}Import terminé{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Import terminé</h1>
+<div class="row g-3 mb-3">
+  {{ stat('Créés', stats.created, 'person-plus') }}
+  {{ stat('Mis à jour', stats.updated, 'arrow-repeat') }}
+  {{ stat('Ignorés', stats.ignored, 'skip-forward') }}
+  {{ stat('En erreur (non importés)', stats.errors, 'exclamation-triangle') }}
+  {{ stat('À examiner', stats.review | length, 'search') }}
+</div>
+{% if stats.review %}
+<div class="card mb-3"><div class="card-header">Doublons à examiner (non importés)</div>
+  <div class="table-responsive"><table class="table table-sm">
+    <thead><tr><th>Ligne</th><th>Données du fichier</th><th>Candidat existant</th><th>Critère</th></tr></thead>
+    <tbody>{% for row in stats.review %}
+      <tr><td>{{ row.line }}</td>
+        <td>{{ row.values.full_name }} — {{ row.values.email or '' }} {{ row.values.phone or '' }} {{ row.values.cni or '' }}</td>
+        <td><a href="{{ url_for('candidates.detail', candidate_id=row.duplicate_of.id) }}">{{ row.duplicate_of.full_name }}</a></td>
+        <td>{{ row.duplicate_reason }}</td></tr>
+    {% endfor %}</tbody></table></div></div>
+{% endif %}
+<a class="btn btn-primary" href="{{ url_for('candidates.index') }}">Voir les candidats</a>
+{% endblock %}

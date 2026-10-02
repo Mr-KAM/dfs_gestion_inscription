@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, stat %}
+{% block title %}Prévisualisation import{% endblock %}
+{% block content %}
+<h1 class="page-title mb-1">Prévisualisation de l'import</h1>
+<p class="text-muted">{{ filename }}</p>
+
+<form method="post">
+  {{ csrf() }}
+  <div class="row g-3 mb-3">
+    {{ stat('Lignes', r.total, 'list-ol') }}
+    {{ stat('Colonnes détectées', r.columns | length, 'layout-three-columns') }}
+    {{ stat('Nouveaux valides', r.valid, 'check2-circle') }}
+    {{ stat('Lignes en erreur', r.errors, 'exclamation-triangle') }}
+    {{ stat('Doublons potentiels', r.duplicates, 'people') }}
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header">Correspondance des colonnes</div>
+    <div class="card-body">
+      {% if r.missing %}<div class="alert alert-danger">Colonne obligatoire non trouvée : {{ r.missing | join(', ') }}. Choisissez-la ci-dessous.</div>{% endif %}
+      <div class="row g-2">
+      {% for key, (label, _aliases) in fields.items() %}
+        <div class="col-6 col-md-4 col-xl-3">
+          <label class="form-label small mb-1" for="map_{{ key }}">{{ label }}</label>
+          <select class="form-select form-select-sm" id="map_{{ key }}" name="map_{{ key }}">
+            <option value="">— ignorer —</option>
+            {% for col in r.columns %}<option {{ 'selected' if r.mapping.get(key) == col }}>{{ col }}</option>{% endfor %}
+          </select>
+        </div>
+      {% endfor %}
+      </div>
+      <button class="btn btn-sm btn-outline-primary mt-3" formaction="{{ url_for('admin.import_preview') }}"><i class="bi bi-arrow-repeat"></i> Recalculer avec ce mapping</button>
+    </div>
+  </div>
+
+  {% set dups = r.rows | selectattr('duplicate_of') | selectattr('valid') | list %}
+  {% if dups %}
+  <div class="card mb-3 border-warning">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <span>Doublons potentiels ({{ dups | length }})</span>
+      <select class="form-select form-select-sm js-apply-all" style="max-width:240px" aria-label="Appliquer à tous">
+        <option value="">Appliquer à tous…</option>
+        {% for k, l in actions.items() %}<option value="{{ k }}">{{ l }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="table-responsive"><table class="table table-sm">
+      <thead><tr><th>Ligne</th><th>Fichier</th><th>Candidat existant</th><th>Critère</th><th>Action</th></tr></thead>
+      <tbody>
+      {% for row in dups %}
+        <tr><td>{{ row.line }}</td><td>{{ row.values.full_name }}<br><small class="text-muted">{{ row.values.email }} {{ row.values.phone }}</small></td>
+          <td><a href="{{ url_for('candidates.detail', candidate_id=row.duplicate_of.id) }}" target="_blank">{{ row.duplicate_of.full_name }}</a><br>
+            <small class="text-muted">{{ row.duplicate_of.email or '' }} {{ row.duplicate_of.phone or '' }}</small></td>
+          <td>{{ row.duplicate_reason }}</td>
+          <td><select class="form-select form-select-sm js-dup-action" name="action_{{ row.line }}" aria-label="Action ligne {{ row.line }}">
+            {% for k, l in actions.items() %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></td></tr>
+      {% endfor %}
+      </tbody></table></div>
+  </div>
+  {% endif %}
+
+  <div class="card mb-3">
+    <div class="card-header">Aperçu ({{ [r.rows | length, 200] | min }} premières lignes)</div>
+    <div class="table-responsive" style="max-height: 480px">
+      <table class="table table-sm">
+        <thead class="sticky-top"><tr><th>Ligne</th><th>État</th>{% for key, (label, _a) in fields.items() if key in r.mapping %}<th>{{ label }}</th>{% endfor %}</tr></thead>
+        <tbody>
+        {% for row in r.rows[:200] %}
+          <tr class="{{ 'table-danger' if not row.valid else ('table-warning' if row.duplicate_of) }}">
+            <td>{{ row.line }}</td>
+            <td>{% if not row.valid %}<small class="text-danger">{{ row.errors | join('; ') }}</small>
+                {% elif row.duplicate_of %}<small>Doublon</small>{% else %}<small class="text-success">OK</small>{% endif %}</td>
+            {% for key, _l in fields.items() if key in r.mapping %}<td>{{ row.values.get(key) | d if key in ('scheduled_date', 'birth_date') else (row.values.get(key) or '') }}</td>{% endfor %}
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="d-flex gap-2">
+    <button class="btn btn-primary btn-lg" formaction="{{ url_for('admin.import_confirm') }}" {{ 'disabled' if r.missing }}
+            data-confirm="Importer {{ r.valid }} nouveau(x) candidat(s) ?"><i class="bi bi-check2-circle"></i> Confirmer l'importation</button>
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('admin.imports') }}">Changer de fichier</a>
+  </div>
+</form>
+{% endblock %}

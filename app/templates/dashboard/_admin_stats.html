@@ -1,0 +1,37 @@
+{% from "_macros.html" import stat %}
+<div class="row g-3 mb-3">
+  {{ stat('Total candidats', stats.total, 'people', url_for('candidates.index')) }}
+  {{ stat('Dossiers Kobo conformes', stats.kobo_ok, 'folder-check', url_for('candidates.index', kobo='validated')) }}
+  {{ stat('Dossiers à vérifier', stats.kobo_check, 'folder-symlink', url_for('candidates.index', kobo='pending')) }}
+  {{ stat('Dossiers non conformes', stats.kobo_problem, 'folder-x', url_for('candidates.index', kobo='problem')) }}
+</div>
+<div class="row g-3 mb-3">
+  {{ stat('Motivation terminée', stats.motivation_done, 'check2-circle', url_for('candidates.index', motivation='done')) }}
+  {{ stat('Motivation restante', stats.motivation_left, 'hourglass-split', url_for('candidates.index', motivation='pending')) }}
+  {{ stat('Tests techniques en cours', stats.technical_running, 'stopwatch', url_for('technical.sessions')) }}
+  {{ stat('Tests techniques terminés', stats.technical_done, 'trophy', url_for('candidates.index', technical='done')) }}
+</div>
+{% if stats.kobo_ambiguous %}
+<div class="alert alert-warning d-flex align-items-center gap-2">
+  <i class="bi bi-exclamation-triangle"></i>
+  <div><strong>{{ stats.kobo_ambiguous }} correspondance(s) Kobo à vérifier.</strong>
+    <a href="{{ url_for('kobo.index') }}">Les examiner</a></div>
+</div>
+{% endif %}
+<div class="card">
+  <div class="card-header">Résumé par groupe</div>
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead><tr><th>Groupe</th><th class="text-end">Total</th><th class="text-end">Dossier OK</th>
+        <th class="text-end">Motivation</th><th class="text-end">Technique</th></tr></thead>
+      <tbody>
+      {% for g in groups %}
+        <tr><td class="fw-semibold">{{ g.group }}</td><td class="text-end">{{ g.total }}</td><td class="text-end">{{ g.file_ok }}</td>
+          <td class="text-end">{{ g.motivation }}</td><td class="text-end">{{ g.technical }}</td></tr>
+      {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-4">Aucun candidat. <a href="{{ url_for('admin.imports') }}">Importer un fichier</a></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>

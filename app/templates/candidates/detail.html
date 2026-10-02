@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status, motivation_badge, csrf %}
+{% block title %}{{ c.full_name }}{% endblock %}
+{% block content %}
+{% set sub = c.latest_submission %}
+<div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+  <div>
+    <a class="small text-muted text-decoration-none" href="{{ url_for('candidates.index') }}"><i class="bi bi-arrow-left"></i> Candidats</a>
+    <h1 class="page-title mt-1">{{ c.full_name }}</h1>
+    <div class="d-flex gap-2 mt-2 flex-wrap">
+      {{ status(c.kobo_badge) }}
+      {{ status(('success', 'Motivation terminée') if c.motivation_completed else ('secondary', 'Motivation en attente')) }}
+      {{ status(c.technical_badge) }}
+      <span class="status status-info">{{ c.global_status }}</span>
+    </div>
+  </div>
+  {% if current_user.role == 'admin' %}
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-primary" href="{{ url_for('candidates.edit', candidate_id=c.id) }}"><i class="bi bi-pencil"></i> Modifier</a>
+    <form method="post" action="{{ url_for('candidates.delete', candidate_id=c.id) }}" data-confirm="Supprimer définitivement ce candidat ?">
+      {{ csrf() }}<button class="btn btn-outline-danger"><i class="bi bi-trash"></i></button></form>
+  </div>
+  {% endif %}
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-person"></i> Identité</div>
+      <div class="card-body"><dl class="kv row mb-0">
+        <dt class="col-5">Nom et prénoms</dt><dd class="col-7">{{ c.full_name }}</dd>
+        <dt class="col-5">Sexe</dt><dd class="col-7">{{ c.gender or '—' }}</dd>
+        <dt class="col-5">Date de naissance</dt><dd class="col-7">{{ c.birth_date | d or '—' }}</dd>
+        <dt class="col-5">Ville</dt><dd class="col-7">{{ c.city or '—' }}</dd>
+        <dt class="col-5">CNI</dt><dd class="col-7">{{ c.cni or '—' }}</dd>
+      </dl></div></div>
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-telephone"></i> Contact</div>
+      <div class="card-body"><dl class="kv row mb-0">
+        <dt class="col-5">Email</dt><dd class="col-7 text-break">{{ c.email or '—' }}</dd>
+        <dt class="col-5">Téléphone</dt><dd class="col-7">{{ c.phone or '—' }}</dd>
+      </dl></div></div>
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-calendar-event"></i> Planification</div>
+      <div class="card-body"><dl class="kv row mb-0">
+        <dt class="col-5">N°</dt><dd class="col-7">{{ c.candidate_number or '—' }}</dd>
+        <dt class="col-5">Groupe</dt><dd class="col-7">{{ c.group_name or '—' }}</dd>
+        <dt class="col-5">Date</dt><dd class="col-7">{{ c.scheduled_date | d or '—' }}</dd>
+        <dt class="col-5">Heure</dt><dd class="col-7">{{ c.scheduled_time or '—' }}</dd>
+        <dt class="col-5">Ordre</dt><dd class="col-7">{{ c.passage_order or '—' }}</dd>
+      </dl></div></div>
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-cloud-arrow-down"></i> Kobo</div>
+      <div class="card-body"><dl class="kv row mb-0">
+        <dt class="col-5">Dossier trouvé</dt><dd class="col-7">{{ 'Oui' if sub else 'Non' }}</dd>
+        <dt class="col-5">Statut</dt><dd class="col-7">{{ status(c.kobo_badge) }}</dd>
+        {% if sub %}
+        <dt class="col-5">Soumission</dt><dd class="col-7">{{ sub.submitted_at | dt }}</dd>
+        <dt class="col-5">Correspondance</dt><dd class="col-7">{{ sub.match_field or '—' }}</dd>
+        {% endif %}
+      </dl>
+      {% if sub and current_user.role == 'admin' %}
+      <details class="mt-2"><summary class="small text-muted">Données de la soumission</summary>
+        <dl class="kv row small mt-2 mb-0">
+        {% for k, v in sub.data.items() if not k.startswith('_') %}
+          <dt class="col-5 text-break">{{ k.split('/')[-1] }}</dt><dd class="col-7 text-break">{{ v }}</dd>
+        {% endfor %}</dl></details>
+      {% endif %}
+      </div></div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card mb-3"><div class="card-header d-flex justify-content-between"><span><i class="bi bi-chat-square-text"></i> Examen — test de motivation</span>{{ motivation_badge(c) }}</div>
+      <div class="card-body">
+      {% if can_edit_motivation %}
+        <form method="post" action="{{ url_for('motivation.validate', candidate_id=c.id) }}">
+          {{ csrf() }}
+          <div class="row g-3">
+            <div class="col-sm-6">
+              <label class="form-label" for="piece_number">Numéro de pièce <span class="text-danger">*</span></label>
+              <input class="form-control form-control-lg" id="piece_number" name="piece_number" value="{{ c.piece_number or '' }}" required maxlength="50">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="exam_code">Code examen</label>
+              <input class="form-control form-control-lg text-uppercase" id="exam_code" name="exam_code" value="{{ c.exam_code or '' }}" maxlength="50"
+                     placeholder="Vide = génération automatique">
+              <div class="form-text">Laissez vide pour générer le prochain code automatiquement.</div>
+            </div>
+          </div>
+          <button class="btn btn-primary btn-lg mt-3"><i class="bi bi-check2-circle"></i> Enregistrer et valider</button>
+        </form>
+      {% else %}
+        <dl class="kv row mb-0">
+          <dt class="col-5">Numéro de pièce</dt><dd class="col-7 fs-5">{{ c.piece_number or '—' }}</dd>
+          <dt class="col-5">Code examen</dt><dd class="col-7 fs-5"><code>{{ c.exam_code or '—' }}</code></dd>
+          {% if c.motivation_completed %}
+          <dt class="col-5">Validé le</dt><dd class="col-7">{{ c.motivation_completed_at | dt }}
+            {% if c.motivation_tester %}par {{ c.motivation_tester.display_name }}{% endif %}</dd>
+          {% endif %}
+        </dl>
+      {% endif %}
+      </div></div>
+
+    {% if can_run_technical %}
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-stopwatch"></i> Test technique</div>
+      <div class="card-body">
+      {% if not c.motivation_completed %}
+        <p class="text-muted mb-0"><i class="bi bi-lock"></i> Le test technique sera disponible après validation du test de motivation.</p>
+      {% elif c.active_session or c.technical_completed %}
+        <div data-poll="{{ url_for('technical.panel', candidate_id=c.id) }}">{% include "technical/_panel.html" %}</div>
+      {% else %}
+        <form id="start-test-form" method="post" action="{{ url_for('technical.start', candidate_id=c.id) }}"
+              data-free-url="{{ url_for('technical.free_workstations', room_id=0) }}">
+          {{ csrf() }}
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label" for="room_id">Salle</label>
+              <select class="form-select" id="room_id" name="room_id" required>
+                <option value="">— Choisir —</option>
+                {% for r in rooms %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label" for="workstation_id">Ordinateur libre</label>
+              <select class="form-select" id="workstation_id" name="workstation_id" required><option value="">—</option></select>
+              <div class="form-text js-ws-hint">Choisissez une salle.</div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label" for="duration_minutes">Durée (minutes)</label>
+              <input class="form-control" id="duration_minutes" name="duration_minutes" type="number" min="1" max="480"
+                     value="{{ default_duration }}" list="durations" required>
+              <datalist id="durations">{% for m in [30, 45, 60, 90, 120] %}<option value="{{ m }}">{% endfor %}</datalist>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-lg mt-3" disabled><i class="bi bi-play-fill"></i> Lancer le test</button>
+        </form>
+      {% endif %}
+      {% set history = c.sessions | rejectattr('is_active') | list %}
+      {% if history %}
+        <hr><h3 class="h6">Historique</h3>
+        <ul class="list-unstyled small mb-0">
+        {% for s in history %}<li>{{ status(s.status_badge) }} {{ s.room.name }} / {{ s.workstation.name }} — {{ s.started_at | dt }} → {{ s.finished_at | dt }} ({{ s.elapsed_seconds() | hms }})</li>{% endfor %}
+        </ul>
+      {% endif %}
+      </div></div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

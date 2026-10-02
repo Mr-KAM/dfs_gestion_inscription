@@ -1,0 +1,46 @@
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: db
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "8000"
+    ports:
+      # Local access on http://localhost:8000. On Dokploy, the domain is routed by Traefik
+      # to port 8000; set WEB_PORT to another value if 8000 is already taken on the host.
+      - "${WEB_PORT:-8000}:8000"
+    volumes:
+      - uploads:/app/uploads
+    networks:
+      - internal
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-dfs}
+      POSTGRES_USER: ${POSTGRES_USER:-dfs}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # No "ports": PostgreSQL is never published outside the Docker network.
+    networks:
+      - internal
+
+volumes:
+  pgdata:
+  uploads:
+
+networks:
+  internal:

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Exports{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Exports</h1>
+<div class="row g-3">
+{% for kind, label in exports.items() %}
+  <div class="col-md-6 col-xl-4">
+    <form class="card card-body h-100" method="get" action="{{ url_for('admin.export_download', kind=kind) }}">
+      <h2 class="h6 fw-bold">{{ label }}</h2>
+      {% if kind == 'group' %}
+        <select class="form-select form-select-sm mb-2" name="group" required aria-label="Groupe">
+          <option value="">Choisir un groupe</option>{% for g in groups %}<option>{{ g }}</option>{% endfor %}</select>
+      {% endif %}
+      <div class="mt-auto d-flex gap-2">
+        <button class="btn btn-sm btn-primary" name="format" value="xlsx"><i class="bi bi-file-earmark-excel"></i> Excel</button>
+        <button class="btn btn-sm btn-outline-primary" name="format" value="csv"><i class="bi bi-filetype-csv"></i> CSV</button>
+      </div>
+    </form>
+  </div>
+{% endfor %}
+</div>
+{% endblock %}

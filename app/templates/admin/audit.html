@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% from "_macros.html" import pagination %}
+{% block title %}Audit{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h1 class="page-title">Journal d'audit</h1>
+  <form method="get"><select class="form-select form-select-sm" name="action" onchange="this.form.submit()" aria-label="Filtrer par action">
+    <option value="">Toutes les actions</option>
+    {% for k, l in labels.items() %}<option value="{{ k }}" {{ 'selected' if action == k }}>{{ l }}</option>{% endfor %}
+  </select></form>
+</div>
+<div class="card"><div class="table-responsive">
+  <table class="table table-sm table-hover">
+    <thead><tr><th>Date</th><th>Utilisateur</th><th>Action</th><th>Objet</th><th>Détails</th><th>IP</th></tr></thead>
+    <tbody>
+    {% for log in page.items %}
+      <tr><td class="text-nowrap">{{ log.created_at | dt('%d/%m/%Y %H:%M:%S') }}</td>
+        <td>{{ log.user.email if log.user else '—' }}</td>
+        <td>{{ labels.get(log.action, log.action) }}</td>
+        <td>{{ log.entity_type or '' }} {{ ('#' ~ log.entity_id) if log.entity_id }}</td>
+        <td class="small text-break" style="max-width:420px">{% if log.details %}{% for k, v in log.details.items() %}<span class="text-muted">{{ k }}</span>={{ v }}{{ ', ' if not loop.last }}{% endfor %}{% endif %}</td>
+        <td class="small">{{ log.ip_address or '' }}</td></tr>
+    {% else %}<tr><td colspan="6" class="text-center text-muted py-4">Aucune entrée.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div></div>
+{{ pagination(page, request.args.to_dict()) }}
+{% endblock %}

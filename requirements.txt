@@ -1,0 +1,15 @@
+Flask==3.1.2
+Flask-SQLAlchemy==3.1.1
+Flask-Migrate==4.1.0
+Flask-Login==0.6.3
+Flask-WTF==1.2.2
+SQLAlchemy==2.0.43
+psycopg[binary]==3.2.10
+gunicorn==23.0.0
+pandas==2.3.3
+openpyxl==3.1.5
+xlrd==2.0.2
+httpx==0.28.1
+cryptography==45.0.7
+tzdata==2025.2
+pytest==8.4.2

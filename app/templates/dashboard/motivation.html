@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Dashboard motivation{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h1 class="page-title">Candidats du {{ day | d }}</h1>
+  <a class="btn btn-primary" href="{{ url_for('motivation.index') }}"><i class="bi bi-chat-square-text"></i> Liste motivation</a>
+</div>
+<div data-poll="{{ url_for('dashboard.index', partial=1) }}" data-poll-interval="10000">
+  {% include "dashboard/_motivation_stats.html" %}
+</div>
+{% endblock %}
