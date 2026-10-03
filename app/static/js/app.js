@@ -76,6 +76,46 @@
     if (msg && !window.confirm(msg)) e.preventDefault();
   });
 
+  // Copy to clipboard: <button class="js-copy" data-copy="text">. navigator.clipboard needs HTTPS or
+  // localhost; the textarea fallback covers plain-HTTP access on the local network.
+  async function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    const ok = document.execCommand("copy");
+    area.remove();
+    if (!ok) throw new Error("copy failed");
+  }
+
+  document.addEventListener("click", async (e) => {
+    const btn = e.target.closest(".js-copy");
+    if (!btn) return;
+    // Local message on the candidate page; shared screen-reader region (base.html) in table rows.
+    const status = btn.parentElement.querySelector(".js-copy-status") || document.getElementById("copy-status");
+    const icon = btn.querySelector("i");
+    try {
+      await copyText(btn.dataset.copy);
+      icon.className = "bi bi-clipboard-check";
+      btn.classList.replace("btn-outline-primary", "btn-outline-success");
+      if (status) status.textContent = "Copié dans le presse-papier.";
+    } catch (err) {
+      if (status) status.textContent = "Copie impossible : sélectionnez le texte manuellement.";
+    }
+    setTimeout(() => {
+      icon.className = "bi bi-clipboard";
+      btn.classList.replace("btn-outline-success", "btn-outline-primary");
+      if (status) status.textContent = "";
+    }, 2500);
+  });
+
   // Mobile sidebar toggle.
   document.addEventListener("click", (e) => {
     if (e.target.closest(".js-sidebar-toggle")) document.querySelector(".sidebar")?.classList.toggle("open");

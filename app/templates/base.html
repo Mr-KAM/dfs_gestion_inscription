@@ -73,6 +73,7 @@
 {% else %}
   {% block public %}{% endblock %}
 {% endif %}
+<div id="copy-status" class="visually-hidden" role="status" aria-live="polite"></div>
 <script src="{{ url_for('static', filename='vendor/bootstrap.bundle.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>

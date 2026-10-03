@@ -69,3 +69,25 @@ def test_http_validation_and_technical_visibility(client, app, db, motivation_us
     assert "DFS-X9" in page
     assert client.get(f"/candidates/{c.id}").status_code == 200
     assert client.get(f"/candidates/{c.id}/edit").status_code == 403
+
+
+def test_copy_button_after_validation(client, motivation_user):
+    c = make_candidate(full_name='KONE "Awa" <script>')
+    login(client, motivation_user)
+    assert "js-copy" not in client.get(f"/candidates/{c.id}").get_data(as_text=True)  # nothing saved yet
+    page = client.post(f"/motivation/{c.id}/validate", data={"piece_number": "P-7", "exam_code": "dfs-Ab1"},
+                       follow_redirects=True).get_data(as_text=True)
+    assert ('data-copy="Nom et prénoms : KONE &#34;Awa&#34; &lt;script&gt;\n'
+            'Numéro de pièce : P-7\nCode examen : dfs-Ab1"') in page
+
+
+@pytest.mark.parametrize("role", ["admin", "supervisor", "motivation_tester", "technical_tester"])
+def test_copy_button_in_candidate_list(client, app, role):
+    from tests.conftest import make_user
+    make_candidate(email="a@t.ci", cni="A", full_name="KONE Awa", motivation_completed=True,
+                   exam_code="dfs-Ab1", piece_number="P-7")
+    make_candidate(email="b@t.ci", cni="B", full_name="YAO Serge")  # not validated: no button
+    login(client, make_user(role))
+    page = client.get("/candidates/").get_data(as_text=True)
+    expected = 'data-copy="Nom et prénoms : KONE Awa\nNuméro de pièce : P-7\nCode examen : dfs-Ab1"'
+    assert page.count("js-copy") == 1 and expected in page

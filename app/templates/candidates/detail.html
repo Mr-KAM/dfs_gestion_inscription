@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import status, motivation_badge, csrf %}
+{% from "_macros.html" import status, motivation_badge, csrf, copy_button %}
 {% block title %}{{ c.full_name }}{% endblock %}
 {% block content %}
 {% set sub = c.latest_submission %}
@@ -95,6 +95,7 @@
           {% endif %}
         </dl>
       {% endif %}
+      {{ copy_button(c) }}
       </div></div>
 
     {% if can_run_technical %}

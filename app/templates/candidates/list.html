@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import status, motivation_badge, sort_th, pagination, timer %}
+{% from "_macros.html" import status, motivation_badge, sort_th, pagination, timer, copy_button %}
 {% block title %}{{ title }}{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
@@ -89,7 +89,7 @@
           <td class="fw-semibold">{{ c.full_name }}</td><td>{{ c.gender or '' }}</td><td>{{ c.email or '' }}</td><td>{{ c.phone or '' }}</td>
           <td>{{ c.city or '' }}</td><td>{{ c.cni or '' }}</td><td>{{ status(c.kobo_badge) }}</td><td>{{ c.piece_number or '' }}</td>
           <td><code>{{ c.exam_code or '' }}</code></td><td>{{ motivation_badge(c) }}</td>
-          <td class="text-end"><a class="btn btn-sm btn-primary" href="{{ open_url }}">{{ 'Voir' if c.motivation_completed else 'Évaluer' }}</a></td>
+          <td class="text-end text-nowrap">{{ copy_button(c, compact=True) }} <a class="btn btn-sm btn-primary" href="{{ open_url }}">{{ 'Voir' if c.motivation_completed else 'Évaluer' }}</a></td>
         {% elif view == 'technical' %}
           <td class="fw-semibold">{{ c.full_name }}</td><td>{{ c.group_name or '' }}</td><td><code>{{ c.exam_code }}</code></td>
           <td>{{ c.piece_number or '' }}</td><td>{{ status(c.kobo_badge) }}</td>
@@ -97,13 +97,14 @@
           <td>{{ (s.duration_seconds // 60 ~ ' min') if s else '' }}</td>
           <td>{% if s and s.is_active %}{{ timer(s) }}{% endif %}</td>
           <td>{{ status(c.technical_badge) }}</td>
-          <td class="text-end"><a class="btn btn-sm btn-primary" href="{{ open_url }}">Ouvrir</a></td>
+          <td class="text-end text-nowrap">{{ copy_button(c, compact=True) }} <a class="btn btn-sm btn-primary" href="{{ open_url }}">Ouvrir</a></td>
         {% else %}
           <td>{{ c.candidate_number or '' }}</td><td>{{ c.group_name or '' }}</td><td>{{ c.passage_order or '' }}</td>
           <td class="fw-semibold">{{ c.full_name }}</td><td>{{ c.gender or '' }}</td><td>{{ c.phone or '' }}</td><td>{{ c.cni or '' }}</td>
           <td>{{ status(c.kobo_badge) }}</td><td>{{ motivation_badge(c) }}</td><td><code>{{ c.exam_code or '' }}</code></td>
           <td>{{ status(c.technical_badge) }}</td><td>{{ s.room.name if s else '' }}</td><td>{{ s.workstation.name if s else '' }}</td>
           <td class="text-end text-nowrap">
+            {{ copy_button(c, compact=True) }}
             <a class="btn btn-sm btn-outline-primary" href="{{ open_url }}" title="Ouvrir"><i class="bi bi-eye"></i></a>
             {% if current_user.role == 'admin' %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('candidates.edit', candidate_id=c.id) }}" title="Modifier"><i class="bi bi-pencil"></i></a>{% endif %}
           </td>

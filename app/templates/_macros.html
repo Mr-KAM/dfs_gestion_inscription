@@ -47,3 +47,21 @@
   </nav>
   {% else %}<small class="text-muted d-block mt-3">{{ page.total }} résultat(s)</small>{% endif %}
 {%- endmacro %}
+
+{# Copies "Nom et prénoms / Numéro de pièce / Code examen" once the motivation is validated (saved values only). #}
+{% macro copy_button(c, compact=False) -%}
+  {% if c.motivation_completed and c.exam_code %}
+    {% set text = "Nom et prénoms : " ~ c.full_name ~ "\nNuméro de pièce : " ~ (c.piece_number or "") ~ "\nCode examen : " ~ c.exam_code %}
+    {% if compact %}
+      <button type="button" class="btn btn-sm btn-outline-primary js-copy" data-copy="{{ text }}"
+              title="Copier nom, pièce et code" aria-label="Copier nom, pièce et code de {{ c.full_name }}"><i class="bi bi-clipboard"></i></button>
+    {% else %}
+      <div class="d-flex align-items-center gap-2 mt-3 pt-3 border-top">
+        <button type="button" class="btn btn-outline-primary js-copy" data-copy="{{ text }}">
+          <i class="bi bi-clipboard"></i> Copier nom, pièce et code
+        </button>
+        <span class="small text-muted js-copy-status" role="status" aria-live="polite"></span>
+      </div>
+    {% endif %}
+  {% endif %}
+{%- endmacro %}
