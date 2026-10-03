@@ -105,7 +105,7 @@
           <td>{{ status(c.technical_badge) }}</td><td>{{ s.room.name if s else '' }}</td><td>{{ s.workstation.name if s else '' }}</td>
           <td class="text-end text-nowrap">
             <a class="btn btn-sm btn-outline-primary" href="{{ open_url }}" title="Ouvrir"><i class="bi bi-eye"></i></a>
-            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('candidates.edit', candidate_id=c.id) }}" title="Modifier"><i class="bi bi-pencil"></i></a>
+            {% if current_user.role == 'admin' %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('candidates.edit', candidate_id=c.id) }}" title="Modifier"><i class="bi bi-pencil"></i></a>{% endif %}
           </td>
         {% endif %}
         </tr>

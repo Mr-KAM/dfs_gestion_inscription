@@ -6,12 +6,11 @@ from sqlalchemy.orm import selectinload
 from app.candidates import get_visible_candidate
 from app.extensions import db
 from app.models import Room, TechnicalTestSession
-from app.models.user import ROLE_ADMIN, ROLE_TECHNICAL
+from app.models.user import TECHNICAL_ROLES
 from app.services import candidate_service, timer_service
 from app.utils import roles_required
 
 bp = Blueprint("technical", __name__, url_prefix="/technical")
-TECH_ROLES = (ROLE_ADMIN, ROLE_TECHNICAL)
 ACTIONS = {
     "pause": (timer_service.pause, "Test mis en pause."),
     "resume": (timer_service.resume, "Test repris."),
@@ -21,14 +20,14 @@ ACTIONS = {
 
 
 @bp.get("/sessions")
-@roles_required(*TECH_ROLES)
+@roles_required(*TECHNICAL_ROLES)
 def sessions():
     template = "technical/_sessions.html" if request.args.get("partial") else "technical/sessions.html"
     return render_template(template, sessions=timer_service.active_sessions())
 
 
 @bp.get("/rooms")
-@roles_required(*TECH_ROLES)
+@roles_required(*TECHNICAL_ROLES)
 def rooms():
     stmt = select(Room).options(selectinload(Room.workstations)).where(Room.active.is_(True)).order_by(Room.name)
     all_rooms = db.session.scalars(stmt).all()
@@ -40,20 +39,20 @@ def rooms():
 
 
 @bp.get("/rooms/<int:room_id>/free.json")
-@roles_required(*TECH_ROLES)
+@roles_required(*TECHNICAL_ROLES)
 def free_workstations(room_id: int):
     return jsonify([{"id": w.id, "name": w.name} for w in timer_service.free_workstations(room_id)])
 
 
 @bp.get("/candidate/<int:candidate_id>/panel")
-@roles_required(*TECH_ROLES)
+@roles_required(*TECHNICAL_ROLES)
 def panel(candidate_id: int):
     """Polled fragment: live chronometer + controls for the candidate's session."""
     return render_template("technical/_panel.html", c=get_visible_candidate(candidate_id))
 
 
 @bp.post("/start/<int:candidate_id>")
-@roles_required(*TECH_ROLES)
+@roles_required(*TECHNICAL_ROLES)
 def start(candidate_id: int):
     get_visible_candidate(candidate_id)
     try:
@@ -68,7 +67,7 @@ def start(candidate_id: int):
 
 
 @bp.post("/session/<int:session_id>/<action>")
-@roles_required(*TECH_ROLES)
+@roles_required(*TECHNICAL_ROLES)
 def control(session_id: int, action: str):
     if action not in ACTIONS:
         return redirect(url_for("technical.sessions"))

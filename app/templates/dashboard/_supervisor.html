@@ -1,0 +1,5 @@
+{# Supervisor = motivation + technical views side by side (polled every 5 s). #}
+<div class="eyebrow mb-2">Test de motivation — {{ day | d }}</div>
+{% with stats = mstats %}{% include "dashboard/_motivation_stats.html" %}{% endwith %}
+<div class="eyebrow mt-4 mb-2">Tests techniques</div>
+{% with stats = tstats %}{% include "dashboard/_technical_live.html" %}{% endwith %}

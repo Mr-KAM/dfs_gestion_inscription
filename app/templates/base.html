@@ -43,9 +43,11 @@
         {{ nav('candidates.index', 'people', 'Candidats', 'candidates.') }}
         {{ nav('motivation.index', 'chat-square-text', 'Motivation') }}
       {% endif %}
-      {% if role == 'admin' %}
+      {% if role in ('admin', 'supervisor') %}
         {{ nav('technical.sessions', 'stopwatch', 'Tests techniques') }}
         {{ nav('technical.rooms', 'grid-3x3-gap', 'Vue des salles') }}
+      {% endif %}
+      {% if role == 'admin' %}
         <div class="nav-section">Administration</div>
         {{ nav('admin.rooms', 'pc-display', 'Salles & ordinateurs') }}
         {{ nav('kobo.index', 'cloud-arrow-down', 'KoboToolbox', 'kobo.') }}

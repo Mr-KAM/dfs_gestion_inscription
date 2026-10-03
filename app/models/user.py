@@ -7,11 +7,17 @@ from app.utils import utcnow
 ROLE_ADMIN = "admin"
 ROLE_MOTIVATION = "motivation_tester"
 ROLE_TECHNICAL = "technical_tester"
+ROLE_SUPERVISOR = "supervisor"
 ROLES = {
     ROLE_ADMIN: "Administrateur",
+    ROLE_SUPERVISOR: "Superviseur",
     ROLE_MOTIVATION: "Testeur motivation",
     ROLE_TECHNICAL: "Testeur technique",
 }
+# Who may do what. The supervisor combines both tester profiles, without any admin right.
+MOTIVATION_ROLES = (ROLE_ADMIN, ROLE_SUPERVISOR, ROLE_MOTIVATION)
+TECHNICAL_ROLES = (ROLE_ADMIN, ROLE_SUPERVISOR, ROLE_TECHNICAL)
+ALL_ROLES = tuple(ROLES)
 
 
 class User(UserMixin, db.Model):
@@ -27,7 +33,9 @@ class User(UserMixin, db.Model):
     last_login_at = db.Column(db.DateTime(timezone=True))
 
     __table_args__ = (
-        db.CheckConstraint(f"role IN ('{ROLE_ADMIN}', '{ROLE_MOTIVATION}', '{ROLE_TECHNICAL}')", name="role"),
+        db.CheckConstraint(
+            f"role IN ('{ROLE_ADMIN}', '{ROLE_SUPERVISOR}', '{ROLE_MOTIVATION}', '{ROLE_TECHNICAL}')", name="role"
+        ),
     )
 
     def set_password(self, password: str) -> None:

@@ -16,7 +16,7 @@ from app.models.user import ROLE_ADMIN
 from app.services import audit_service, settings_service
 from app.utils import utcnow
 
-EXAM_CODE_RE = re.compile(r"^[A-Z0-9][A-Z0-9_\-/.]{0,49}$")
+EXAM_CODE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_\-/.]{0,49}$")
 
 
 class BusinessError(Exception):
@@ -118,6 +118,11 @@ def distinct_groups() -> list[str]:
 
 # ---------------------------------------------------------------- exam codes
 
+def normalize_exam_code(value) -> str:
+    """Exam codes are case-sensitive: kept exactly as typed, only surrounding spaces are removed."""
+    return str(value or "").strip()
+
+
 def next_exam_code() -> str:
     fmt = settings_service.get("exam_code_format") or "{prefix}-{year}-{seq:04d}"
     params = {"prefix": settings_service.get("exam_code_prefix"), "year": settings_service.get("campaign_year")}
@@ -125,7 +130,7 @@ def next_exam_code() -> str:
     pattern = re.compile("^" + re.escape(head) + r"(\d+)")
     existing = db.session.scalars(select(Candidate.exam_code).where(Candidate.exam_code.startswith(head)))
     last = max((int(m.group(1)) for code in existing if (m := pattern.match(code))), default=0)
-    return fmt.format(seq=last + 1, **params)
+    return normalize_exam_code(fmt.format(seq=last + 1, **params))
 
 
 def validate_motivation(candidate: Candidate, piece_number: str, exam_code: str, user: User) -> Candidate:
@@ -139,7 +144,7 @@ def validate_motivation(candidate: Candidate, piece_number: str, exam_code: str,
     if len(piece_number) > 50:
         raise BusinessError("Le numéro de pièce est trop long (50 caractères max).")
 
-    exam_code = (exam_code or "").strip().upper()
+    exam_code = normalize_exam_code(exam_code)
     generated = not exam_code
     if exam_code and not EXAM_CODE_RE.match(exam_code):
         raise BusinessError("Code examen invalide : lettres, chiffres et - _ / . uniquement (50 max).")

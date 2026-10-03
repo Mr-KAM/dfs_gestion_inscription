@@ -7,12 +7,11 @@ from sqlalchemy import select
 from app.extensions import db
 from app.models import Candidate, Room
 from app.models.candidate import FILE_STATUSES
-from app.models.user import ROLE_ADMIN, ROLE_MOTIVATION, ROLE_TECHNICAL
+from app.models.user import ALL_ROLES, MOTIVATION_ROLES, ROLE_ADMIN, ROLE_MOTIVATION, ROLE_TECHNICAL, TECHNICAL_ROLES  # noqa: E501
 from app.services import audit_service, candidate_service, settings_service
 from app.utils import norm_email, norm_phone, roles_required
 
 bp = Blueprint("candidates", __name__, url_prefix="/candidates")
-ALL_ROLES = (ROLE_ADMIN, ROLE_MOTIVATION, ROLE_TECHNICAL)
 
 
 def render_list(view: str, title: str, defaults: dict | None = None):
@@ -51,9 +50,10 @@ def detail(candidate_id: int):
     return render_template(
         "candidates/detail.html", c=candidate, rooms=rooms,
         default_duration=settings_service.get_int("technical_duration", current_app.config["DEFAULT_TECHNICAL_TEST_DURATION"]),
+        # Only an admin may correct an already validated motivation.
         can_edit_motivation=current_user.role == ROLE_ADMIN or (
-            current_user.role == ROLE_MOTIVATION and not candidate.motivation_completed),
-        can_run_technical=current_user.role in (ROLE_ADMIN, ROLE_TECHNICAL),
+            current_user.role in MOTIVATION_ROLES and not candidate.motivation_completed),
+        can_run_technical=current_user.role in TECHNICAL_ROLES,
     )
 
 

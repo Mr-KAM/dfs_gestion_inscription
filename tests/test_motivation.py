@@ -17,7 +17,7 @@ def test_validate_with_manual_code(app, db, motivation_user):
     c = make_candidate()
     candidate_service.validate_motivation(c, "P-42", "dfs-2026-0042", motivation_user)
     c = db.session.get(Candidate, c.id)
-    assert c.motivation_completed and c.exam_code == "DFS-2026-0042" and c.piece_number == "P-42"
+    assert c.motivation_completed and c.exam_code == "dfs-2026-0042" and c.piece_number == "P-42"
     assert c.motivation_completed_by == motivation_user.id and c.motivation_completed_at
     actions = {a.action for a in db.session.query(AuditLog)}
     assert {"motivation_validate", "exam_code_create"} <= actions

@@ -4,7 +4,7 @@ from flask_login import current_user
 from app.candidates import render_list
 from app.extensions import db
 from app.models import Candidate
-from app.models.user import ROLE_ADMIN, ROLE_MOTIVATION
+from app.models.user import MOTIVATION_ROLES
 from app.services import candidate_service
 from app.utils import roles_required
 
@@ -12,7 +12,7 @@ bp = Blueprint("motivation", __name__, url_prefix="/motivation")
 
 
 @bp.get("/")
-@roles_required(ROLE_ADMIN, ROLE_MOTIVATION)
+@roles_required(*MOTIVATION_ROLES)
 def index():
     """Today's candidates still waiting for the motivation interview (filters editable)."""
     defaults = {"date": candidate_service.today().isoformat(), "motivation": "pending", "sort": "order"}
@@ -20,7 +20,7 @@ def index():
 
 
 @bp.post("/<int:candidate_id>/validate")
-@roles_required(ROLE_ADMIN, ROLE_MOTIVATION)
+@roles_required(*MOTIVATION_ROLES)
 def validate(candidate_id: int):
     candidate = db.get_or_404(Candidate, candidate_id)
     try:

@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 
 from app.extensions import db
 from app.models import Candidate, Room, User, Workstation
-from app.models.user import ROLE_ADMIN, ROLE_MOTIVATION, ROLE_TECHNICAL
+from app.models.user import ROLE_ADMIN, ROLE_MOTIVATION, ROLE_SUPERVISOR, ROLE_TECHNICAL
 
 
 def ensure_admin() -> str:
@@ -65,6 +65,7 @@ def register_cli(app: Flask) -> None:
         from app.services.candidate_service import today
 
         for email, name, role in [
+            ("superviseur@demo.local", "Mariam Diabaté", ROLE_SUPERVISOR),
             ("motivation1@demo.local", "Awa Koné", ROLE_MOTIVATION),
             ("motivation2@demo.local", "Yao Kouassi", ROLE_MOTIVATION),
             ("technique1@demo.local", "Fatou Traoré", ROLE_TECHNICAL),

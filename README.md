@@ -31,6 +31,7 @@ Flask · PostgreSQL · SQLAlchemy 2 · Alembic · Gunicorn · Bootstrap 5 + Spac
 | Rôle | Ce qu'il fait |
 |---|---|
 | `admin` | Tout : utilisateurs, imports, Kobo, salles/ordinateurs, exports, audit, paramètres, correction des données |
+| `supervisor` | **Superviseur** : cumule tout ce que font le testeur motivation et le testeur technique (voit tous les candidats, valide la motivation, lance et pilote les tests) avec un dashboard combiné. **Aucun droit d'administration** : ni utilisateurs, imports, exports, Kobo, salles, audit, paramètres, ni modification/suppression de candidat, ni correction d'une motivation déjà validée |
 | `motivation_tester` | Voit les candidats, saisit **numéro de pièce + code examen** → « Motivation terminée » |
 | `technical_tester` | Voit **uniquement** les candidats ayant terminé la motivation, attribue salle + ordinateur, pilote le chrono. Ne peut modifier ni l'identité, ni le code examen, ni le numéro de pièce |
 
@@ -86,8 +87,8 @@ Statut global du candidat (Planifié → Présent → Dossier vérifié → Éli
 | `/` | dashboard selon le rôle |
 | `/candidates/`, `/candidates/<id>` | tous (testeur technique : éligibles uniquement) |
 | `/candidates/new`, `/<id>/edit`, `/<id>/delete` | admin |
-| `/motivation/`, `/motivation/<id>/validate` | admin, motivation |
-| `/technical/sessions`, `/technical/rooms`, `/technical/start/<id>`, `/technical/session/<id>/<pause\|resume\|stop\|complete>` | admin, technique |
+| `/motivation/`, `/motivation/<id>/validate` | admin, superviseur, motivation |
+| `/technical/sessions`, `/technical/rooms`, `/technical/start/<id>`, `/technical/session/<id>/<pause\|resume\|stop\|complete>` | admin, superviseur, technique |
 | `/admin/users`, `/admin/rooms`, `/admin/imports`, `/admin/exports`, `/admin/audit`, `/admin/settings`, `/admin/kobo/` | admin |
 | `/health` | public (JSON) |
 
@@ -107,10 +108,10 @@ Le port 8000 est déjà pris sur votre machine ? `WEB_PORT=8010 docker compose u
 Données de démonstration (jamais lancées automatiquement) :
 
 ```bash
-docker compose exec web flask seed      # 4 testeurs, 2 salles × 10 PC, 20 candidats du jour
+docker compose exec web flask seed      # 1 superviseur, 4 testeurs, 2 salles × 10 PC, 20 candidats du jour
 ```
 
-Comptes de démo : `motivation1@demo.local`, `motivation2@demo.local`, `technique1@demo.local`, `technique2@demo.local`, mot de passe `Demo1234!`. Avec `FLASK_ENV=production`, la commande exige `--force`.
+Comptes de démo : `superviseur@demo.local`, `motivation1@demo.local`, `motivation2@demo.local`, `technique1@demo.local`, `technique2@demo.local`, mot de passe `Demo1234!`. Avec `FLASK_ENV=production`, la commande exige `--force`.
 
 ### Sans Docker (développement)
 
@@ -244,7 +245,7 @@ pytest                                                   # SQLite en mémoire
 TEST_DATABASE_URL=postgresql+psycopg://dfs:pw@localhost:5432/dfs_test pytest   # PostgreSQL réel
 ```
 
-Couverture : authentification et rôles, CSRF, imports CSV/Excel/colonnes manquantes/doublons, motivation (pièce, format et unicité du code, génération), chrono (démarrage, pause, reprise, arrêt, fin, PC occupé, contrainte base), Kobo (pagination, correspondances, ambiguïtés, erreurs API, token chiffré).
+Couverture : authentification et rôles (dont les limites du superviseur), CSRF, imports CSV/Excel/colonnes manquantes/doublons, motivation (pièce, format et unicité du code, génération), chrono (démarrage, pause, reprise, arrêt, fin, PC occupé, contrainte base), Kobo (pagination, correspondances, ambiguïtés, erreurs API, token chiffré).
 
 ## Dépannage
 
