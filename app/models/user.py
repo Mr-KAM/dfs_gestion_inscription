@@ -17,7 +17,11 @@ ROLES = {
 # Who may do what. The supervisor combines both tester profiles, without any admin right.
 MOTIVATION_ROLES = (ROLE_ADMIN, ROLE_SUPERVISOR, ROLE_MOTIVATION)
 TECHNICAL_ROLES = (ROLE_ADMIN, ROLE_SUPERVISOR, ROLE_TECHNICAL)
-ALL_ROLES = tuple(ROLES)
+ALL_ROLES = tuple(ROLES)  # staff only: candidates are never granted a staff page
+
+# Candidates log in to their own space only; never part of ROLES / ALL_ROLES.
+ROLE_CANDIDATE = "candidate"
+ROLE_LABELS = {**ROLES, ROLE_CANDIDATE: "Candidat"}
 
 
 class User(UserMixin, db.Model):
@@ -31,11 +35,20 @@ class User(UserMixin, db.Model):
     active = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
     last_login_at = db.Column(db.DateTime(timezone=True))
+    # Set for accounts created with the shared default password: forces a change at first login.
+    must_change_password = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
+    # use_alter: users <-> candidates reference each other (motivation_completed_by), so this FK is added last.
+    candidate_id = db.Column(db.Integer, db.ForeignKey("candidates.id", ondelete="CASCADE", use_alter=True), unique=True)
+
+    candidate = db.relationship("Candidate", back_populates="account", foreign_keys=[candidate_id])
 
     __table_args__ = (
         db.CheckConstraint(
-            f"role IN ('{ROLE_ADMIN}', '{ROLE_SUPERVISOR}', '{ROLE_MOTIVATION}', '{ROLE_TECHNICAL}')", name="role"
+            f"role IN ('{ROLE_ADMIN}', '{ROLE_SUPERVISOR}', '{ROLE_MOTIVATION}', '{ROLE_TECHNICAL}', '{ROLE_CANDIDATE}')",
+            name="role",
         ),
+        # A candidate account is always tied to exactly one candidate; staff accounts never are.
+        db.CheckConstraint(f"(role = '{ROLE_CANDIDATE}') = (candidate_id IS NOT NULL)", name="candidate_link"),
     )
 
     def set_password(self, password: str) -> None:
@@ -50,7 +63,11 @@ class User(UserMixin, db.Model):
 
     @property
     def role_label(self) -> str:
-        return ROLES.get(self.role, self.role)
+        return ROLE_LABELS.get(self.role, self.role)
+
+    @property
+    def is_candidate(self) -> bool:
+        return self.role == ROLE_CANDIDATE
 
     @property
     def display_name(self) -> str:

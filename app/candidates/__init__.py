@@ -8,7 +8,7 @@ from app.extensions import db
 from app.models import Candidate, Room
 from app.models.candidate import FILE_STATUSES
 from app.models.user import ALL_ROLES, MOTIVATION_ROLES, ROLE_ADMIN, ROLE_MOTIVATION, ROLE_TECHNICAL, TECHNICAL_ROLES  # noqa: E501
-from app.services import audit_service, candidate_service, settings_service
+from app.services import account_service, audit_service, candidate_service, settings_service
 from app.utils import norm_email, norm_phone, roles_required
 
 bp = Blueprint("candidates", __name__, url_prefix="/candidates")
@@ -98,6 +98,7 @@ def create():
             _apply_form(candidate, request.form)
             db.session.add(candidate)
             db.session.flush()
+            account_service.sync_account(candidate)
             audit_service.log("candidate_create", candidate, {"full_name": candidate.full_name})
             db.session.commit()
             flash("Candidat créé.", "success")
@@ -115,6 +116,7 @@ def edit(candidate_id: int):
     if request.method == "POST":
         try:
             _apply_form(candidate, request.form)
+            account_service.sync_account(candidate)  # login follows the email
             audit_service.log("candidate_update", candidate, {"fields": sorted(k for k in request.form if k != "csrf_token")})
             db.session.commit()
             flash("Candidat mis à jour.", "success")
@@ -137,3 +139,15 @@ def delete(candidate_id: int):
     db.session.commit()
     flash("Candidat supprimé.", "success")
     return redirect(url_for("candidates.index"))
+
+
+@bp.post("/<int:candidate_id>/reset-password")
+@roles_required(ROLE_ADMIN)
+def reset_password(candidate_id: int):
+    """Admin support: put the candidate's login back on the initial password (change forced at next login)."""
+    candidate = db.get_or_404(Candidate, candidate_id)
+    if candidate.account is None:
+        abort(404)
+    account_service.reset_password(candidate.account)
+    flash("Mot de passe réinitialisé au mot de passe initial.", "success")
+    return redirect(url_for("candidates.detail", candidate_id=candidate.id))

@@ -55,6 +55,9 @@ class Config:
     ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "")
     ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
 
+    # Initial password of candidate accounts (changed by the candidate at first login).
+    CANDIDATE_DEFAULT_PASSWORD = os.environ.get("CANDIDATE_DEFAULT_PASSWORD", "00000000")
+
     DEFAULT_TECHNICAL_TEST_DURATION = int(os.environ.get("DEFAULT_TECHNICAL_TEST_DURATION", "60"))
     APP_NAME = os.environ.get("APP_NAME", "DFS Recruitment & Testing")
     TIMEZONE = os.environ.get("TIMEZONE", "Africa/Abidjan")

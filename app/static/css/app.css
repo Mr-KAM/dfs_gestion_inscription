@@ -170,3 +170,4 @@ a.stat-card:hover { border-color: var(--dfs-blue); }
 /* Keep row actions reachable when wide tables scroll horizontally */
 .table-responsive .table td:last-child.text-end { position: sticky; right: 0; background: var(--bs-table-bg); box-shadow: -8px 0 8px -8px rgba(20, 23, 47, .18); }
 .table-hover > tbody > tr:hover > td:last-child.text-end { background: var(--dfs-blue-light); }
+.login-links:not(:empty) { margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--dfs-border); font-size: .85rem; line-height: 1.7; }

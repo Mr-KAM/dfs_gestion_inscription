@@ -34,6 +34,10 @@
 <div class="d-flex">
   <nav class="sidebar p-2 flex-shrink-0">
     <div class="nav flex-column gap-1">
+      {% if role == 'candidate' %}
+        {{ nav('portal.home', 'house', 'Mon espace') }}
+        {{ nav('portal.password', 'key', 'Mot de passe') }}
+      {% else %}
       {{ nav('dashboard.index', 'speedometer2', 'Dashboard') }}
       {% if role == 'technical_tester' %}
         {{ nav('candidates.index', 'people', 'Candidats éligibles', 'candidates.') }}
@@ -56,6 +60,7 @@
         {{ nav('admin.exports', 'download', 'Exports') }}
         {{ nav('admin.audit', 'journal-text', 'Audit') }}
         {{ nav('admin.settings', 'gear', 'Paramètres') }}
+      {% endif %}
       {% endif %}
     </div>
   </nav>

@@ -19,5 +19,6 @@ login_manager = LoginManager()
 csrf = CSRFProtect()
 
 login_manager.login_view = "auth.login"
+login_manager.blueprint_login_views = {"portal": "portal.login"}  # candidates get their own login page
 login_manager.login_message = "Veuillez vous connecter pour accéder à cette page."
 login_manager.login_message_category = "warning"

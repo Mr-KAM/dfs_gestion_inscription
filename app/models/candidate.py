@@ -62,6 +62,9 @@ class Candidate(db.Model):
         "TechnicalTestSession", back_populates="candidate", cascade="all, delete-orphan",
         order_by="TechnicalTestSession.created_at",
     )
+    # Login of the candidate's own space (deleted with the candidate).
+    account = db.relationship("User", back_populates="candidate", uselist=False, cascade="all, delete-orphan",
+                              foreign_keys="User.candidate_id")
     kobo_submissions = db.relationship(
         "KoboSubmission", back_populates="candidate", order_by="KoboSubmission.submitted_at",
     )

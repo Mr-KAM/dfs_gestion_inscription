@@ -1,0 +1,23 @@
+{% extends "_auth_layout.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}Espace candidat{% endblock %}
+{% block eyebrow %}Recrutement DFS{% endblock %}
+{% block hero_title %}Espace<br>candidat{% endblock %}
+{% block hero_text %}Retrouvez votre convocation, l'état de votre dossier et vos étapes de recrutement.{% endblock %}
+{% block card_title %}Accès candidat{% endblock %}
+{% block card_sub %}Connexion par email{% endblock %}
+{% block form %}
+<form method="post" novalidate>
+  {{ csrf() }}
+  <label class="visually-hidden" for="email">Email</label>
+  <input class="form-control mb-3" type="email" id="email" name="email" placeholder="Email" autocomplete="username"
+         value="{{ request.form.get('email', '') }}" required autofocus>
+  <label class="visually-hidden" for="password">Mot de passe</label>
+  <input class="form-control mb-3" type="password" id="password" name="password" placeholder="Mot de passe" autocomplete="current-password" required>
+  <button class="btn btn-primary btn-lg w-100">Se connecter</button>
+</form>
+{% endblock %}
+{% block links %}
+  Pas encore de compte ? <a href="{{ url_for('portal.signup') }}">Créer un compte</a><br>
+  <span class="text-muted">Personnel DFS :</span> <a href="{{ url_for('auth.login') }}">accès équipe</a>
+{% endblock %}

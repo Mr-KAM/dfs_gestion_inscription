@@ -34,6 +34,7 @@ Flask · PostgreSQL · SQLAlchemy 2 · Alembic · Gunicorn · Bootstrap 5 + Spac
 | `supervisor` | **Superviseur** : cumule tout ce que font le testeur motivation et le testeur technique (voit tous les candidats, valide la motivation, lance et pilote les tests) avec un dashboard combiné. **Aucun droit d'administration** : ni utilisateurs, imports, exports, Kobo, salles, audit, paramètres, ni modification/suppression de candidat, ni correction d'une motivation déjà validée |
 | `motivation_tester` | Voit les candidats, saisit **numéro de pièce + code examen** → « Motivation terminée » |
 | `technical_tester` | Voit **uniquement** les candidats ayant terminé la motivation, attribue salle + ordinateur, pilote le chrono. Ne peut modifier ni l'identité, ni le code examen, ni le numéro de pièce |
+| `candidate` | **Candidat** : se connecte sur `/candidat/connexion` (email + mot de passe) et ne voit que **son propre** espace : convocation, état du dossier, étapes, numéro de pièce et code examen une fois la motivation validée. Aucun accès aux pages du personnel |
 
 Workflow : `import → synchro Kobo → motivation (pièce + code) → éligible technique → salle + PC libre + durée → chrono (pause / reprise / arrêt) → test terminé → PC libéré`.
 
@@ -90,6 +91,8 @@ Statut global du candidat (Planifié → Présent → Dossier vérifié → Éli
 | `/motivation/`, `/motivation/<id>/validate` | admin, superviseur, motivation |
 | `/technical/sessions`, `/technical/rooms`, `/technical/start/<id>`, `/technical/session/<id>/<pause\|resume\|stop\|complete>` | admin, superviseur, technique |
 | `/admin/users`, `/admin/rooms`, `/admin/imports`, `/admin/exports`, `/admin/audit`, `/admin/settings`, `/admin/kobo/` | admin |
+| `/candidat/connexion`, `/candidat/inscription` | public |
+| `/candidat/`, `/candidat/mot-de-passe` | candidat (ses propres données uniquement) |
 | `/health` | public (JSON) |
 
 ## Installation locale
@@ -137,6 +140,7 @@ flask run --port 8000
 | `DATABASE_URL` | URL complète, prioritaire sur `POSTGRES_*` | construite depuis `POSTGRES_*` |
 | `SESSION_COOKIE_SECURE` | cookies uniquement en HTTPS (`localhost` est accepté par les navigateurs) | `true` en production |
 | `KOBO_BASE_URL`, `KOBO_TOKEN`, `KOBO_ASSET_UID` | valeurs par défaut Kobo (l'écran admin est prioritaire) | `https://kf.kobotoolbox.org` |
+| `CANDIDATE_DEFAULT_PASSWORD` | mot de passe initial des comptes candidats (changement imposé à la 1re connexion) | `00000000` |
 | `DEFAULT_TECHNICAL_TEST_DURATION` | durée par défaut en minutes | `60` |
 | `TIMEZONE` | fuseau d'affichage | `Africa/Abidjan` |
 | `EXAM_CODE_PREFIX` | préfixe des codes générés | `DFS` |
@@ -166,6 +170,17 @@ Créé au démarrage **uniquement si aucun administrateur n'existe**, à partir 
 ```bash
 docker compose exec web flask create-admin
 docker compose exec web flask list-users
+```
+
+## Espace candidat
+
+* **Comptes créés automatiquement** : chaque candidat chargé (import, création manuelle, ou déjà en base) reçoit un compte : identifiant = **son email**, mot de passe initial = `CANDIDATE_DEFAULT_PASSWORD` (`00000000`). Ils sont créés au démarrage du conteneur (`flask create-candidate-accounts`, idempotent) et juste après chaque import. Le rapport d'import et la commande listent les candidats **sans compte** : sans email valide, ou email déjà pris par un autre compte (un email = un compte).
+* **Première connexion** : le candidat doit remplacer `00000000` par un mot de passe personnel avant d'accéder à son espace (le mot de passe initial étant le même pour tous, il ne protège le compte que jusqu'à ce changement).
+* **Inscription** (`/candidat/inscription`) : crée la fiche candidat et le compte. Refusée si l'email, le téléphone ou la CNI existe déjà (pas de doublon de dossier).
+* **Support** : fiche candidat → carte « Compte candidat » → *Réinitialiser le mot de passe* (remet `00000000` et réimpose le changement). Modifier l'email d'un candidat met à jour son identifiant ; supprimer le candidat supprime son compte. Les comptes candidats n'apparaissent pas dans **Utilisateurs** (réservé au personnel).
+
+```bash
+docker compose exec web flask create-candidate-accounts
 ```
 
 ## Import des candidats

@@ -1,39 +1,19 @@
-{% extends "base.html" %}
+{% extends "_auth_layout.html" %}
 {% from "_macros.html" import csrf %}
-{% import "_brand.html" as brand %}
 {% block title %}Connexion{% endblock %}
-{% block public %}
-<div class="login-page">
-  {{ brand.pixels() }}
-  {{ brand.edge_glyphs() }}
-  <div class="login-top">{{ brand.logo(40) }}</div>
-  <div class="login-body">
-    <section class="login-hero">
-      <div class="eyebrow">Plateforme de recrutement</div>
-      <h1>Recruitment<br>&amp; Testing</h1>
-      {{ brand.logo(72) }}
-      <p>Dossiers, entretiens de motivation et tests techniques de la Digital Farming School.</p>
-    </section>
-    <section class="login-card" aria-labelledby="login-title">
-      <div class="d-flex justify-content-between align-items-start mb-4">
-        <div>
-          <h2 id="login-title">Accès équipe</h2>
-          <div class="sub mt-1">Authentification</div>
-        </div>
-        <i class="bi bi-person-badge fs-4 text-primary" aria-hidden="true"></i>
-      </div>
-      {% with messages = get_flashed_messages(with_categories=true) %}
-        {% for category, message in messages %}<div class="alert alert-{{ category }} py-2">{{ message }}</div>{% endfor %}
-      {% endwith %}
-      <form method="post" novalidate>
-        {{ csrf() }}
-        <label class="visually-hidden" for="email">Email</label>
-        <input class="form-control mb-3" type="email" id="email" name="email" placeholder="Email" autocomplete="username" required autofocus>
-        <label class="visually-hidden" for="password">Mot de passe</label>
-        <input class="form-control mb-3" type="password" id="password" name="password" placeholder="Mot de passe" autocomplete="current-password" required>
-        <button class="btn btn-primary btn-lg w-100">Se connecter</button>
-      </form>
-    </section>
-  </div>
-</div>
+{% block eyebrow %}Plateforme de recrutement{% endblock %}
+{% block hero_title %}Recruitment<br>&amp; Testing{% endblock %}
+{% block hero_text %}Dossiers, entretiens de motivation et tests techniques de la Digital Farming School.{% endblock %}
+{% block card_title %}Accès équipe{% endblock %}
+{% block card_sub %}Authentification{% endblock %}
+{% block form %}
+<form method="post" novalidate>
+  {{ csrf() }}
+  <label class="visually-hidden" for="email">Email</label>
+  <input class="form-control mb-3" type="email" id="email" name="email" placeholder="Email" autocomplete="username" required autofocus>
+  <label class="visually-hidden" for="password">Mot de passe</label>
+  <input class="form-control mb-3" type="password" id="password" name="password" placeholder="Mot de passe" autocomplete="current-password" required>
+  <button class="btn btn-primary btn-lg w-100">Se connecter</button>
+</form>
 {% endblock %}
+{% block links %}Vous êtes candidat ? <a href="{{ url_for('portal.login') }}">Espace candidat</a>{% endblock %}

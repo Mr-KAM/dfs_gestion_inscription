@@ -36,9 +36,10 @@ def create_app(config_overrides: dict | None = None) -> Flask:
     from app.dashboard import bp as dashboard_bp
     from app.kobo import bp as kobo_bp
     from app.motivation import bp as motivation_bp
+    from app.portal import bp as portal_bp
     from app.technical import bp as technical_bp
 
-    for bp in (auth_bp, dashboard_bp, candidates_bp, motivation_bp, technical_bp, kobo_bp, admin_bp):
+    for bp in (auth_bp, dashboard_bp, candidates_bp, motivation_bp, technical_bp, kobo_bp, admin_bp, portal_bp):
         app.register_blueprint(bp)
     register_cli(app)
     _register_web_helpers(app)

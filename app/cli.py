@@ -36,6 +36,16 @@ def register_cli(app: Flask) -> None:
         """Crée l'administrateur défini par ADMIN_EMAIL / ADMIN_PASSWORD."""
         click.echo(ensure_admin())
 
+    @app.cli.command("create-candidate-accounts")
+    def create_candidate_accounts():
+        """Crée le compte de connexion (email + mot de passe initial) de chaque candidat qui n'en a pas."""
+        from app.services.account_service import ensure_candidate_accounts
+        result = ensure_candidate_accounts()
+        click.echo(f"Comptes candidats créés : {result['created']}.")
+        for label, rows in (("sans email valide", result["no_email"]), ("email déjà utilisé", result["conflicts"])):
+            if rows:
+                click.echo(f"Ignorés ({label}) : " + ", ".join(f"{c.full_name} (#{c.id})" for c in rows))
+
     @app.cli.command("list-users")
     def list_users():
         """Liste les utilisateurs."""

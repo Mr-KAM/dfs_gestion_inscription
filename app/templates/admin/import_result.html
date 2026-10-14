@@ -10,6 +10,15 @@
   {{ stat('En erreur (non importés)', stats.errors, 'exclamation-triangle') }}
   {{ stat('À examiner', stats.review | length, 'search') }}
 </div>
+{% set acc = stats.accounts %}
+<div class="alert alert-info">
+  <strong>{{ acc.created }} compte(s) candidat créé(s).</strong> Identifiant : l'email du candidat · mot de passe initial :
+  <code>{{ config.CANDIDATE_DEFAULT_PASSWORD }}</code> (à changer à la première connexion sur <code>{{ url_for('portal.login', _external=True) }}</code>).
+  {% for label, rows in [('sans email valide', acc.no_email), ('email déjà utilisé par un autre compte', acc.conflicts)] if rows %}
+    <div class="mt-2 small">Sans compte ({{ label }}) :
+      {% for c in rows %}<a href="{{ url_for('candidates.detail', candidate_id=c.id) }}">{{ c.full_name }}</a>{{ ', ' if not loop.last }}{% endfor %}</div>
+  {% endfor %}
+</div>
 {% if stats.review %}
 <div class="card mb-3"><div class="card-header">Doublons à examiner (non importés)</div>
   <div class="table-responsive"><table class="table table-sm">

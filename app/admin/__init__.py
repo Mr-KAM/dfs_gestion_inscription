@@ -3,7 +3,7 @@ import os
 import uuid
 
 import pandas as pd
-from flask import (Blueprint, current_app, flash, redirect, render_template, request, send_file, session,
+from flask import (Blueprint, abort, current_app, flash, redirect, render_template, request, send_file, session,
                    url_for)
 from flask_login import current_user
 from sqlalchemy import exists, func, select
@@ -14,7 +14,7 @@ from werkzeug.utils import secure_filename
 from app.extensions import db
 from app.models import AuditLog, Candidate, KoboSubmission, Room, TechnicalTestSession, User, Workstation
 from app.models.candidate import FILE_MISSING, FILE_NOT_FOUND, FILE_STATUSES
-from app.models.user import ROLE_ADMIN, ROLES
+from app.models.user import ROLE_ADMIN, ROLE_CANDIDATE, ROLES
 from app.services import audit_service, candidate_service, import_service, settings_service
 from app.services.audit_service import ACTION_LABELS
 from app.utils import roles_required
@@ -33,7 +33,8 @@ def require_admin():
 
 @bp.get("/users")
 def users():
-    return render_template("admin/users.html", users=db.session.scalars(select(User).order_by(User.role, User.email)).all())
+    staff = select(User).where(User.role != ROLE_CANDIDATE).order_by(User.role, User.email)  # candidates: see their file
+    return render_template("admin/users.html", users=db.session.scalars(staff).all())
 
 
 def _user_from_form(user: User, creating: bool) -> None:
@@ -57,6 +58,14 @@ def _user_from_form(user: User, creating: bool) -> None:
         user.set_password(password)
 
 
+def _staff_user(user_id: int) -> User:
+    """Candidate logins are managed from the candidate file, never from the staff screens."""
+    user = db.get_or_404(User, user_id)
+    if user.is_candidate:
+        abort(404)
+    return user
+
+
 @bp.route("/users/new", methods=["GET", "POST"])
 def user_new():
     user = User(role="motivation_tester", active=True)
@@ -77,7 +86,7 @@ def user_new():
 
 @bp.route("/users/<int:user_id>/edit", methods=["GET", "POST"])
 def user_edit(user_id: int):
-    user = db.get_or_404(User, user_id)
+    user = _staff_user(user_id)
     if request.method == "POST":
         try:
             password_changed = bool(request.form.get("password"))
@@ -96,7 +105,7 @@ def user_edit(user_id: int):
 
 @bp.post("/users/<int:user_id>/toggle")
 def user_toggle(user_id: int):
-    user = db.get_or_404(User, user_id)
+    user = _staff_user(user_id)
     if user.id == current_user.id:
         flash("Vous ne pouvez pas désactiver votre propre compte.", "danger")
         return redirect(url_for("admin.users"))

@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from app.extensions import db
 from app.models import Candidate
-from app.services import audit_service
+from app.services import account_service, audit_service
 from app.utils import norm_cni, norm_email, norm_key, norm_name, norm_phone
 
 # field -> (label, normalised header aliases)
@@ -231,4 +231,5 @@ def apply(path: str, mapping: dict[str, str], actions: dict[int, str], filename:
         "ignored": stats["ignored"], "errors": stats["errors"], "review": len(stats["review"]),
     })
     db.session.commit()
+    stats["accounts"] = account_service.ensure_candidate_accounts()  # login: email + initial password
     return stats

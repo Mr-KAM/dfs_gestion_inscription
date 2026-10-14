@@ -1,0 +1,32 @@
+{# Public pages (staff login, candidate login, sign-up): DFS hero on the left, form card on the right. #}
+{% extends "base.html" %}
+{% import "_brand.html" as brand %}
+{% block public %}
+<div class="login-page">
+  {{ brand.pixels() }}
+  {{ brand.edge_glyphs() }}
+  <div class="login-top">{{ brand.logo(40) }}</div>
+  <div class="login-body">
+    <section class="login-hero">
+      <div class="eyebrow">{% block eyebrow %}{% endblock %}</div>
+      <h1>{% block hero_title %}{% endblock %}</h1>
+      {{ brand.logo(72) }}
+      <p>{% block hero_text %}{% endblock %}</p>
+    </section>
+    <section class="login-card" aria-labelledby="login-title">
+      <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+          <h2 id="login-title">{% block card_title %}{% endblock %}</h2>
+          <div class="sub mt-1">{% block card_sub %}{% endblock %}</div>
+        </div>
+        <i class="bi bi-{% block card_icon %}person-badge{% endblock %} fs-4 text-primary" aria-hidden="true"></i>
+      </div>
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}<div class="alert alert-{{ category }} py-2">{{ message }}</div>{% endfor %}
+      {% endwith %}
+      {% block form %}{% endblock %}
+      <div class="login-links">{% block links %}{% endblock %}</div>
+    </section>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,58 @@
+{% extends "_auth_layout.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}Inscription{% endblock %}
+{% block eyebrow %}Recrutement DFS{% endblock %}
+{% block hero_title %}Créer votre<br>espace candidat{% endblock %}
+{% block hero_text %}Une seule inscription par personne : si la DFS vous a déjà convoqué, connectez-vous avec votre email.{% endblock %}
+{% block card_title %}Inscription{% endblock %}
+{% block card_sub %}Nouveau compte candidat{% endblock %}
+{% block card_icon %}person-plus{% endblock %}
+{% block form %}
+<form method="post" novalidate>
+  {{ csrf() }}
+  <div class="row g-2">
+    <div class="col-12">
+      <label class="form-label" for="full_name">Nom et prénoms <span class="text-danger">*</span></label>
+      <input class="form-control" id="full_name" name="full_name" value="{{ request.form.get('full_name', '') }}" autocomplete="name" required>
+    </div>
+    <div class="col-12">
+      <label class="form-label" for="email">Email <span class="text-danger">*</span></label>
+      <input class="form-control" id="email" name="email" type="email" value="{{ request.form.get('email', '') }}" autocomplete="email" required>
+    </div>
+    <div class="col-sm-6">
+      <label class="form-label" for="phone">Téléphone <span class="text-danger">*</span></label>
+      <input class="form-control" id="phone" name="phone" type="tel" value="{{ request.form.get('phone', '') }}" autocomplete="tel" required>
+    </div>
+    <div class="col-sm-6">
+      <label class="form-label" for="cni">CNI</label>
+      <input class="form-control" id="cni" name="cni" value="{{ request.form.get('cni', '') }}">
+    </div>
+    <div class="col-sm-6">
+      <label class="form-label" for="birth_date">Date de naissance</label>
+      <input class="form-control" id="birth_date" name="birth_date" type="date" value="{{ request.form.get('birth_date', '') }}" autocomplete="bday">
+    </div>
+    <div class="col-6 col-sm-3">
+      <label class="form-label" for="gender">Sexe</label>
+      <select class="form-select" id="gender" name="gender">
+        <option value="">—</option>
+        {% for g in ['M', 'F'] %}<option {{ 'selected' if request.form.get('gender') == g }}>{{ g }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-sm-3">
+      <label class="form-label" for="city">Ville</label>
+      <input class="form-control" id="city" name="city" value="{{ request.form.get('city', '') }}" autocomplete="address-level2">
+    </div>
+    <div class="col-sm-6">
+      <label class="form-label" for="password">Mot de passe <span class="text-danger">*</span></label>
+      <input class="form-control" id="password" name="password" type="password" minlength="8" autocomplete="new-password" required>
+    </div>
+    <div class="col-sm-6">
+      <label class="form-label" for="password_confirm">Confirmation <span class="text-danger">*</span></label>
+      <input class="form-control" id="password_confirm" name="password_confirm" type="password" minlength="8" autocomplete="new-password" required>
+    </div>
+    <div class="col-12 form-text mt-1">8 caractères minimum.</div>
+  </div>
+  <button class="btn btn-primary btn-lg w-100 mt-3">Créer mon compte</button>
+</form>
+{% endblock %}
+{% block links %}Déjà inscrit ou convoqué ? <a href="{{ url_for('portal.login') }}">Se connecter</a>{% endblock %}
