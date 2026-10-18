@@ -18,8 +18,9 @@
   <label class="form-label" for="results-file">Fichier .csv, .xlsx ou .xls</label>
   <input class="form-control" id="results-file" type="file" name="file" accept=".csv,.xlsx,.xls" required>
   <div class="form-text">Colonnes : <code>email, code_examen, motivation_status, technical_status, salle, ordi, time</code>.
-    Statuts : <code>oui</code> / <code>non</code> (vide = inchangé). Le candidat est retrouvé par son code examen et son email.
-    <code>salle</code>, <code>ordi</code> et <code>time</code> (durée en minutes) enregistrent le test technique s'il n'a pas été passé dans l'application.</div>
+    Le candidat est retrouvé par son email. S'il n'a pas encore de code examen, celui du fichier lui est attribué ;
+    ses tests sont alors marqués terminés et les statuts <code>oui</code> / <code>non</code> enregistrés (vide = inchangé).
+    <code>salle</code>, <code>ordi</code> et <code>time</code> (durée en minutes) sont facultatifs : renseignez les trois ou aucun.</div>
   <div class="d-flex gap-2 mt-3">
     <button class="btn btn-primary"><i class="bi bi-eye"></i> Prévisualiser</button>
     <a class="btn btn-outline-secondary" href="{{ url_for('admin.results_template') }}"><i class="bi bi-download"></i> Modèle CSV</a>

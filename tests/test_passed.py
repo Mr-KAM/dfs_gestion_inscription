@@ -43,28 +43,34 @@ def test_results_template_download(app, client, admin):
 
 
 def test_results_import(app, db, client, admin, room):
-    done = eligible_candidate(email="aya@test.ci")
-    other = eligible_candidate(email="b@t.ci", cni="B", exam_code="DFS-2026-0002")
+    new = make_candidate(email="aya@test.ci")                                  # no exam code yet
+    old = eligible_candidate(email="b@t.ci", cni="B", exam_code="DFS-2026-0002")
+    late = make_candidate(email="c@t.ci", cni="C")
     login(client, admin)
     resp = _upload_results(client, "email;code_examen;motivation_status;technical_status;salle;ordi;time\n"
-                                   "AYA@test.ci;DFS-2026-0001;oui;non;salle a;pc-02;45\n"
-                                   "b@t.ci;DFS-2026-0002;oui;oui;Salle A;PC-01;\n"     # time missing
-                                   "b@t.ci;DFS-2026-0001;oui;;;;\n"                     # wrong code for email
-                                   "x@t.ci;DFS-2026-0002;peut-être;;;;\n")
+                                   " AYA@test.ci ;DFS-2026-0001;oui;non;salle a;pc-02;45\n"
+                                   "b@t.ci;DFS-2026-0002;oui;oui;;;\n"                 # no room: allowed
+                                   "c@t.ci;DFS-2026-0001;oui;;;;\n"                    # code taken by line 2
+                                   "c@t.ci;DFS-2026-0009;oui;oui;Salle A;;\n"          # partial room info
+                                   "b@t.ci;AUTRE-1;oui;;;;\n"                          # already has another code
+                                   "x@t.ci;DFS-2026-0003;peut-être;;;;\n")             # unknown email
     preview = client.get(resp.headers["Location"]).get_data(as_text=True)
-    assert "Importer 1 ligne(s) valide(s)" in preview and "time" in preview and "aucun candidat" in preview
+    assert "Importer 2 ligne(s) valide(s)" in preview and "code examen attribué" in preview
+    for msg in ("déjà attribué à KOUAME Aya", "les trois ou aucun", "a déjà le code examen DFS-2026-0002",
+                "aucun candidat avec l&#39;email x@t.ci"):
+        assert msg in preview, msg
     db.session.expire_all()
-    assert not db.session.get(Candidate, done.id).motivation_passed  # preview writes nothing
-    assert not db.session.get(Candidate, done.id).sessions
+    assert db.session.get(Candidate, new.id).exam_code is None  # preview writes nothing
 
     html = client.post("/admin/imports/results/confirm").get_data(as_text=True)
-    assert "1 candidat(s) mis à jour" in html and "3 ligne(s) en erreur" in html
-    done = db.session.get(Candidate, done.id)
-    assert done.motivation_passed and done.technical_completed and done.technical_passed is False
-    s = done.latest_session
-    assert s.workstation.computer_number == "PC-02" and s.elapsed_seconds() == 45 * 60
-    other = db.session.get(Candidate, other.id)
-    assert not other.motivation_passed and not other.technical_completed  # bad lines change nothing
+    assert "2 candidat(s) mis à jour" in html and "4 ligne(s) en erreur" in html
+    new = db.session.get(Candidate, new.id)
+    assert new.exam_code == "DFS-2026-0001" and new.motivation_completed and new.motivation_passed
+    assert new.technical_completed and new.technical_passed is False
+    assert new.latest_session.workstation.computer_number == "PC-02" and new.latest_session.elapsed_seconds() == 2700
+    old = db.session.get(Candidate, old.id)
+    assert old.technical_completed and old.technical_passed and not old.sessions
+    assert db.session.get(Candidate, late.id).exam_code is None  # bad lines change nothing
 
 
 def test_results_import_admin_only(app, client, motivation_user):

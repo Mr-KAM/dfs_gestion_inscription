@@ -20,7 +20,7 @@
           <td>{{ r.line }}</td><td>{{ v.email }}</td><td><code>{{ v.code_examen }}</code></td><td>{{ r.name }}</td>
           <td>{{ v.motivation_status }}</td><td>{{ v.technical_status }}</td>
           <td>{{ v.salle }}</td><td>{{ v.ordi }}</td><td>{{ v.time }}</td>
-          <td>{% if r.error %}{{ status(('danger', r.error)) }}{% else %}{{ status(('success', 'OK')) }}{% endif %}</td>
+          <td>{% if r.error %}{{ status(('danger', r.error)) }}{% else %}{{ status(('success', 'OK')) }}{% for n in r.notes %} <span class="small text-muted">· {{ n }}</span>{% endfor %}{% endif %}</td>
         </tr>
       {% else %}
         <tr><td colspan="10" class="text-center text-muted py-4">Fichier vide.</td></tr>

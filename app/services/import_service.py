@@ -10,7 +10,7 @@ from app.extensions import db
 from app.models import Candidate, Room, TechnicalTestSession
 from app.models.technical_test import STATUS_COMPLETED
 from app.services import account_service, audit_service
-from app.services.candidate_service import normalize_exam_code
+from app.services.candidate_service import EXAM_CODE_RE, normalize_exam_code
 from app.services.timer_service import MAX_DURATION_MINUTES
 from app.utils import norm_cni, norm_email, norm_key, norm_name, norm_phone, utcnow
 
@@ -254,12 +254,16 @@ def _yes_no(value: str, label: str):
     return YES_NO[value.lower()]
 
 
-def _result_session(candidate: Candidate, row: dict, admin) -> TechnicalTestSession:
-    """A completed session for a technical test passed outside the app's chronometer."""
-    if not (row["salle"] and row["ordi"] and row["time"]):
-        raise ImportFileError("test technique non passé dans l'application : salle, ordi et time sont obligatoires")
+def _result_session(candidate: Candidate, row: dict, admin) -> TechnicalTestSession | None:
+    """A completed session for a technical test passed outside the app's chronometer.
+    No salle/ordi/time at all -> no session (the test is only marked completed)."""
     if candidate.active_session:
-        raise ImportFileError("test technique en cours dans l'application")
+        raise ImportFileError("test technique en cours dans l'application : terminez-le d'abord")
+    given = [row["salle"], row["ordi"], row["time"]]
+    if not any(given):
+        return None
+    if not all(given):
+        raise ImportFileError("salle, ordi et time : renseignez les trois ou aucun")
     room = db.session.scalar(select(Room).where(func.lower(Room.name) == row["salle"].lower()))
     if room is None:
         raise ImportFileError(f"salle « {row['salle']} » inconnue")
@@ -278,30 +282,60 @@ def _result_session(candidate: Candidate, row: dict, admin) -> TechnicalTestSess
     )
 
 
-def _apply_result(row: dict, admin) -> Candidate:
+def _find_candidate(email: str) -> Candidate:
+    email = norm_email(email)
+    if not email:
+        raise ImportFileError("email obligatoire")
+    found = db.session.scalars(select(Candidate).where(func.lower(func.trim(Candidate.email)) == email).limit(2)).all()
+    if not found:
+        raise ImportFileError(f"aucun candidat avec l'email {email}")
+    if len(found) > 1:
+        raise ImportFileError(f"plusieurs candidats ont l'email {email}, à corriger dans la fiche candidat")
+    return found[0]
+
+
+def _apply_result(row: dict, admin) -> tuple[Candidate, list[str]]:
+    """Batch validation: the candidate gets the file's exam code if he has none, motivation and technical
+    tests are marked completed, then the oui/non verdicts are recorded."""
+    candidate = _find_candidate(row["email"])
     code = normalize_exam_code(row["code_examen"])
-    if not code:
-        raise ImportFileError("code_examen obligatoire")
-    candidate = db.session.scalar(select(Candidate).where(Candidate.exam_code == code))
-    if candidate is None or norm_email(candidate.email) != norm_email(row["email"]):
-        raise ImportFileError("aucun candidat avec cet email et ce code examen")
     motivation = _yes_no(row["motivation_status"], "motivation_status")
     technical = _yes_no(row["technical_status"], "technical_status")
-    if not candidate.motivation_completed:
-        raise ImportFileError("motivation non terminée dans l'application")
+    if candidate.exam_code and code and code != candidate.exam_code:
+        raise ImportFileError(f"le candidat a déjà le code examen {candidate.exam_code} (différent de {code})")
+    if not candidate.exam_code:
+        if not code:
+            raise ImportFileError("code_examen obligatoire : le candidat n'a pas encore de code examen")
+        if not EXAM_CODE_RE.match(code):
+            raise ImportFileError("code examen invalide : lettres, chiffres et - _ / . uniquement (50 max)")
+        other = db.session.scalar(select(Candidate).where(Candidate.exam_code == code))
+        if other:
+            raise ImportFileError(f"code examen {code} déjà attribué à {other.full_name}")
     session = None
     if technical is not None and not candidate.technical_completed:
         session = _result_session(candidate, row, admin)
+
     # All checks passed: apply.
-    if session:
-        db.session.add(session)
-        candidate.technical_completed, candidate.technical_completed_at = True, session.finished_at
+    notes, now = [], utcnow()
+    if not candidate.exam_code:
+        candidate.exam_code = code
+        notes.append("code examen attribué")
+        audit_service.log("exam_code_create", candidate, {"exam_code": code, "generated": False, "source": "import"})
+    if not candidate.motivation_completed:
+        candidate.motivation_completed, candidate.motivation_completed_at = True, now
+        candidate.motivation_completed_by = admin.id
+        notes.append("motivation terminée")
+    if technical is not None and not candidate.technical_completed:
+        if session:
+            db.session.add(session)
+        candidate.technical_completed, candidate.technical_completed_at = True, now
+        notes.append("test technique terminé")
     if motivation is not None:
         candidate.motivation_passed = motivation
     if technical is not None:
         candidate.technical_passed = technical
     audit_service.log("results_import", candidate, {k: v for k, v in row.items() if v})
-    return candidate
+    return candidate, notes
 
 
 def apply_results(path: str, admin, dry_run: bool = False) -> dict:
@@ -315,15 +349,15 @@ def apply_results(path: str, admin, dry_run: bool = False) -> dict:
     stats = {"updated": 0, "errors": [], "rows": []}
     for index, record in df.iterrows():
         row = {c: _clean(record[columns[norm_key(c)]]) for c in RESULT_COLUMNS}
-        line, candidate, error = index + 2, None, None  # +2: header + 1-based lines
+        line, candidate, error, notes = index + 2, None, None, []  # +2: header + 1-based lines
         try:
-            candidate = _apply_result(row, admin)
+            candidate, notes = _apply_result(row, admin)
             stats["updated"] += 1
         except ImportFileError as exc:
             error = str(exc)
             stats["errors"].append((line, row["email"], error))
         stats["rows"].append({"line": line, "values": row, "name": candidate.full_name if candidate else "",
-                              "error": error})
+                              "notes": notes, "error": error})
     if dry_run:
         db.session.rollback()
         return stats
