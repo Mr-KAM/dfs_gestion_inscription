@@ -23,6 +23,7 @@ ACTION_LABELS = {
     "candidate_accounts_create": "Création comptes candidats",
     "candidate_signup": "Inscription candidat",
     "candidate_import": "Import candidats",
+    "results_import": "Import résultats des tests",
     "candidate_create": "Création candidat",
     "candidate_update": "Mise à jour candidat",
     "candidate_delete": "Suppression candidat",

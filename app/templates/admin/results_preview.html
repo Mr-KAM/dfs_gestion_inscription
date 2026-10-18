@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, stat, status %}
+{% block title %}Prévisualisation des résultats{% endblock %}
+{% block content %}
+<h1 class="page-title mb-1">Prévisualisation des résultats</h1>
+<p class="text-muted mb-3">{{ filename }} — rien n'est encore enregistré.</p>
+<div class="row g-3 mb-3">
+  {{ stat('Lignes valides', report.updated, 'check-circle') }}
+  {{ stat('Lignes en erreur (ignorées)', report.errors | length, 'exclamation-triangle') }}
+</div>
+
+<div class="card mb-3">
+  <div class="table-responsive">
+    <table class="table table-sm mb-0">
+      <thead><tr><th>Ligne</th><th>Email</th><th>Code examen</th><th>Candidat</th><th>Motivation</th><th>Technique</th>
+        <th>Salle</th><th>Ordi</th><th>Durée (min)</th><th>Statut</th></tr></thead>
+      <tbody>
+      {% for r in report.rows %}{% set v = r['values'] %}
+        <tr class="{{ 'table-danger' if r.error }}">
+          <td>{{ r.line }}</td><td>{{ v.email }}</td><td><code>{{ v.code_examen }}</code></td><td>{{ r.name }}</td>
+          <td>{{ v.motivation_status }}</td><td>{{ v.technical_status }}</td>
+          <td>{{ v.salle }}</td><td>{{ v.ordi }}</td><td>{{ v.time }}</td>
+          <td>{% if r.error %}{{ status(('danger', r.error)) }}{% else %}{{ status(('success', 'OK')) }}{% endif %}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="10" class="text-center text-muted py-4">Fichier vide.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<form method="post" action="{{ url_for('admin.import_results_confirm') }}" class="d-flex gap-2">
+  {{ csrf() }}
+  <button class="btn btn-primary" {{ 'disabled' if not report.updated }}><i class="bi bi-check-lg"></i>
+    Importer {{ report.updated }} ligne(s) valide(s)</button>
+  <a class="btn btn-outline-secondary" href="{{ url_for('admin.imports') }}">Annuler / charger un autre fichier</a>
+</form>
+{% endblock %}

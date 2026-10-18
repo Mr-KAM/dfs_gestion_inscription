@@ -1,15 +1,18 @@
 """Candidate import from CSV / Excel: parse, map columns, validate, dedupe, apply."""
 import re
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 
 import pandas as pd
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.extensions import db
-from app.models import Candidate
+from app.models import Candidate, Room, TechnicalTestSession
+from app.models.technical_test import STATUS_COMPLETED
 from app.services import account_service, audit_service
-from app.utils import norm_cni, norm_email, norm_key, norm_name, norm_phone
+from app.services.candidate_service import normalize_exam_code
+from app.services.timer_service import MAX_DURATION_MINUTES
+from app.utils import norm_cni, norm_email, norm_key, norm_name, norm_phone, utcnow
 
 # field -> (label, normalised header aliases)
 FIELDS = {
@@ -232,4 +235,98 @@ def apply(path: str, mapping: dict[str, str], actions: dict[int, str], filename:
     })
     db.session.commit()
     stats["accounts"] = account_service.ensure_candidate_accounts()  # login: email + initial password
+    return stats
+
+
+# ---------------------------------------------------------------- test results
+
+RESULT_COLUMNS = ["email", "code_examen", "motivation_status", "technical_status", "salle", "ordi", "time"]
+RESULT_EXAMPLE = ["aya@exemple.ci", "DFS-2026-0001", "oui", "oui", "Salle A", "PC-01", "45"]
+YES_NO = {"oui": True, "o": True, "yes": True, "1": True, "non": False, "n": False, "no": False, "0": False}
+
+
+def _yes_no(value: str, label: str):
+    """'' -> None (left unchanged), oui/non -> bool."""
+    if not value:
+        return None
+    if value.lower() not in YES_NO:
+        raise ImportFileError(f"{label} : « {value} » doit être oui ou non")
+    return YES_NO[value.lower()]
+
+
+def _result_session(candidate: Candidate, row: dict, admin) -> TechnicalTestSession:
+    """A completed session for a technical test passed outside the app's chronometer."""
+    if not (row["salle"] and row["ordi"] and row["time"]):
+        raise ImportFileError("test technique non passé dans l'application : salle, ordi et time sont obligatoires")
+    if candidate.active_session:
+        raise ImportFileError("test technique en cours dans l'application")
+    room = db.session.scalar(select(Room).where(func.lower(Room.name) == row["salle"].lower()))
+    if room is None:
+        raise ImportFileError(f"salle « {row['salle']} » inconnue")
+    ordi = row["ordi"].lower()
+    workstation = next((w for w in room.workstations if ordi in (w.computer_number.lower(), (w.label or "").lower())), None)
+    if workstation is None:
+        raise ImportFileError(f"ordi « {row['ordi']} » inconnu dans {room.name}")
+    if not row["time"].isdigit() or not 1 <= int(row["time"]) <= MAX_DURATION_MINUTES:
+        raise ImportFileError(f"time : durée en minutes entre 1 et {MAX_DURATION_MINUTES} attendue")
+    # ponytail: real start time unknown, the session is dated "now" with the given duration.
+    seconds, now = int(row["time"]) * 60, utcnow()
+    return TechnicalTestSession(
+        candidate=candidate, technical_tester_id=admin.id, room_id=room.id, workstation_id=workstation.id,
+        duration_seconds=seconds, started_at=now - timedelta(seconds=seconds), finished_at=now,
+        total_pause_seconds=0, status=STATUS_COMPLETED,
+    )
+
+
+def _apply_result(row: dict, admin) -> Candidate:
+    code = normalize_exam_code(row["code_examen"])
+    if not code:
+        raise ImportFileError("code_examen obligatoire")
+    candidate = db.session.scalar(select(Candidate).where(Candidate.exam_code == code))
+    if candidate is None or norm_email(candidate.email) != norm_email(row["email"]):
+        raise ImportFileError("aucun candidat avec cet email et ce code examen")
+    motivation = _yes_no(row["motivation_status"], "motivation_status")
+    technical = _yes_no(row["technical_status"], "technical_status")
+    if not candidate.motivation_completed:
+        raise ImportFileError("motivation non terminée dans l'application")
+    session = None
+    if technical is not None and not candidate.technical_completed:
+        session = _result_session(candidate, row, admin)
+    # All checks passed: apply.
+    if session:
+        db.session.add(session)
+        candidate.technical_completed, candidate.technical_completed_at = True, session.finished_at
+    if motivation is not None:
+        candidate.motivation_passed = motivation
+    if technical is not None:
+        candidate.technical_passed = technical
+    audit_service.log("results_import", candidate, {k: v for k, v in row.items() if v})
+    return candidate
+
+
+def apply_results(path: str, admin, dry_run: bool = False) -> dict:
+    """Validated / not validated tests per candidate. Bad lines are skipped and reported, good ones applied.
+    dry_run: same checks in sequence (duplicate lines included), then rolled back -> the preview."""
+    df = read_file(path)
+    columns = {norm_key(c): c for c in df.columns}
+    missing = [c for c in RESULT_COLUMNS if norm_key(c) not in columns]
+    if missing:
+        raise ImportFileError(f"Colonnes manquantes : {', '.join(missing)}. Utilisez le modèle CSV.")
+    stats = {"updated": 0, "errors": [], "rows": []}
+    for index, record in df.iterrows():
+        row = {c: _clean(record[columns[norm_key(c)]]) for c in RESULT_COLUMNS}
+        line, candidate, error = index + 2, None, None  # +2: header + 1-based lines
+        try:
+            candidate = _apply_result(row, admin)
+            stats["updated"] += 1
+        except ImportFileError as exc:
+            error = str(exc)
+            stats["errors"].append((line, row["email"], error))
+        stats["rows"].append({"line": line, "values": row, "name": candidate.full_name if candidate else "",
+                              "error": error})
+    if dry_run:
+        db.session.rollback()
+        return stats
+    audit_service.log("results_import", None, {"updated": stats["updated"], "errors": len(stats["errors"])})
+    db.session.commit()
     return stats

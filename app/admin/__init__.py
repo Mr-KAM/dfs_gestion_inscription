@@ -195,8 +195,8 @@ def workstation_save(ws_id: int):
 
 # ------------------------------------------------------------------ imports
 
-def _import_path() -> str | None:
-    info = session.get("import")
+def _import_path(key: str = "import") -> str | None:
+    info = session.get(key)
     if not info:
         return None
     path = os.path.join(current_app.config["UPLOAD_FOLDER"], info["file"])
@@ -269,6 +269,63 @@ def import_confirm():
     os.remove(path)
     session.pop("import", None)
     return render_template("admin/import_result.html", stats=stats)
+
+
+@bp.get("/imports/results/template")
+def results_template():
+    lines = [";".join(import_service.RESULT_COLUMNS), ";".join(import_service.RESULT_EXAMPLE)]
+    buffer = io.BytesIO(("\r\n".join(lines) + "\r\n").encode("utf-8-sig"))  # ';' + BOM: Excel FR friendly
+    return send_file(buffer, mimetype="text/csv", as_attachment=True, download_name="modele_resultats_tests.csv")
+
+
+@bp.post("/imports/results")
+def import_results():
+    """Validated / not validated tests from a file: stored, then previewed before being applied."""
+    upload = request.files.get("file")
+    filename = secure_filename(upload.filename or "") if upload else ""
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if ext not in current_app.config["ALLOWED_IMPORT_EXTENSIONS"]:
+        flash("Format non supporté : utilisez .csv, .xlsx ou .xls.", "danger")
+        return redirect(url_for("admin.imports"))
+    old = _import_path("results_import")
+    if old:
+        os.remove(old)
+    _purge_stale_uploads()
+    stored = f"{uuid.uuid4().hex}.{ext}"
+    upload.save(os.path.join(current_app.config["UPLOAD_FOLDER"], stored))
+    session["results_import"] = {"file": stored, "filename": upload.filename}
+    return redirect(url_for("admin.import_results_preview"))
+
+
+@bp.get("/imports/results/preview")
+def import_results_preview():
+    path = _import_path("results_import")
+    if not path:
+        flash("Chargez d'abord un fichier de résultats.", "warning")
+        return redirect(url_for("admin.imports"))
+    try:
+        report = import_service.apply_results(path, current_user._get_current_object(), dry_run=True)
+    except import_service.ImportFileError as exc:
+        flash(str(exc), "danger")
+        return redirect(url_for("admin.imports"))
+    return render_template("admin/results_preview.html", report=report,
+                           filename=session["results_import"]["filename"])
+
+
+@bp.post("/imports/results/confirm")
+def import_results_confirm():
+    path = _import_path("results_import")
+    if not path:
+        flash("Le fichier de résultats a expiré, rechargez-le.", "warning")
+        return redirect(url_for("admin.imports"))
+    try:
+        report = import_service.apply_results(path, current_user._get_current_object())
+    except import_service.ImportFileError as exc:
+        flash(str(exc), "danger")
+        return redirect(url_for("admin.imports"))
+    os.remove(path)
+    session.pop("results_import", None)
+    return render_template("admin/import_upload.html", report=report)
 
 
 # ------------------------------------------------------------------ exports
