@@ -22,7 +22,8 @@ Flask · PostgreSQL · SQLAlchemy 2 · Alembic · Gunicorn · Bootstrap 5 + Spac
 10. [Déploiement Dokploy](#déploiement-dokploy)
 11. [Sauvegardes](#sauvegardes)
 12. [Tests](#tests)
-13. [Dépannage](#dépannage)
+13. [Sécurité](#sécurité)
+14. [Dépannage](#dépannage)
 
 ---
 
@@ -146,7 +147,7 @@ flask run --port 8000
 | `EXAM_CODE_PREFIX` | préfixe des codes générés | `DFS` |
 | `MAX_UPLOAD_MB` | taille max d'un import | `10` |
 | `WEB_CONCURRENCY` | workers Gunicorn (4 threads chacun) | `3` |
-| `WEB_PORT` | port publié sur l'hôte | `8000` |
+| `WEB_PORT` | port publié sur l'hôte, **uniquement sur 127.0.0.1** (jamais exposé sur l'IP publique : en production, Traefik sert l'app en HTTPS) | `8000` |
 
 Le mot de passe PostgreSQL peut contenir des caractères spéciaux (`@ : / #`) : l'URL est construite et échappée par l'application.
 
@@ -255,12 +256,23 @@ Conseil pour les jours de recrutement : une sauvegarde le matin, à midi et le s
 ## Tests
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-dev.txt                      # outils de test (absents de l'image Docker)
 pytest                                                   # SQLite en mémoire
 TEST_DATABASE_URL=postgresql+psycopg://dfs:pw@localhost:5432/dfs_test pytest   # PostgreSQL réel
+pip-audit -r requirements.txt                            # vulnérabilités connues des dépendances
 ```
 
-Couverture : authentification et rôles (dont les limites du superviseur), CSRF, imports CSV/Excel/colonnes manquantes/doublons, motivation (pièce, format et unicité du code, génération), chrono (démarrage, pause, reprise, arrêt, fin, PC occupé, contrainte base), Kobo (pagination, correspondances, ambiguïtés, erreurs API, token chiffré).
+Couverture : authentification et rôles (dont les limites du superviseur), CSRF, imports CSV/Excel/colonnes manquantes/doublons, motivation (pièce, format et unicité du code, génération), chrono (démarrage, pause, reprise, arrêt, fin, PC occupé, contrainte base), Kobo (pagination, correspondances, ambiguïtés, erreurs API, token chiffré), sécurité (sessions, anti-bruteforce, exports, en-têtes).
+
+## Sécurité
+
+* **Secrets** : uniquement dans `.env` (jamais commité : `.gitignore` et `.dockerignore` excluent tout fichier `.env`). En production, ils vivent dans l'onglet *Environment* de Dokploy. Le dépôt GitHub étant public, ne commitez jamais d'export, de liste de candidats ni de capture contenant des données personnelles.
+* **Connexion** : 5 échecs par email ou 30 par IP en 15 min bloquent les tentatives suivantes (visible dans *Audit* : « Connexion bloquée »). Inscriptions limitées à 10 par IP et par heure.
+* **Sessions** : expirent après 12 h ; un compte désactivé ou un mot de passe changé/réinitialisé déconnecte immédiatement toutes ses sessions ouvertes.
+* **Navigateur** : Content-Security-Policy (aucun script en ligne), HSTS en HTTPS, pages personnelles non mises en cache, protection CSRF, cookies `HttpOnly`/`Secure`/`SameSite`.
+* **Exports** : les cellules commençant par `=`, `+`, `-`, `@` sont neutralisées (injection de formules Excel).
+* **Réseau** : PostgreSQL n'est jamais publié ; l'app n'est publiée que sur `127.0.0.1` (Traefik la sert en HTTPS).
+* **Mot de passe initial des candidats** : `CANDIDATE_DEFAULT_PASSWORD`. Une valeur évidente comme `00000000` se devine : préférez une valeur propre à la campagne, transmise aux candidats par un canal privé (SMS, convocation). Le changement reste imposé à la première connexion.
 
 ## Dépannage
 

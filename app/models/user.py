@@ -1,3 +1,6 @@
+import hashlib
+import hmac
+
 from flask_login import UserMixin
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -76,7 +79,20 @@ class User(UserMixin, db.Model):
     def has_role(self, *roles: str) -> bool:
         return self.role in roles
 
+    @property
+    def session_fingerprint(self) -> str:
+        """Changes with the password: a reset or change logs out every other open session."""
+        return hashlib.sha256(self.password_hash.encode()).hexdigest()[:16]
+
+    def get_id(self) -> str:
+        return f"{self.id}:{self.session_fingerprint}"
+
 
 @login_manager.user_loader
-def load_user(user_id: str):
-    return db.session.get(User, int(user_id))
+def load_user(session_id: str):
+    """Re-checked on every request: deactivation or a password change ends existing sessions."""
+    user_id, _, fingerprint = session_id.partition(":")
+    user = db.session.get(User, int(user_id)) if user_id.isdigit() else None
+    if user is None or not user.active or not hmac.compare_digest(fingerprint, user.session_fingerprint):
+        return None
+    return user

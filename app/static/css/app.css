@@ -91,11 +91,32 @@ code { color: var(--dfs-navy); font-size: .85em; }
 .sidebar .nav-link.active i { color: var(--dfs-blue); }
 .sidebar .nav-section { font-size: .64rem; text-transform: uppercase; letter-spacing: .28em; color: var(--dfs-muted); padding: 1.2rem .9rem .4rem; }
 .main { min-width: 0; }
+/* Bottom navigation (< lg). The side menu becomes a drawer, opened by the admin's "Plus" item. */
+:root { --bottom-nav-h: 62px; }
+.bottom-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 1030; display: flex; background: #fff;
+  border-top: 1px solid var(--dfs-border); padding-bottom: env(safe-area-inset-bottom);
+  box-shadow: 0 -4px 16px rgba(20, 23, 47, .06); }
+.bottom-nav-item { flex: 1 1 0; min-width: 0; height: var(--bottom-nav-h); display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: .2rem; color: var(--dfs-muted); text-decoration: none;
+  background: none; border: 0; border-top: 3px solid transparent; padding: 0 .25rem;
+  font-family: var(--font-mono); font-size: .62rem; letter-spacing: .06em; text-transform: uppercase; }
+.bottom-nav-item i { font-size: 1.25rem; line-height: 1; }
+.bottom-nav-item span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bottom-nav-item:hover { color: var(--dfs-navy); }
+.bottom-nav-item.active { color: var(--dfs-navy); border-top-color: var(--dfs-blue); font-weight: 600; background: var(--dfs-blue-light); }
+.bottom-nav-item.active i { color: var(--dfs-blue); }
+.bottom-nav-item:focus-visible { outline: 2px solid var(--dfs-blue); outline-offset: -4px; }
 @media (max-width: 991.98px) {
+  .main { padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom) + 1.5rem) !important; }
   .sidebar { position: fixed; left: 0; top: 64px; z-index: 1020; transform: translateX(-100%); transition: transform .2s;
-    height: calc(100vh - 64px); overflow-y: auto; }
-  .sidebar.open { transform: none; box-shadow: 0 0 40px rgba(20, 23, 47, .18); }
+    height: calc(100dvh - 64px - var(--bottom-nav-h) - env(safe-area-inset-bottom)); overflow-y: auto; }
+  .sidebar > .nav { position: static; }
+  /* Huge spread shadow = cheap backdrop; header and bottom bar (z 1030) stay above it. */
+  .sidebar.open { transform: none; box-shadow: 0 0 0 100vmax rgba(20, 23, 47, .35); }
 }
+.bottom-nav-item[aria-expanded="true"] { color: var(--dfs-navy); border-top-color: var(--dfs-blue); background: var(--dfs-blue-light); }
+.bottom-nav-item[aria-expanded="true"] i { color: var(--dfs-blue); }
+@media (prefers-reduced-motion: reduce) { .sidebar { transition: none; } }
 .page-title { font-weight: 700; font-size: clamp(1.5rem, 2.4vw, 2rem); margin: 0; line-height: 1.1; }
 
 /* Cards & tables */

@@ -166,3 +166,9 @@ def test_database_ties_candidate_role_to_a_candidate(app, db):
     with pytest.raises(IntegrityError):
         db.session.commit()
     db.session.rollback()
+
+
+def test_candidate_bottom_navigation(client, app):
+    _logged_candidate(client)
+    bar = client.get("/candidat/").get_data(as_text=True).split('class="bottom-nav d-lg-none"')[1].split("</nav>")[0]
+    assert "Mon espace" in bar and "Mot de passe" in bar and "/candidates/" not in bar

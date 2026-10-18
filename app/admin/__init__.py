@@ -1,11 +1,12 @@
 import io
 import os
+import time
 import uuid
 
 import pandas as pd
 from flask import (Blueprint, abort, current_app, flash, redirect, render_template, request, send_file, session,
                    url_for)
-from flask_login import current_user
+from flask_login import current_user, login_user
 from sqlalchemy import exists, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
@@ -95,6 +96,8 @@ def user_edit(user_id: int):
             if password_changed:
                 audit_service.log("user_password_reset", user)
             db.session.commit()
+            if password_changed and user.id == current_user.id:
+                login_user(user)  # own password changed: keep this session, other ones are logged out
             flash("Utilisateur mis à jour.", "success")
             return redirect(url_for("admin.users"))
         except candidate_service.BusinessError as exc:
@@ -200,6 +203,16 @@ def _import_path() -> str | None:
     return path if os.path.exists(path) else None
 
 
+def _purge_stale_uploads(max_age_hours: int = 24) -> None:
+    """Abandoned previews are full candidate lists (personal data): don't keep them on disk."""
+    folder = current_app.config["UPLOAD_FOLDER"]
+    limit = time.time() - max_age_hours * 3600
+    for name in os.listdir(folder):
+        path = os.path.join(folder, name)
+        if os.path.isfile(path) and os.path.getmtime(path) < limit:
+            os.remove(path)
+
+
 def _mapping_from_form() -> dict[str, str]:
     return {f: request.form.get(f"map_{f}", "") for f in import_service.FIELDS if request.form.get(f"map_{f}")}
 
@@ -216,6 +229,7 @@ def imports():
         old = _import_path()
         if old:
             os.remove(old)
+        _purge_stale_uploads()
         stored = f"{uuid.uuid4().hex}.{ext}"
         upload.save(os.path.join(current_app.config["UPLOAD_FOLDER"], stored))
         session["import"] = {"file": stored, "filename": upload.filename}
@@ -306,14 +320,29 @@ def _export_row(c: Candidate) -> dict:
         "Numéro pièce": c.piece_number, "Code examen": c.exam_code,
         "Motivation": "Oui" if c.motivation_completed else "Non",
         "Motivation le": fmt(c.motivation_completed_at),
+        "Motivation validée": "Oui" if c.motivation_passed else "Non",
         "Salle": s.room.name if s else "", "Ordinateur": s.workstation.name if s else "",
         "Début test": fmt(s.started_at) if s else "", "Fin test": fmt(s.finished_at) if s else "",
         "Durée prévue (min)": s.duration_seconds // 60 if s else "",
         "Durée effective (min)": round(s.elapsed_seconds() / 60, 1) if s else "",
         "Statut test": s.status_badge[1] if s else "",
         "Technique terminé": "Oui" if c.technical_completed else "Non",
+        "Technique validé": "Oui" if c.technical_passed else "Non",
         "Statut global": c.global_status,
     }
+
+
+
+
+FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _neutralize(value):
+    """CSV/formula injection: self-registered candidates control names, cities... A text cell starting
+    with = + - @ would be executed by Excel; a leading apostrophe makes it plain text."""
+    if isinstance(value, str) and value.startswith(FORMULA_PREFIXES):
+        return "'" + value
+    return value
 
 
 @bp.get("/exports/<kind>")
@@ -321,7 +350,7 @@ def export_download(kind: str):
     if kind not in EXPORTS:
         return redirect(url_for("admin.exports"))
     group = request.args.get("group")
-    rows = [_export_row(c) for c in db.session.scalars(_export_query(kind, group))]
+    rows = [{k: _neutralize(v) for k, v in _export_row(c).items()} for c in db.session.scalars(_export_query(kind, group))]
     df = pd.DataFrame(rows)
     fmt = "xlsx" if request.args.get("format") == "xlsx" else "csv"
     audit_service.log("export", details={"kind": kind, "group": group, "format": fmt, "rows": len(rows)})

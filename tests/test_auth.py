@@ -1,3 +1,7 @@
+import re
+
+import pytest
+
 from app.cli import ensure_admin
 from app.models import AuditLog, User
 from app.models.user import ROLE_MOTIVATION
@@ -77,3 +81,21 @@ def test_csrf_enforced_when_enabled(app, admin):
     app.config["WTF_CSRF_ENABLED"] = True
     response = app.test_client().post("/login", data={"email": admin.email, "password": "Password123!"})
     assert response.status_code == 400
+
+
+
+@pytest.mark.parametrize("role,labels", [
+    ("admin", ["Accueil", "Candidats", "Motivation", "Tests", "Plus"]),
+    ("supervisor", ["Accueil", "Candidats", "Motivation", "Tests", "Salles"]),
+    ("motivation_tester", ["Accueil", "Candidats", "Motivation"]),
+    ("technical_tester", ["Accueil", "Éligibles", "Tests", "Salles"]),
+])
+def test_bottom_navigation_per_role(client, app, role, labels):
+    """Mobile bottom bar: right entries per profile, never a link to a page the role can't open."""
+    login(client, make_user(role))
+    page = client.get("/candidates/").get_data(as_text=True)
+    bar = page.split('class="bottom-nav d-lg-none"')[1].split("</nav>")[0]
+    assert re.findall(r"<span>([^<]+)</span>", bar) == labels
+    assert 'bottom-nav-item active" href="/candidates/" aria-current="page"' in bar  # current page marked
+    for href in re.findall(r'href="([^"]+)"', bar):
+        assert client.get(href).status_code == 200, href

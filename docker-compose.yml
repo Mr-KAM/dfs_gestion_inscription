@@ -12,9 +12,10 @@ services:
     expose:
       - "8000"
     ports:
-      # Local access on http://localhost:8000. On Dokploy, the domain is routed by Traefik
-      # to port 8000; set WEB_PORT to another value if 8000 is already taken on the host.
-      - "${WEB_PORT:-8000}:8000"
+      # Local access on http://localhost:8000 only. Bound to 127.0.0.1 so the server never exposes the
+      # app over plain HTTP on its public IP: on Dokploy, Traefik reaches the container through the
+      # Docker network and serves it in HTTPS. WEB_PORT changes the host port if 8000 is taken.
+      - "127.0.0.1:${WEB_PORT:-8000}:8000"
     volumes:
       - uploads:/app/uploads
     networks:

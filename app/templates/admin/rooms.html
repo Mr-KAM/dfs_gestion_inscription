@@ -44,7 +44,7 @@
               <i class="bi bi-toggle-{{ 'on text-success' if ws.active else 'off text-muted' }} fs-5"></i></button></form>
         </div>
         <form method="post" action="{{ url_for('admin.workstation_save', ws_id=ws.id) }}">{{ csrf() }}
-          <input class="form-control form-control-sm" name="label" value="{{ ws.label or '' }}" placeholder="Libellé" aria-label="Libellé" onchange="this.form.submit()">
+          <input class="form-control form-control-sm" name="label" value="{{ ws.label or '' }}" placeholder="Libellé" aria-label="Libellé" data-autosubmit>
         </form>
       </div>
     {% else %}<p class="text-muted mb-0">Aucun ordinateur.</p>{% endfor %}

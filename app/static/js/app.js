@@ -76,6 +76,11 @@
     if (msg && !window.confirm(msg)) e.preventDefault();
   });
 
+  // Checkboxes that save on change: <input class="js-autosubmit"> inside its own form.
+  document.addEventListener("change", (e) => {
+    if (e.target.classList.contains("js-autosubmit")) e.target.form.requestSubmit();
+  });
+
   // Copy to clipboard: <button class="js-copy" data-copy="text">. navigator.clipboard needs HTTPS or
   // localhost; the textarea fallback covers plain-HTTP access on the local network.
   async function copyText(text) {
@@ -116,9 +121,29 @@
     }, 2500);
   });
 
-  // Mobile sidebar toggle.
+  // Mobile: side menu shown as a drawer above the bottom navigation.
   document.addEventListener("click", (e) => {
-    if (e.target.closest(".js-sidebar-toggle")) document.querySelector(".sidebar")?.classList.toggle("open");
+    const sidebar = document.querySelector(".sidebar");
+    if (!sidebar) return;
+    const toggle = e.target.closest(".js-sidebar-toggle");
+    const isOpen = sidebar.classList.contains("open");
+    if (toggle) setDrawer(sidebar, !isOpen); // "Plus" opens / closes the drawer
+    else if (isOpen && !e.target.closest(".sidebar")) setDrawer(sidebar, false); // tap outside closes it
+  });
+
+  function setDrawer(sidebar, open) {
+    sidebar.classList.toggle("open", open);
+    document.querySelectorAll(".js-sidebar-toggle").forEach((b) => b.setAttribute("aria-expanded", String(open)));
+  }
+
+  document.addEventListener("keydown", (e) => {
+    const sidebar = document.querySelector(".sidebar.open");
+    if (e.key === "Escape" && sidebar) setDrawer(sidebar, false);
+  });
+
+  // <select data-autosubmit>: submit its form on change (no inline handlers: blocked by the CSP).
+  document.addEventListener("change", (e) => {
+    if (e.target.matches("[data-autosubmit]")) e.target.form.submit();
   });
 
   // "Apply to all duplicates" select on the import preview.

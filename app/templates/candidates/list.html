@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import status, motivation_badge, sort_th, pagination, timer, copy_button %}
+{% from "_macros.html" import status, motivation_badge, sort_th, pagination, timer, copy_button, passed_checkbox %}
 {% block title %}{{ title }}{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
@@ -69,14 +69,14 @@
       {% if view == 'motivation' %}
         {{ sort_th('N°', 'number', a) }}{{ sort_th('Groupe', 'group', a) }}{{ sort_th('Ordre', 'order', a) }}{{ sort_th('Nom et prénoms', 'name', a) }}
         <th>Sexe</th><th>Email</th><th>Téléphone</th>{{ sort_th('Ville', 'city', a) }}<th>CNI</th><th>Statut Kobo</th>
-        <th>N° pièce</th>{{ sort_th('Code examen', 'exam_code', a) }}<th>Motivation</th><th></th>
+        <th>N° pièce</th>{{ sort_th('Code examen', 'exam_code', a) }}<th>Motivation</th><th>Validé</th><th></th>
       {% elif view == 'technical' %}
         {{ sort_th('Nom et prénoms', 'name', a) }}{{ sort_th('Groupe', 'group', a) }}{{ sort_th('Code examen', 'exam_code', a) }}
-        <th>N° pièce</th><th>Kobo</th><th>Salle</th><th>PC</th><th>Durée</th><th>Chrono</th><th>Test</th><th></th>
+        <th>N° pièce</th><th>Kobo</th><th>Salle</th><th>PC</th><th>Durée</th><th>Chrono</th><th>Test</th><th>Validé</th><th></th>
       {% else %}
         {{ sort_th('#', 'number', a) }}{{ sort_th('Groupe', 'group', a) }}{{ sort_th('Ordre', 'order', a) }}{{ sort_th('Nom', 'name', a) }}
-        <th>Sexe</th><th>Téléphone</th><th>CNI</th><th>Kobo</th><th>Motivation</th>{{ sort_th('Code examen', 'exam_code', a) }}
-        <th>Technique</th><th>Salle</th><th>PC</th><th></th>
+        <th>Sexe</th><th>Téléphone</th><th>CNI</th><th>Kobo</th><th>Motivation</th><th>Mot. validée</th>{{ sort_th('Code examen', 'exam_code', a) }}
+        <th>Technique</th><th>Tech. validé</th><th>Salle</th><th>PC</th><th></th>
       {% endif %}
       </tr></thead>
       <tbody>
@@ -89,6 +89,7 @@
           <td class="fw-semibold">{{ c.full_name }}</td><td>{{ c.gender or '' }}</td><td>{{ c.email or '' }}</td><td>{{ c.phone or '' }}</td>
           <td>{{ c.city or '' }}</td><td>{{ c.cni or '' }}</td><td>{{ status(c.kobo_badge) }}</td><td>{{ c.piece_number or '' }}</td>
           <td><code>{{ c.exam_code or '' }}</code></td><td>{{ motivation_badge(c) }}</td>
+          <td>{{ passed_checkbox(c, 'motivation', can_motivation) }}</td>
           <td class="text-end text-nowrap">{{ copy_button(c, compact=True) }} <a class="btn btn-sm btn-primary" href="{{ open_url }}">{{ 'Voir' if c.motivation_completed else 'Évaluer' }}</a></td>
         {% elif view == 'technical' %}
           <td class="fw-semibold">{{ c.full_name }}</td><td>{{ c.group_name or '' }}</td><td><code>{{ c.exam_code }}</code></td>
@@ -97,12 +98,13 @@
           <td>{{ (s.duration_seconds // 60 ~ ' min') if s else '' }}</td>
           <td>{% if s and s.is_active %}{{ timer(s) }}{% endif %}</td>
           <td>{{ status(c.technical_badge) }}</td>
+          <td>{{ passed_checkbox(c, 'technical', can_technical) }}</td>
           <td class="text-end text-nowrap">{{ copy_button(c, compact=True) }} <a class="btn btn-sm btn-primary" href="{{ open_url }}">Ouvrir</a></td>
         {% else %}
           <td>{{ c.candidate_number or '' }}</td><td>{{ c.group_name or '' }}</td><td>{{ c.passage_order or '' }}</td>
           <td class="fw-semibold">{{ c.full_name }}</td><td>{{ c.gender or '' }}</td><td>{{ c.phone or '' }}</td><td>{{ c.cni or '' }}</td>
-          <td>{{ status(c.kobo_badge) }}</td><td>{{ motivation_badge(c) }}</td><td><code>{{ c.exam_code or '' }}</code></td>
-          <td>{{ status(c.technical_badge) }}</td><td>{{ s.room.name if s else '' }}</td><td>{{ s.workstation.name if s else '' }}</td>
+          <td>{{ status(c.kobo_badge) }}</td><td>{{ motivation_badge(c) }}</td><td>{{ passed_checkbox(c, 'motivation', can_motivation) }}</td><td><code>{{ c.exam_code or '' }}</code></td>
+          <td>{{ status(c.technical_badge) }}</td><td>{{ passed_checkbox(c, 'technical', can_technical) }}</td><td>{{ s.room.name if s else '' }}</td><td>{{ s.workstation.name if s else '' }}</td>
           <td class="text-end text-nowrap">
             {{ copy_button(c, compact=True) }}
             <a class="btn btn-sm btn-outline-primary" href="{{ open_url }}" title="Ouvrir"><i class="bi bi-eye"></i></a>
@@ -111,7 +113,7 @@
         {% endif %}
         </tr>
       {% else %}
-        <tr><td colspan="15" class="text-center text-muted py-4">Aucun candidat ne correspond aux filtres.</td></tr>
+        <tr><td colspan="17" class="text-center text-muted py-4">Aucun candidat ne correspond aux filtres.</td></tr>
       {% endfor %}
       </tbody>
     </table>

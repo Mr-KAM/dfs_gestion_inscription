@@ -4,12 +4,20 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 from flask import Flask, jsonify, render_template, request
+from flask_login import current_user
 from flask_wtf.csrf import CSRFError
 from sqlalchemy import text
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.config import Config
 from app.extensions import csrf, db, login_manager, migrate
+
+
+# Every asset is served by the app itself (no CDN). Scripts: own files only, no inline JS.
+# Styles keep 'unsafe-inline' for a few style="" attributes; images allow data: (Bootstrap's SVG icons).
+CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+       "font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; "
+       "frame-ancestors 'none'")
 
 
 def create_app(config_overrides: dict | None = None) -> Flask:
@@ -97,6 +105,12 @@ def _register_web_helpers(app: Flask) -> None:
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("Referrer-Policy", "same-origin")
+        response.headers.setdefault("Content-Security-Policy", CSP)
+        response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
+        if request.is_secure:  # behind Dokploy/Traefik HTTPS (ProxyFix); never sent over plain HTTP
+            response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+        if current_user.is_authenticated:  # personal data: no copy in browser/proxy caches (shared PCs)
+            response.headers.setdefault("Cache-Control", "no-store")
         return response
 
     def error_page(code: int, title: str, message: str):

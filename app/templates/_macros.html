@@ -6,6 +6,18 @@
   {{ status(('success', 'Terminé') if c.motivation_completed else ('secondary', 'En attente')) }}
 {%- endmacro %}
 
+{# "Validé" checkbox for test = 'motivation' | 'technical'; auto-submitted by app.js, enabled once the test is completed. #}
+{% macro passed_checkbox(c, test, editable) -%}
+  {% set done = c[test ~ '_completed'] %}
+  <form method="post" action="{{ url_for('candidates.set_passed', candidate_id=c.id, test=test) }}" class="m-0">
+    {{ csrf() }}<input type="hidden" name="next" value="{{ request.full_path }}">
+    <input class="form-check-input js-autosubmit" type="checkbox" name="passed" value="1"
+           {{ 'checked' if c[test ~ '_passed'] }} {{ 'disabled' if not (editable and done) }}
+           title="{{ 'Test validé' if done else 'Test non terminé' }}"
+           aria-label="Test {{ test }} validé pour {{ c.full_name }}">
+  </form>
+{%- endmacro %}
+
 {% macro csrf() -%}
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 {%- endmacro %}

@@ -54,6 +54,10 @@ class Candidate(db.Model):
     technical_completed = db.Column(db.Boolean, nullable=False, default=False, index=True)
     technical_completed_at = db.Column(db.DateTime(timezone=True))
 
+    # Jury verdict, ticked in the candidate list once the test is completed.
+    motivation_passed = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
+    technical_passed = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
+
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
     updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow)
 

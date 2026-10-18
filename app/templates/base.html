@@ -2,8 +2,9 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>{% block title %}{{ app_name }}{% endblock %} · DFS</title>
+  <link rel="icon" href="data:,">
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
@@ -12,12 +13,18 @@
 {% import "_brand.html" as brand %}
 {% if current_user.is_authenticated %}
 {% set role = current_user.role %}
+{% macro is_active(endpoint, match=None) -%}
+  {{- 'active' if request.endpoint == endpoint or (match and request.endpoint and request.endpoint.startswith(match)) -}}
+{%- endmacro %}
 {% macro nav(endpoint, icon, label, match=None) -%}
-  {% set active = request.endpoint == endpoint or (match and request.endpoint and request.endpoint.startswith(match)) %}
-  <a class="nav-link {{ 'active' if active }}" href="{{ url_for(endpoint) }}"><i class="bi bi-{{ icon }}"></i>{{ label }}</a>
+  <a class="nav-link {{ is_active(endpoint, match) }}" href="{{ url_for(endpoint) }}"><i class="bi bi-{{ icon }}"></i>{{ label }}</a>
+{%- endmacro %}
+{% macro bnav(endpoint, icon, label, match=None) -%}
+  {% set active = is_active(endpoint, match) %}
+  <a class="bottom-nav-item {{ active }}" href="{{ url_for(endpoint) }}" {{ 'aria-current="page"' | safe if active }}>
+    <i class="bi bi-{{ icon }}" aria-hidden="true"></i><span>{{ label }}</span></a>
 {%- endmacro %}
 <header class="app-header d-flex align-items-center px-3 gap-3">
-  <button class="btn btn-sm btn-light d-lg-none js-sidebar-toggle" aria-label="Menu"><i class="bi bi-list"></i></button>
   <a class="text-decoration-none" href="{{ url_for('dashboard.index') }}" aria-label="Accueil">{{ brand.logo(32) }}</a>
   <span class="app-label d-none d-md-inline">{{ app_name }}</span>
   <div class="ms-auto d-flex align-items-center gap-3">
@@ -32,7 +39,7 @@
   </div>
 </header>
 <div class="d-flex">
-  <nav class="sidebar p-2 flex-shrink-0">
+  <nav class="sidebar p-2 flex-shrink-0" id="sidebar" aria-label="Menu">
     <div class="nav flex-column gap-1">
       {% if role == 'candidate' %}
         {{ nav('portal.home', 'house', 'Mon espace') }}
@@ -75,6 +82,30 @@
     {% block content %}{% endblock %}
   </main>
 </div>
+{# Mobile / tablet: thumb-reachable navigation, at most 5 entries per role. #}
+<nav class="bottom-nav d-lg-none" aria-label="Navigation principale">
+  {% if role == 'candidate' %}
+    {{ bnav('portal.home', 'house', 'Mon espace') }}
+    {{ bnav('portal.password', 'key', 'Mot de passe') }}
+  {% elif role == 'technical_tester' %}
+    {{ bnav('dashboard.index', 'speedometer2', 'Accueil') }}
+    {{ bnav('candidates.index', 'people', 'Éligibles', 'candidates.') }}
+    {{ bnav('technical.sessions', 'stopwatch', 'Tests') }}
+    {{ bnav('technical.rooms', 'pc-display', 'Salles') }}
+  {% else %}
+    {{ bnav('dashboard.index', 'speedometer2', 'Accueil') }}
+    {{ bnav('candidates.index', 'people', 'Candidats', 'candidates.') }}
+    {{ bnav('motivation.index', 'chat-square-text', 'Motivation') }}
+    {% if role in ('admin', 'supervisor') %}{{ bnav('technical.sessions', 'stopwatch', 'Tests') }}{% endif %}
+    {% if role == 'supervisor' %}{{ bnav('technical.rooms', 'grid-3x3-gap', 'Salles') }}{% endif %}
+    {% if role == 'admin' %}
+      {# Admin has more pages than fit: "Plus" opens the full side menu as a drawer. #}
+      {% set in_drawer = request.endpoint and (request.endpoint.startswith(('admin.', 'kobo.')) or request.endpoint == 'technical.rooms') %}
+      <button type="button" class="bottom-nav-item js-sidebar-toggle {{ 'active' if in_drawer }}" aria-expanded="false" aria-controls="sidebar">
+        <i class="bi bi-grid" aria-hidden="true"></i><span>Plus</span></button>
+    {% endif %}
+  {% endif %}
+</nav>
 {% else %}
   {% block public %}{% endblock %}
 {% endif %}

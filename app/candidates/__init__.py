@@ -4,6 +4,7 @@ from flask import Blueprint, abort, current_app, flash, redirect, render_templat
 from flask_login import current_user
 from sqlalchemy import select
 
+from app.auth import _safe_next
 from app.extensions import db
 from app.models import Candidate, Room
 from app.models.candidate import FILE_STATUSES
@@ -22,7 +23,9 @@ def render_list(view: str, title: str, defaults: dict | None = None):
     stmt = candidate_service.filtered_query(args, eligible_only=view == "technical")
     page = db.paginate(stmt, page=request.args.get("page", 1, type=int), per_page=current_app.config["PER_PAGE"])
     return render_template("candidates/list.html", page=page, view=view, title=title, args=args,
-                           groups=candidate_service.distinct_groups())
+                           groups=candidate_service.distinct_groups(),
+                           can_motivation=current_user.role in MOTIVATION_ROLES,
+                           can_technical=current_user.role in TECHNICAL_ROLES)
 
 
 def get_visible_candidate(candidate_id: int) -> Candidate:
@@ -139,6 +142,25 @@ def delete(candidate_id: int):
     db.session.commit()
     flash("Candidat supprimé.", "success")
     return redirect(url_for("candidates.index"))
+
+
+@bp.post("/<int:candidate_id>/passed/<test>")
+@roles_required(*ALL_ROLES)
+def set_passed(candidate_id: int, test: str):
+    """Checkbox in the list: the jury marks the motivation / technical test as validated."""
+    roles, done = {"motivation": (MOTIVATION_ROLES, "motivation_completed"),
+                   "technical": (TECHNICAL_ROLES, "technical_completed")}.get(test, (None, None))
+    if roles is None or current_user.role not in roles:
+        abort(404 if roles is None else 403)
+    candidate = get_visible_candidate(candidate_id)
+    if not getattr(candidate, done):
+        flash("Le test doit être terminé avant d'être validé.", "danger")
+    else:
+        value = request.form.get("passed") == "1"
+        setattr(candidate, f"{test}_passed", value)
+        audit_service.log(f"{test}_passed", candidate, {"passed": value})
+        db.session.commit()
+    return redirect(_safe_next(request.form.get("next")))
 
 
 @bp.post("/<int:candidate_id>/reset-password")
