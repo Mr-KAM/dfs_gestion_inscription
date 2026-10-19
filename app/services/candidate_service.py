@@ -229,6 +229,21 @@ def next_exam_code() -> str:
     return normalize_exam_code(fmt.format(seq=last + 1, **params))
 
 
+def admit_to_sas(candidate: Candidate, sas, user: User) -> None:
+    """SAS admission = both tests completed and validated (exam code generated if missing). The caller commits."""
+    now = utcnow()
+    if not candidate.exam_code:
+        candidate.exam_code = next_exam_code()  # autoflush: the previous admissions are counted
+        audit_service.log("exam_code_create", candidate, {"exam_code": candidate.exam_code, "generated": True})
+    if not candidate.motivation_completed:
+        candidate.motivation_completed, candidate.motivation_completed_at = True, now
+        candidate.motivation_completed_by = user.id
+    if not candidate.technical_completed:
+        candidate.technical_completed, candidate.technical_completed_at = True, now
+    candidate.motivation_passed = candidate.technical_passed = True
+    candidate.sas, candidate.sas_admitted_at = sas, now
+
+
 def validate_motivation(candidate: Candidate, piece_number: str, exam_code: str, user: User) -> Candidate:
     """Record piece number + exam code and mark motivation as completed (spec §20-21)."""
     if candidate.motivation_completed and user.role != ROLE_ADMIN:

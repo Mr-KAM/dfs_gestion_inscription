@@ -25,6 +25,8 @@ def test_admin_creates_sas_admits_and_assigns(app, db, client, admin):
     assert "1 candidat(s) admis" in html and "INCONNU" in html  # a already in: not counted twice
     db.session.expire_all()
     assert {c.email for c in sas.members} == {"a@test.ci", "b@test.ci"}
+    assert b.exam_code and b.motivation_completed and b.technical_completed  # admission completes + validates
+    assert b.motivation_passed and b.technical_passed and a.exam_code == "E1"  # existing code kept
 
     html = client.get(f"/admin/sas/{sas.id}").get_data(as_text=True)
     assert f"/candidates/{a.id}/passed/technical" in html  # validation ticked from the SAS page
