@@ -1,20 +1,42 @@
-// Admin QR scanner: camera (getUserMedia, needs HTTPS or localhost) or a photo, read with jsQR.
-// The raw QR text goes into the form; decoding to a matricule is done by the server.
+// Admin QR scanner: camera (getUserMedia, needs HTTPS or localhost) or a photo.
+// Native BarcodeDetector when the browser has it (Chrome/Android: fast, robust), jsQR otherwise.
+// The raw QR text goes into the form; decryption to a matricule is done by the server.
 (() => {
   const form = document.getElementById("scan-form");
-  if (!form || typeof jsQR !== "function") return;
+  if (!form) return;
   const input = form.querySelector("[name=token]");
   const video = document.getElementById("scan-video");
   const status = document.getElementById("scan-status");
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  const MAX_SIDE = 800; // jsQR: big frames are slow and no more readable
   let stream = null;
+  let detector = null;
 
-  function read(source, width, height) {
-    canvas.width = width;
-    canvas.height = height;
-    ctx.drawImage(source, 0, 0, width, height);
-    const code = jsQR(ctx.getImageData(0, 0, width, height).data, width, height);
+  async function initDetector() {
+    if (!("BarcodeDetector" in window)) return;
+    try {
+      if ((await BarcodeDetector.getSupportedFormats()).includes("qr_code")) {
+        detector = new BarcodeDetector({ formats: ["qr_code"] });
+      }
+    } catch (e) { detector = null; }
+  }
+  const ready = initDetector();
+
+  async function read(source, width, height) {
+    if (detector) {
+      try {
+        const codes = await detector.detect(source);
+        if (codes.length) return codes[0].rawValue;
+      } catch (e) { /* frame not ready: fall through to jsQR */ }
+    }
+    if (typeof jsQR !== "function" || !width || !height) return null;
+    const scale = Math.min(1, MAX_SIDE / Math.max(width, height));
+    canvas.width = Math.round(width * scale);
+    canvas.height = Math.round(height * scale);
+    ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+    const code = jsQR(ctx.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height,
+                      { inversionAttempts: "attemptBoth" });
     return code && code.data;
   }
 
@@ -31,13 +53,13 @@
     form.requestSubmit();
   }
 
-  function tick() {
+  async function tick() {
     if (!stream) return;
     if (video.readyState >= 2) {
-      const text = read(video, video.videoWidth, video.videoHeight);
+      const text = await read(video, video.videoWidth, video.videoHeight);
       if (text) return found(text);
     }
-    requestAnimationFrame(tick);
+    setTimeout(tick, 120); // ~8 tries per second, leaves the phone responsive
   }
 
   document.getElementById("scan-camera").addEventListener("click", async () => {
@@ -46,11 +68,20 @@
       return;
     }
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      await ready;
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      });
+      const [track] = stream.getVideoTracks();
+      const caps = track.getCapabilities ? track.getCapabilities() : {};
+      if (caps.focusMode && caps.focusMode.includes("continuous")) {
+        track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
+      }
       video.srcObject = stream;
       video.hidden = false;
       await video.play();
-      status.textContent = "Visez le QR code…";
+      status.textContent = "Visez le QR code (10 à 20 cm, bien éclairé)…";
       tick();
     } catch (e) {
       stop();
@@ -65,9 +96,9 @@
     const reader = new FileReader();
     reader.onload = () => {
       const img = new Image();
-      img.onload = () => {
-        const scale = Math.min(1, 1600 / Math.max(img.width, img.height)); // phone photos are huge
-        const text = read(img, Math.round(img.width * scale), Math.round(img.height * scale));
+      img.onload = async () => {
+        await ready;
+        const text = await read(img, img.naturalWidth, img.naturalHeight);
         if (text) found(text);
         else status.textContent = "Aucun QR code détecté sur la photo. Recadrez et réessayez.";
       };

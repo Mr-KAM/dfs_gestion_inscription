@@ -1,4 +1,4 @@
-"""Matricule QR code: (random noise + matricule -> binary) encrypted with AES-256-GCM, decoded by the admin scanner."""
+"""Matricule QR code: (random noise + matricule as bytes) encrypted with AES-256-GCM, base32, decoded by the admin scanner."""
 import base64
 
 import pytest
@@ -8,21 +8,27 @@ from tests.conftest import login, make_candidate
 
 
 def _raw(token: str) -> bytes:
-    return base64.urlsafe_b64decode(token + "=" * (-len(token) % 4))
+    return base64.b32decode(token + "=" * (-len(token) % 8))
 
 
 def _token(raw: bytes) -> str:
-    return base64.urlsafe_b64encode(raw).decode().rstrip("=")
+    return base64.b32encode(raw).decode().rstrip("=")
 
 
 def test_round_trip_and_content_is_encrypted(app):
     a, b = encode_matricule("26CAND000001"), encode_matricule("26CAND000001")
     assert a != b  # random noise + random nonce
     assert decode_matricule(a) == decode_matricule(b) == "26CAND000001"
+    assert decode_matricule(a.lower()) == "26CAND000001"  # handheld scanner typing lowercase
     raw = _raw(a)
-    assert len(raw) == QR_NONCE + 22 * 8 + 16  # nonce + encrypted binary + GCM tag
-    plain_bits = "".join(f"{x:08b}" for x in b"26CAND000001").encode()
-    assert b"26CAND" not in raw and plain_bits not in raw and set(raw) - set(b"01")  # nothing readable
+    assert len(a) == 80 and len(raw) == QR_NONCE + 22 + 16  # nonce + encrypted bytes + GCM tag
+    assert b"26CAND" not in raw and b"26CAND" not in a.encode()  # nothing readable
+
+
+def test_qr_is_small_enough_for_cameras(app):
+    import segno
+    qr = segno.make(encode_matricule("26CAND000001"), error="m")
+    assert qr.mode == "alphanumeric" and qr.version <= 4  # was version 12: too dense to scan
 
 
 def test_tampering_is_rejected(app):
@@ -59,7 +65,7 @@ def test_profiles_show_qr_and_admin_scan_decodes(app, client, admin):
     assert "Candidat identifié" in html and "contenu déchiffré" in html and c.matricule in html
     html = client.post("/admin/scan", data={"token": encode_matricule("26CAND999999")}).get_data(as_text=True)
     assert "aucun candidat" in html
-    forged = _token(bytes(QR_NONCE + 22 * 8 + 16))
+    forged = _token(bytes(QR_NONCE + 22 + 16))
     html = client.post("/admin/scan", data={"token": forged}).get_data(as_text=True)
     assert "signature invalide" in html and "Candidat identifié" not in html
     assert client.get("/candidates/").headers["Permissions-Policy"].startswith("camera=()")  # camera only on scan

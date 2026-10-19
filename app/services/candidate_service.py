@@ -61,12 +61,13 @@ def _assign_matricules(session, _context, _instances) -> None:
 
 MATRICULE_RE = re.compile(r"^\d{2}CAND\d{6}$")
 QR_NOISE = string.ascii_letters + string.digits
-QR_TOKEN_MAX = 400
+QR_TOKEN_MAX = 200
 
 
 QR_UNREADABLE = "QR code illisible : ce n'est pas un QR code matricule DFS."
 QR_FORGED = "QR code refusé : signature invalide (QR code modifié ou non émis par cette application)."
 QR_NONCE = 12  # AES-GCM nonce bytes
+QR_RAW_LEN = QR_NONCE + 22 + 16  # nonce + encrypted 22 bytes + GCM tag = 50 bytes
 
 
 def _qr_cipher() -> AESGCM:
@@ -76,45 +77,46 @@ def _qr_cipher() -> AESGCM:
 
 
 def encode_matricule(matricule: str) -> str:
-    """QR content: base64url(nonce + AES-256-GCM(binary)).
-    binary: 5 random chars + matricule + 5 random chars -> '0'/'1' per bit.
+    """QR content: base32(nonce + AES-256-GCM(binary)) -> 80 chars, QR version 4.
+    binary: 5 random chars + matricule + 5 random chars as raw bytes (8 bits per char). Not as '0'/'1'
+    text: that made the code 8x longer and too dense (version 12) for cameras to read.
+    base32 (A-Z, 2-7) fits the QR alphanumeric mode, denser than base64.
     Encrypted: nothing readable without the server key. The GCM tag is the signature: any modified
     or home-made QR code fails decryption. Changing SECRET_KEY invalidates printed QR codes."""
     noise = lambda: "".join(secrets.choice(QR_NOISE) for _ in range(5))  # noqa: E731
-    bits = "".join(f"{byte:08b}" for byte in (noise() + matricule + noise()).encode("ascii"))
+    binary = (noise() + matricule + noise()).encode("ascii")
     nonce = secrets.token_bytes(QR_NONCE)
-    sealed = _qr_cipher().encrypt(nonce, bits.encode("ascii"), None)
-    return base64.urlsafe_b64encode(nonce + sealed).decode("ascii").rstrip("=")
+    sealed = _qr_cipher().encrypt(nonce, binary, None)
+    return base64.b32encode(nonce + sealed).decode("ascii").rstrip("=")
 
 
 def decode_matricule(token: str) -> str:
-    """Admin scanner: base64 -> decrypt + verify the tag -> binary -> text -> matricule.
+    """Admin scanner: base32 -> decrypt + verify the tag -> binary -> matricule.
     Raises BusinessError on anything that is not a QR code issued by this application."""
-    token = (token or "").strip()
+    token = (token or "").strip().upper()  # some handheld scanners type lowercase
     try:
         if not token or len(token) > QR_TOKEN_MAX or not token.isascii():
             raise ValueError
-        raw = base64.urlsafe_b64decode(token + "=" * (-len(token) % 4))
-        if len(raw) <= QR_NONCE + 16:  # nonce + GCM tag, nothing inside
+        raw = base64.b32decode(token + "=" * (-len(token) % 8))
+        if len(raw) != QR_RAW_LEN:
             raise ValueError
     except ValueError:  # binascii.Error is a ValueError
         raise BusinessError(QR_UNREADABLE)
     try:
-        bits = _qr_cipher().decrypt(raw[:QR_NONCE], raw[QR_NONCE:], None).decode("ascii")
+        binary = _qr_cipher().decrypt(raw[:QR_NONCE], raw[QR_NONCE:], None)
     except InvalidTag:
         raise BusinessError(QR_FORGED)
-    if not re.fullmatch(r"(?:[01]{8}){22}", bits):
-        raise BusinessError(QR_UNREADABLE)
-    text = bytes(int(bits[i:i + 8], 2) for i in range(0, len(bits), 8)).decode("ascii", "replace")
-    matricule = text[5:-5]
+    matricule = binary[5:-5].decode("ascii", "replace")
     if not MATRICULE_RE.match(matricule):
         raise BusinessError(QR_UNREADABLE)
     return matricule
 
 
 def matricule_qr(candidate: Candidate) -> Markup:
-    """Inline SVG QR code (new random noise on every render), used as a Jinja global."""
-    svg = segno.make(encode_matricule(candidate.matricule), error="m").svg_inline(scale=4, border=2)
+    """Inline SVG QR code (new random noise on every render), used as a Jinja global.
+    border=4: the quiet zone required by the QR spec, cameras miss codes without it."""
+    svg = segno.make(encode_matricule(candidate.matricule), error="m").svg_inline(
+        scale=8, border=4, dark="#000", light="#fff")
     return Markup(svg)
 
 
