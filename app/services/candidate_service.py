@@ -1,8 +1,13 @@
 """Candidate queries, filters, motivation validation and exam codes."""
+import base64
 import re
+import secrets
+import string
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
+import segno
+from markupsafe import Markup
 from sqlalchemy import case, event, exists, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
@@ -47,6 +52,43 @@ def _assign_matricules(session, _context, _instances) -> None:
     for candidate in new:
         number += 1
         candidate.matricule = f"{prefix}{number:06d}"
+
+
+MATRICULE_RE = re.compile(r"^\d{2}CAND\d{6}$")
+QR_NOISE = string.ascii_letters + string.digits
+QR_TOKEN_MAX = 400
+
+
+def encode_matricule(matricule: str) -> str:
+    """QR payload: 5 random chars + matricule + 5 random chars -> binary ('0'/'1' per bit) -> base64.
+    ponytail: obfuscation, not a signature -- anyone who knows the scheme can build a token."""
+    noise = lambda: "".join(secrets.choice(QR_NOISE) for _ in range(5))  # noqa: E731
+    bits = "".join(f"{byte:08b}" for byte in (noise() + matricule + noise()).encode("ascii"))
+    return base64.urlsafe_b64encode(bits.encode("ascii")).decode("ascii").rstrip("=")
+
+
+def decode_matricule(token: str) -> str:
+    """Inverse of encode_matricule. Raises BusinessError on anything that is not one of our QR codes."""
+    token = (token or "").strip()
+    try:
+        if not token or len(token) > QR_TOKEN_MAX:
+            raise ValueError
+        bits = base64.urlsafe_b64decode(token + "=" * (-len(token) % 4)).decode("ascii")
+        if not re.fullmatch(r"(?:[01]{8})+", bits):
+            raise ValueError
+        text = bytes(int(bits[i:i + 8], 2) for i in range(0, len(bits), 8)).decode("ascii")
+    except ValueError:  # binascii.Error and UnicodeDecodeError are ValueErrors
+        raise BusinessError("QR code illisible : ce n'est pas un QR code matricule DFS.")
+    matricule = text[5:-5]
+    if len(text) != 22 or not MATRICULE_RE.match(matricule):
+        raise BusinessError("QR code illisible : ce n'est pas un QR code matricule DFS.")
+    return matricule
+
+
+def matricule_qr(candidate: Candidate) -> Markup:
+    """Inline SVG QR code (new random noise on every render), used as a Jinja global."""
+    svg = segno.make(encode_matricule(candidate.matricule), error="m").svg_inline(scale=4, border=2)
+    return Markup(svg)
 
 
 def _active_session_exists():

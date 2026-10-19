@@ -63,6 +63,7 @@
         {{ nav('admin.rooms', 'pc-display', 'Salles & ordinateurs') }}
         {{ nav('kobo.index', 'cloud-arrow-down', 'KoboToolbox', 'kobo.') }}
         {{ nav('admin.users', 'person-gear', 'Utilisateurs', 'admin.user') }}
+        {{ nav('admin.scan', 'qr-code-scan', 'Scanner QR') }}
         {{ nav('admin.imports', 'upload', 'Imports', 'admin.import') }}
         {{ nav('admin.exports', 'download', 'Exports') }}
         {{ nav('admin.audit', 'journal-text', 'Audit') }}
@@ -112,5 +113,6 @@
 <div id="copy-status" class="visually-hidden" role="status" aria-live="polite"></div>
 <script src="{{ url_for('static', filename='vendor/bootstrap.bundle.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% block scripts %}{% endblock %}
 </body>
 </html>

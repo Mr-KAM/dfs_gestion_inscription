@@ -65,7 +65,7 @@ def _check_config(app: Flask) -> None:
 
 def _register_web_helpers(app: Flask) -> None:
     from app.models.user import ROLES
-    from app.services import settings_service
+    from app.services import candidate_service, settings_service
 
     @app.get("/health")
     def health():
@@ -99,6 +99,8 @@ def _register_web_helpers(app: Flask) -> None:
     @app.context_processor
     def inject_globals():
         return {"app_name": settings_service.get("app_name"), "ROLES": ROLES}
+
+    app.add_template_global(candidate_service.matricule_qr, "matricule_qr")  # global: visible inside macros
 
     @app.after_request
     def security_headers(response):

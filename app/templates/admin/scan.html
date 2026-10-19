@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, status, motivation_badge %}
+{% block title %}Scanner QR{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Scanner un QR code candidat</h1>
+<div class="row g-3">
+  <div class="col-lg-6">
+    <form class="card card-body" id="scan-form" method="post" action="{{ url_for('admin.scan') }}">
+      {{ csrf() }}
+      <div class="d-flex gap-2 flex-wrap mb-3">
+        <button type="button" class="btn btn-primary" id="scan-camera"><i class="bi bi-camera-video"></i> Scanner avec la caméra</button>
+        <label class="btn btn-outline-primary mb-0"><i class="bi bi-image"></i> Photo du QR code
+          <input type="file" id="scan-file" accept="image/*" capture="environment" hidden></label>
+      </div>
+      <video id="scan-video" class="w-100 rounded border mb-3" playsinline muted hidden></video>
+      <div id="scan-status" class="small text-muted mb-3" role="status" aria-live="polite"></div>
+      <label class="form-label" for="token">Contenu du QR code</label>
+      <input class="form-control font-monospace" id="token" name="token" autocomplete="off" autofocus
+             placeholder="Rempli automatiquement (ou par une douchette)">
+      <div class="form-text">La caméra demande HTTPS (ou localhost). En HTTP sur le réseau local, utilisez « Photo du QR code ».</div>
+      <div><button class="btn btn-outline-secondary mt-3"><i class="bi bi-unlock"></i> Décoder</button></div>
+    </form>
+  </div>
+  <div class="col-lg-6">
+    {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+    {% if c %}
+    <div class="card"><div class="card-header"><i class="bi bi-person-check"></i> Candidat identifié</div>
+      <div class="card-body">
+        <dl class="kv row mb-3">
+          <dt class="col-5">Matricule</dt><dd class="col-7 fs-5"><code>{{ c.matricule }}</code></dd>
+          <dt class="col-5">Nom et prénoms</dt><dd class="col-7 fw-semibold">{{ c.full_name }}</dd>
+          <dt class="col-5">Email</dt><dd class="col-7 text-break">{{ c.email or '—' }}</dd>
+          <dt class="col-5">Code examen</dt><dd class="col-7"><code>{{ c.exam_code or '—' }}</code></dd>
+          <dt class="col-5">Dossier</dt><dd class="col-7">{{ status(c.kobo_badge) }}</dd>
+          <dt class="col-5">Motivation</dt><dd class="col-7">{{ motivation_badge(c) }}</dd>
+          <dt class="col-5">Test technique</dt><dd class="col-7">{{ status(c.technical_badge) }}</dd>
+          <dt class="col-5">Statut</dt><dd class="col-7">{{ c.global_status }}</dd>
+        </dl>
+        <a class="btn btn-primary" href="{{ url_for('candidates.detail', candidate_id=c.id) }}"><i class="bi bi-eye"></i> Ouvrir la fiche</a>
+      </div></div>
+    {% elif not error %}
+    <p class="text-muted">Scannez le QR code affiché sur la fiche ou dans l'espace du candidat.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/jsQR.js') }}"></script>
+<script src="{{ url_for('static', filename='js/scan.js') }}"></script>
+{% endblock %}

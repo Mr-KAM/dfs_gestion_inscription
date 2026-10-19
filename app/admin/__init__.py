@@ -4,8 +4,8 @@ import time
 import uuid
 
 import pandas as pd
-from flask import (Blueprint, abort, current_app, flash, redirect, render_template, request, send_file, session,
-                   url_for)
+from flask import (Blueprint, abort, current_app, flash, make_response, redirect, render_template, request, send_file,
+                   session, url_for)
 from flask_login import current_user, login_user
 from sqlalchemy import exists, func, or_, select
 from sqlalchemy.exc import IntegrityError
@@ -136,6 +136,26 @@ def user_toggle(user_id: int):
     db.session.commit()
     flash(f"Compte {'activé' if user.active else 'désactivé'} : {user.email}.", "success")
     return redirect(back)
+
+
+# ------------------------------------------------------------------ QR scanner
+
+@bp.route("/scan", methods=["GET", "POST"])
+def scan():
+    """Decode a candidate's matricule QR code (camera, photo, or a handheld scanner typing into the field)."""
+    candidate = matricule = error = None
+    if request.method == "POST":
+        try:
+            matricule = candidate_service.decode_matricule(request.form.get("token", ""))
+            candidate = db.session.scalar(select(Candidate).where(Candidate.matricule == matricule))
+            if candidate is None:
+                error = f"Matricule {matricule} décodé, mais aucun candidat ne le porte."
+        except candidate_service.BusinessError as exc:
+            error = str(exc)
+    response = make_response(render_template("admin/scan.html", c=candidate, matricule=matricule, error=error))
+    # The only page allowed to use the camera (blocked everywhere else by security_headers).
+    response.headers["Permissions-Policy"] = "camera=(self), microphone=(), geolocation=(), payment=()"
+    return response
 
 
 # ------------------------------------------------------------------ rooms & workstations

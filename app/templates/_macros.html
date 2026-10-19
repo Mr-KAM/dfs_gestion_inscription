@@ -18,6 +18,15 @@
   </form>
 {%- endmacro %}
 
+{# Matricule QR code (encoded payload, decoded by Administration > Scanner QR). #}
+{% macro qr_card(c, title='QR code matricule') -%}
+  <div class="card mb-3"><div class="card-header"><i class="bi bi-qr-code"></i> {{ title }}</div>
+    <div class="card-body text-center">
+      <div class="qr-code d-inline-block bg-white p-2 rounded" role="img" aria-label="QR code du matricule {{ c.matricule }}">{{ matricule_qr(c) }}</div>
+      <div class="mt-2"><code class="fs-6">{{ c.matricule }}</code></div>
+    </div></div>
+{%- endmacro %}
+
 {% macro csrf() -%}
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 {%- endmacro %}

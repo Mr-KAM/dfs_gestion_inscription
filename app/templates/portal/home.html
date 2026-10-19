@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import status, copy_button %}
+{% from "_macros.html" import status, copy_button, qr_card %}
 {% block title %}Mon espace{% endblock %}
 {% block content %}
 <div class="mb-4">
@@ -24,6 +24,7 @@
       {% endif %}
       </div></div>
 
+    {{ qr_card(c, 'Mon QR code — à présenter le jour du test') }}
     <div class="card mb-3"><div class="card-header"><i class="bi bi-signpost-split"></i> Mes étapes</div>
       <div class="card-body">
         <dl class="kv row mb-0">
