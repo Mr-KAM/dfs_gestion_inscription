@@ -12,6 +12,30 @@
   </div>
 </form>
 
+<details class="card mb-3" {{ 'open' if report }}>
+  <summary class="card-header"><i class="bi bi-file-earmark-spreadsheet"></i> Importer des salles et ordinateurs (Excel / CSV)</summary>
+  <form class="card-body" method="post" action="{{ url_for('admin.rooms_import') }}" enctype="multipart/form-data">
+    {{ csrf() }}
+    <div class="row g-2 align-items-end">
+      <div class="col-md-6"><label class="form-label" for="rooms-file">Fichier .csv, .xlsx ou .xls</label>
+        <input class="form-control" id="rooms-file" type="file" name="file" accept=".csv,.xlsx,.xls" required></div>
+      <div class="col-md-6 d-flex gap-2">
+        <button class="btn btn-primary"><i class="bi bi-upload"></i> Importer</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('admin.rooms_template') }}"><i class="bi bi-download"></i> Modèle CSV</a>
+      </div>
+    </div>
+    <div class="form-text">Une ligne par ordinateur : <code>salle, description, ordi, libelle</code>. Seule <code>salle</code> est obligatoire
+      (sans <code>ordi</code>, la ligne crée juste la salle). Les salles et ordinateurs manquants sont créés, la description et le libellé
+      mis à jour s'ils sont remplis. Rien n'est supprimé : vous pouvez réimporter le même fichier sans risque.</div>
+    {% if report and report.errors %}
+    <div class="table-responsive mt-3"><table class="table table-sm mb-0">
+      <thead><tr><th>Ligne</th><th>Erreur (ligne ignorée)</th></tr></thead>
+      <tbody>{% for line, error in report.errors %}<tr><td>{{ line }}</td><td>{{ error }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+    {% endif %}
+  </form>
+</details>
+
 {% for room in rooms %}
 <div class="card mb-3">
   <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">

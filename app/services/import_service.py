@@ -7,7 +7,7 @@ import pandas as pd
 from sqlalchemy import func, select
 
 from app.extensions import db
-from app.models import Candidate, Room, TechnicalTestSession
+from app.models import Candidate, Room, TechnicalTestSession, Workstation
 from app.models.technical_test import STATUS_COMPLETED
 from app.services import account_service, audit_service
 from app.services.candidate_service import EXAM_CODE_RE, normalize_exam_code
@@ -362,5 +362,56 @@ def apply_results(path: str, admin, dry_run: bool = False) -> dict:
         db.session.rollback()
         return stats
     audit_service.log("results_import", None, {"updated": stats["updated"], "errors": len(stats["errors"])})
+    db.session.commit()
+    return stats
+
+
+# ---------------------------------------------------------------- rooms & workstations
+
+ROOM_COLUMNS = ["salle", "description", "ordi", "libelle"]
+ROOM_EXAMPLE = [["Salle A", "Bâtiment principal", "PC-01", "Poste formateur"],
+                ["Salle A", "", "PC-02", ""],
+                ["Salle B", "Annexe", "PC-01", ""]]
+
+
+def apply_rooms(path: str) -> dict:
+    """One line per workstation (or per room when 'ordi' is empty). Additive and idempotent: missing rooms and
+    workstations are created, description/libellé updated when filled, nothing is ever deleted."""
+    df = read_file(path)
+    columns = {norm_key(c): c for c in df.columns}
+    if "salle" not in columns:
+        raise ImportFileError("Colonne « salle » manquante. Utilisez le modèle.")
+    rooms = {r.name.lower(): r for r in db.session.scalars(select(Room))}
+    stats = {"rooms": 0, "workstations": 0, "updated": 0, "errors": []}
+    for index, record in df.iterrows():
+        row = {c: _clean(record[columns[c]]) if c in columns else "" for c in ROOM_COLUMNS}
+        line = index + 2  # header + 1-based lines
+        if not row["salle"]:
+            stats["errors"].append((line, "salle obligatoire"))
+            continue
+        too_long = [c for c, limit in (("salle", 100), ("description", 255), ("ordi", 30), ("libelle", 100))
+                    if len(row[c]) > limit]
+        if too_long:
+            stats["errors"].append((line, f"trop long : {', '.join(too_long)}"))
+            continue
+        room = rooms.get(row["salle"].lower())
+        if room is None:
+            room = rooms[row["salle"].lower()] = Room(name=row["salle"], description=row["description"])
+            db.session.add(room)
+            stats["rooms"] += 1
+        elif row["description"] and room.description != row["description"]:
+            room.description = row["description"]
+            stats["updated"] += 1
+        if not row["ordi"]:
+            continue
+        ws = next((w for w in room.workstations if w.computer_number.lower() == row["ordi"].lower()), None)
+        if ws is None:
+            room.workstations.append(Workstation(computer_number=row["ordi"], label=row["libelle"]))
+            stats["workstations"] += 1
+        elif row["libelle"] and ws.label != row["libelle"]:
+            ws.label = row["libelle"]
+            stats["updated"] += 1
+    audit_service.log("room_update", None, {"import": True, **{k: v for k, v in stats.items() if k != "errors"},
+                                            "errors": len(stats["errors"])})
     db.session.commit()
     return stats

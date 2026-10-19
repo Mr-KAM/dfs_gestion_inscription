@@ -166,6 +166,36 @@ def rooms():
     return render_template("admin/rooms.html", rooms=db.session.scalars(stmt).all())
 
 
+@bp.get("/rooms/template")
+def rooms_template():
+    return _csv_template(import_service.ROOM_COLUMNS, import_service.ROOM_EXAMPLE, "modele_salles.csv")
+
+
+@bp.post("/rooms/import")
+def rooms_import():
+    """Rooms + workstations from Excel/CSV: additive, applied directly (nothing is ever deleted)."""
+    upload = request.files.get("file")
+    filename = secure_filename(upload.filename or "") if upload else ""
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if ext not in current_app.config["ALLOWED_IMPORT_EXTENSIONS"]:
+        flash("Format non supporté : utilisez .csv, .xlsx ou .xls.", "danger")
+        return redirect(url_for("admin.rooms"))
+    path = os.path.join(current_app.config["UPLOAD_FOLDER"], f"{uuid.uuid4().hex}.{ext}")
+    upload.save(path)
+    try:
+        report = import_service.apply_rooms(path)
+    except import_service.ImportFileError as exc:
+        flash(str(exc), "danger")
+        return redirect(url_for("admin.rooms"))
+    finally:
+        os.remove(path)
+    flash(f"Import des salles : {report['rooms']} salle(s) et {report['workstations']} ordinateur(s) créés, "
+          f"{report['updated']} mise(s) à jour, {len(report['errors'])} ligne(s) en erreur.",
+          "warning" if report["errors"] else "success")
+    stmt = select(Room).options(selectinload(Room.workstations)).order_by(Room.name)
+    return render_template("admin/rooms.html", rooms=db.session.scalars(stmt).all(), report=report)
+
+
 @bp.post("/rooms/save")
 def room_save():
     room = db.session.get(Room, request.form.get("room_id", type=int) or 0) or Room()
@@ -310,11 +340,15 @@ def import_confirm():
     return render_template("admin/import_result.html", stats=stats)
 
 
+def _csv_template(columns: list[str], rows: list[list[str]], name: str):
+    lines = [";".join(columns)] + [";".join(row) for row in rows]
+    buffer = io.BytesIO(("\r\n".join(lines) + "\r\n").encode("utf-8-sig"))  # ';' + BOM: Excel FR friendly
+    return send_file(buffer, mimetype="text/csv", as_attachment=True, download_name=name)
+
+
 @bp.get("/imports/results/template")
 def results_template():
-    lines = [";".join(import_service.RESULT_COLUMNS), ";".join(import_service.RESULT_EXAMPLE)]
-    buffer = io.BytesIO(("\r\n".join(lines) + "\r\n").encode("utf-8-sig"))  # ';' + BOM: Excel FR friendly
-    return send_file(buffer, mimetype="text/csv", as_attachment=True, download_name="modele_resultats_tests.csv")
+    return _csv_template(import_service.RESULT_COLUMNS, [import_service.RESULT_EXAMPLE], "modele_resultats_tests.csv")
 
 
 @bp.post("/imports/results")
