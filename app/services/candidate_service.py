@@ -1,5 +1,7 @@
 """Candidate queries, filters, motivation validation and exam codes."""
 import base64
+import hashlib
+import hmac
 import re
 import secrets
 import string
@@ -7,6 +9,7 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 import segno
+from flask import current_app
 from markupsafe import Markup
 from sqlalchemy import case, event, exists, func, or_, select
 from sqlalchemy.exc import IntegrityError
@@ -59,29 +62,54 @@ QR_NOISE = string.ascii_letters + string.digits
 QR_TOKEN_MAX = 400
 
 
+QR_UNREADABLE = "QR code illisible : ce n'est pas un QR code matricule DFS."
+QR_FORGED = "QR code refusé : signature invalide (QR code modifié ou non émis par cette application)."
+
+
+def _b64(raw: bytes) -> str:
+    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+
+def _unb64(text: str) -> bytes:
+    return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
+
+
+def _qr_signature(payload: str) -> str:
+    """HMAC-SHA256 of the payload, keyed from SECRET_KEY (purpose-bound key), truncated to 128 bits."""
+    key = hmac.new(current_app.config["SECRET_KEY"].encode(), b"dfs-matricule-qr-v1", hashlib.sha256).digest()
+    return _b64(hmac.new(key, payload.encode("ascii"), hashlib.sha256).digest()[:16])
+
+
 def encode_matricule(matricule: str) -> str:
-    """QR payload: 5 random chars + matricule + 5 random chars -> binary ('0'/'1' per bit) -> base64.
-    ponytail: obfuscation, not a signature -- anyone who knows the scheme can build a token."""
+    """QR content "<payload>.<signature>".
+    payload: 5 random chars + matricule + 5 random chars -> binary ('0'/'1' per bit) -> base64.
+    signature: only the server knows the key, so nobody can build a valid QR for another matricule.
+    Changing SECRET_KEY invalidates printed QR codes (screens regenerate them on every display)."""
     noise = lambda: "".join(secrets.choice(QR_NOISE) for _ in range(5))  # noqa: E731
     bits = "".join(f"{byte:08b}" for byte in (noise() + matricule + noise()).encode("ascii"))
-    return base64.urlsafe_b64encode(bits.encode("ascii")).decode("ascii").rstrip("=")
+    payload = _b64(bits.encode("ascii"))
+    return f"{payload}.{_qr_signature(payload)}"
 
 
 def decode_matricule(token: str) -> str:
-    """Inverse of encode_matricule. Raises BusinessError on anything that is not one of our QR codes."""
+    """Admin scanner: verify the signature FIRST (constant time), then base64 -> binary -> text -> matricule.
+    Raises BusinessError on anything that is not a QR code issued by this application."""
     token = (token or "").strip()
+    payload, _, signature = token.partition(".")
+    if not payload or not signature or len(token) > QR_TOKEN_MAX or not token.isascii():
+        raise BusinessError(QR_UNREADABLE)
+    if not hmac.compare_digest(signature, _qr_signature(payload)):
+        raise BusinessError(QR_FORGED)
     try:
-        if not token or len(token) > QR_TOKEN_MAX:
-            raise ValueError
-        bits = base64.urlsafe_b64decode(token + "=" * (-len(token) % 4)).decode("ascii")
+        bits = _unb64(payload).decode("ascii")
         if not re.fullmatch(r"(?:[01]{8})+", bits):
             raise ValueError
         text = bytes(int(bits[i:i + 8], 2) for i in range(0, len(bits), 8)).decode("ascii")
     except ValueError:  # binascii.Error and UnicodeDecodeError are ValueErrors
-        raise BusinessError("QR code illisible : ce n'est pas un QR code matricule DFS.")
+        raise BusinessError(QR_UNREADABLE)
     matricule = text[5:-5]
     if len(text) != 22 or not MATRICULE_RE.match(matricule):
-        raise BusinessError("QR code illisible : ce n'est pas un QR code matricule DFS.")
+        raise BusinessError(QR_UNREADABLE)
     return matricule
 
 

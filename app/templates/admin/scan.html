@@ -28,6 +28,7 @@
       <div class="card-body">
         <dl class="kv row mb-3">
           <dt class="col-5">Matricule</dt><dd class="col-7 fs-5"><code>{{ c.matricule }}</code></dd>
+          <dt class="col-5">Authenticité</dt><dd class="col-7">{{ status(('success', 'Signature vérifiée')) }}</dd>
           <dt class="col-5">Nom et prénoms</dt><dd class="col-7 fw-semibold">{{ c.full_name }}</dd>
           <dt class="col-5">Email</dt><dd class="col-7 text-break">{{ c.email or '—' }}</dd>
           <dt class="col-5">Code examen</dt><dd class="col-7"><code>{{ c.exam_code or '—' }}</code></dd>
