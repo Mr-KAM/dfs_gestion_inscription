@@ -1,5 +1,6 @@
 import io
 import os
+import re
 import time
 import uuid
 
@@ -14,12 +15,12 @@ from werkzeug.utils import secure_filename
 
 from app.auth import _safe_next
 from app.extensions import db
-from app.models import AuditLog, Candidate, KoboSubmission, Room, TechnicalTestSession, User, Workstation
+from app.models import AuditLog, Candidate, KoboSubmission, Room, Sas, TechnicalTestSession, User, Workstation
 from app.models.candidate import FILE_MISSING, FILE_NOT_FOUND, FILE_STATUSES
 from app.models.user import ROLE_ADMIN, ROLE_CANDIDATE, ROLES
 from app.services import audit_service, candidate_service, import_service, settings_service
 from app.services.audit_service import ACTION_LABELS
-from app.utils import roles_required
+from app.utils import roles_required, utcnow
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
 MIN_PASSWORD = 8
@@ -260,6 +261,105 @@ def workstation_save(ws_id: int):
     audit_service.log("room_update", ws, {"active": ws.active, "label": ws.label})
     db.session.commit()
     return redirect(url_for("admin.rooms"))
+
+
+# ------------------------------------------------------------------ SAS (next recruitment stage)
+
+def _sas_ready():
+    """Both tests validated and not yet in a SAS."""
+    return select(Candidate).where(Candidate.motivation_passed, Candidate.technical_passed, Candidate.sas_id.is_(None))
+
+
+@bp.get("/sas")
+def sas_list():
+    stmt = select(Sas).options(selectinload(Sas.members)).order_by(Sas.created_at.desc())
+    return render_template("admin/sas_list.html", sas_list=db.session.scalars(stmt).all())
+
+
+@bp.post("/sas/save")
+def sas_save():
+    sas = db.session.get(Sas, request.form.get("sas_id", type=int) or 0) or Sas()
+    sas.name = request.form.get("name", "").strip()[:100]
+    sas.description = request.form.get("description", "").strip()[:255]
+    if not sas.name:
+        flash("Le nom du SAS est obligatoire.", "danger")
+        return redirect(url_for("admin.sas_list"))
+    db.session.add(sas)
+    try:
+        db.session.flush()
+        audit_service.log("sas_update", sas, {"name": sas.name})
+        db.session.commit()
+        flash(f"SAS « {sas.name} » enregistré.", "success")
+    except IntegrityError:
+        db.session.rollback()
+        flash("Un SAS porte déjà ce nom.", "danger")
+        return redirect(url_for("admin.sas_list"))
+    return redirect(url_for("admin.sas_detail", sas_id=sas.id))
+
+
+@bp.post("/sas/<int:sas_id>/delete")
+def sas_delete(sas_id: int):
+    sas = db.get_or_404(Sas, sas_id)
+    if sas.members:
+        flash("Retirez d'abord les candidats de ce SAS.", "danger")
+        return redirect(url_for("admin.sas_detail", sas_id=sas.id))
+    audit_service.log("sas_update", sas, {"deleted": sas.name})
+    db.session.delete(sas)
+    db.session.commit()
+    flash(f"SAS « {sas.name} » supprimé.", "success")
+    return redirect(url_for("admin.sas_list"))
+
+
+@bp.get("/sas/<int:sas_id>")
+def sas_detail(sas_id: int):
+    sas = db.get_or_404(Sas, sas_id)
+    ready = db.session.scalar(select(func.count()).select_from(_sas_ready().subquery()))
+    return render_template("admin/sas.html", sas=sas, ready=ready)
+
+
+@bp.post("/sas/<int:sas_id>/members")
+def sas_admit(sas_id: int):
+    """Admit candidates by matricule / email (pasted list), or every candidate who validated both tests."""
+    sas = db.get_or_404(Sas, sas_id)
+    unknown = []
+    if request.form.get("validated"):
+        candidates = db.session.scalars(_sas_ready()).all()
+    else:
+        keys = {k for k in re.split(r"[\s,;]+", request.form.get("candidates", "")) if k}
+        candidates = db.session.scalars(select(Candidate).where(or_(
+            Candidate.matricule.in_({k.upper() for k in keys}),
+            func.lower(Candidate.email).in_({k.lower() for k in keys})))).all()
+        found = {c.matricule for c in candidates} | {(c.email or "").lower() for c in candidates}
+        unknown = sorted(k for k in keys if k.upper() not in found and k.lower() not in found)
+    admitted = [c for c in candidates if c.sas_id != sas.id]
+    for c in admitted:  # ponytail: a candidate already in another SAS is moved (one SAS per candidate)
+        c.sas, c.sas_admitted_at = sas, utcnow()
+    if admitted:
+        audit_service.log("sas_admit", sas, {"matricules": [c.matricule for c in admitted]})
+    db.session.commit()
+    flash(f"{len(admitted)} candidat(s) admis au SAS « {sas.name} ».", "success")
+    if unknown:
+        flash(f"Introuvable(s) : {', '.join(unknown[:20])}{' …' if len(unknown) > 20 else ''}", "warning")
+    return redirect(url_for("admin.sas_detail", sas_id=sas.id))
+
+
+@bp.post("/sas/<int:sas_id>/members/<int:candidate_id>")
+def sas_member(sas_id: int, candidate_id: int):
+    """Save bedroom + equipment, or remove the candidate from the SAS."""
+    c = db.get_or_404(Candidate, candidate_id)
+    if c.sas_id != sas_id:
+        abort(404)
+    if "remove" in request.form:
+        c.sas, c.sas_admitted_at, c.sas_bedroom, c.sas_equipment = None, None, "", ""
+        audit_service.log("sas_remove", c, {"sas_id": sas_id})
+        flash(f"{c.full_name} retiré(e) du SAS.", "success")
+    else:
+        c.sas_bedroom = request.form.get("bedroom", "").strip()[:50]
+        c.sas_equipment = request.form.get("equipment", "").strip()[:255]
+        audit_service.log("sas_assign", c, {"bedroom": c.sas_bedroom, "equipment": c.sas_equipment})
+        flash(f"Chambre et matériel de {c.full_name} enregistrés.", "success")
+    db.session.commit()
+    return redirect(url_for("admin.sas_detail", sas_id=sas_id))
 
 
 # ------------------------------------------------------------------ imports

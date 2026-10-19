@@ -41,6 +41,10 @@ ACTION_LABELS = {
     "kobo_config": "Configuration Kobo",
     "kobo_resolve": "Correspondance Kobo manuelle",
     "room_update": "Gestion salles",
+    "sas_update": "Gestion SAS",
+    "sas_admit": "Admission au SAS",
+    "sas_remove": "Retrait du SAS",
+    "sas_assign": "Attribution chambre / matériel SAS",
     "settings_update": "Modification paramètres",
     "export": "Export",
 }

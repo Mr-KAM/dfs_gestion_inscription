@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}SAS{% endblock %}
+{% block content %}
+<h1 class="page-title mb-1">SAS</h1>
+<p class="text-muted">Prochaine étape du recrutement : les candidats admis au SAS le voient sur leur espace, avec la chambre et le matériel attribués.</p>
+<form class="card card-body mb-3" method="post" action="{{ url_for('admin.sas_save') }}">
+  {{ csrf() }}
+  <div class="row g-2 align-items-end">
+    <div class="col-md-4"><label class="form-label" for="name">Nouveau SAS</label><input class="form-control" id="name" name="name" placeholder="SAS 2026 — Cohorte 1" required maxlength="100"></div>
+    <div class="col-md-6"><label class="form-label" for="description">Description</label><input class="form-control" id="description" name="description" maxlength="255" placeholder="Dates, lieu…"></div>
+    <div class="col-md-2"><button class="btn btn-primary w-100"><i class="bi bi-plus-lg"></i> Créer</button></div>
+  </div>
+</form>
+
+<div class="row g-3">
+{% for sas in sas_list %}
+  <div class="col-md-6 col-lg-4">
+    <a class="card card-body h-100 text-decoration-none" href="{{ url_for('admin.sas_detail', sas_id=sas.id) }}">
+      <div class="d-flex justify-content-between align-items-start gap-2">
+        <strong class="fs-5">{{ sas.name }}</strong>
+        <span class="status status-info">{{ sas.members | length }} admis</span>
+      </div>
+      <div class="text-muted small mt-1">{{ sas.description or '—' }}</div>
+      <div class="small mt-2">{{ sas.members | selectattr('sas_bedroom') | list | length }} chambre(s) attribuée(s)</div>
+    </a>
+  </div>
+{% else %}<p class="text-muted">Aucun SAS. Créez-en un ci-dessus.</p>{% endfor %}
+</div>
+{% endblock %}

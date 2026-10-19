@@ -8,6 +8,20 @@
   <div class="text-muted">Matricule : <code class="fs-5">{{ c.matricule }}</code></div>
 </div>
 
+{% if c.sas %}
+<div class="alert alert-success d-flex gap-3 align-items-start mb-4" role="status">
+  <i class="bi bi-trophy fs-2" aria-hidden="true"></i>
+  <div class="flex-grow-1">
+    <h2 class="h5 mb-1">Félicitations, vous êtes admis(e) au SAS !</h2>
+    <div><strong>{{ c.sas.name }}</strong>{% if c.sas.description %} — {{ c.sas.description }}{% endif %}</div>
+    <dl class="kv row mb-0 mt-2">
+      <dt class="col-5 col-md-3">Chambre</dt><dd class="col-7 col-md-9 fs-5">{{ c.sas_bedroom or "En cours d'attribution" }}</dd>
+      <dt class="col-5 col-md-3">Matériel</dt><dd class="col-7 col-md-9">{{ c.sas_equipment or "En cours d'attribution" }}</dd>
+    </dl>
+  </div>
+</div>
+{% endif %}
+
 <div class="row g-3">
   <div class="col-lg-7">
     <div class="card mb-3"><div class="card-header"><i class="bi bi-calendar-event"></i> Ma convocation</div>

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}{{ sas.name }}{% endblock %}
+{% block content %}
+<a class="small text-muted text-decoration-none" href="{{ url_for('admin.sas_list') }}"><i class="bi bi-arrow-left"></i> SAS</a>
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mt-1 mb-3">
+  <h1 class="page-title">{{ sas.name }} <span class="status status-info align-middle">{{ sas.members | length }} admis</span></h1>
+  <form method="post" action="{{ url_for('admin.sas_delete', sas_id=sas.id) }}" data-confirm="Supprimer le SAS « {{ sas.name }} » ?">
+    {{ csrf() }}<button class="btn btn-outline-danger" {{ 'disabled title="Retirez d\'abord les candidats"' | safe if sas.members }}><i class="bi bi-trash"></i> Supprimer</button></form>
+</div>
+
+<form class="card card-body mb-3" method="post" action="{{ url_for('admin.sas_save') }}">
+  {{ csrf() }}<input type="hidden" name="sas_id" value="{{ sas.id }}">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-4"><label class="form-label" for="name">Nom</label><input class="form-control" id="name" name="name" value="{{ sas.name }}" required maxlength="100"></div>
+    <div class="col-md-6"><label class="form-label" for="description">Description</label><input class="form-control" id="description" name="description" value="{{ sas.description or '' }}" maxlength="255"></div>
+    <div class="col-md-2"><button class="btn btn-outline-primary w-100">Enregistrer</button></div>
+  </div>
+</form>
+
+<div class="card mb-3"><div class="card-header"><i class="bi bi-person-plus"></i> Admettre des candidats</div>
+  <div class="card-body">
+    <form method="post" action="{{ url_for('admin.sas_admit', sas_id=sas.id) }}">
+      {{ csrf() }}
+      <label class="form-label" for="candidates">Matricules ou emails (un par ligne, ou séparés par des virgules)</label>
+      <textarea class="form-control font-monospace" id="candidates" name="candidates" rows="3" placeholder="26CAND000001&#10;26CAND000002" required></textarea>
+      <button class="btn btn-primary mt-2"><i class="bi bi-person-check"></i> Admettre</button>
+    </form>
+    <hr>
+    <form method="post" action="{{ url_for('admin.sas_admit', sas_id=sas.id) }}" class="d-flex align-items-center gap-2 flex-wrap"
+          data-confirm="Admettre au SAS les {{ ready }} candidat(s) ayant validé les deux tests ?">
+      {{ csrf() }}<input type="hidden" name="validated" value="1">
+      <button class="btn btn-outline-success" {{ 'disabled' if not ready }}><i class="bi bi-check2-all"></i> Admettre les {{ ready }} candidat(s) ayant validé les deux tests</button>
+      <span class="small text-muted">Motivation et technique cochés « Validé », pas encore dans un SAS.</span>
+    </form>
+  </div></div>
+
+<div class="card"><div class="card-header"><i class="bi bi-house-door"></i> Admis : chambre et matériel</div>
+<div class="table-responsive"><table class="table table-sm align-middle mb-0">
+  <thead><tr><th>Matricule</th><th>Candidat</th><th>Tests validés</th><th>Admis le</th><th>Chambre</th><th>Matériel</th><th></th></tr></thead>
+  <tbody>
+  {% for c in sas.members %}
+    <tr>
+      <td><code>{{ c.matricule }}</code></td>
+      <td><a href="{{ url_for('candidates.detail', candidate_id=c.id) }}">{{ c.full_name }}</a><div class="small text-muted">{{ c.email or '' }}</div></td>
+      <td>{% for ok, label in ((c.motivation_passed, 'Motivation'), (c.technical_passed, 'Technique')) %}
+        <i class="bi bi-{{ 'check-circle-fill text-success' if ok else 'x-circle text-danger' }}" title="{{ label }}" aria-label="{{ label }} {{ 'validé' if ok else 'non validé' }}"></i>{% endfor %}</td>
+      <td class="small">{{ c.sas_admitted_at | dt }}</td>
+      <td><input class="form-control form-control-sm" form="m{{ c.id }}" name="bedroom" value="{{ c.sas_bedroom or '' }}" maxlength="50" placeholder="Ex. B-12" aria-label="Chambre de {{ c.full_name }}" style="min-width:90px"></td>
+      <td><input class="form-control form-control-sm" form="m{{ c.id }}" name="equipment" value="{{ c.sas_equipment or '' }}" maxlength="255" placeholder="Ex. Laptop n°12, casque" aria-label="Matériel de {{ c.full_name }}" style="min-width:200px"></td>
+      <td class="text-nowrap"><form id="m{{ c.id }}" method="post" action="{{ url_for('admin.sas_member', sas_id=sas.id, candidate_id=c.id) }}" class="d-flex gap-1">
+        {{ csrf() }}<button class="btn btn-sm btn-primary" title="Enregistrer"><i class="bi bi-save"></i></button>
+        <button class="btn btn-sm btn-outline-danger" name="remove" value="1" title="Retirer du SAS" data-confirm="Retirer {{ c.full_name }} du SAS ?"><i class="bi bi-person-dash"></i></button></form></td>
+    </tr>
+  {% else %}<tr><td colspan="7" class="text-muted">Aucun candidat admis.</td></tr>{% endfor %}
+  </tbody>
+</table></div></div>
+{% endblock %}

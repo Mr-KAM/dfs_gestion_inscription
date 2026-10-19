@@ -60,9 +60,16 @@ class Candidate(db.Model):
     motivation_passed = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
     technical_passed = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
 
+    # SAS (next stage): admission, then bedroom and equipment given by the admin.
+    sas_id = db.Column(db.Integer, db.ForeignKey("sas.id", ondelete="SET NULL"), index=True)
+    sas_admitted_at = db.Column(db.DateTime(timezone=True))
+    sas_bedroom = db.Column(db.String(50), default="")
+    sas_equipment = db.Column(db.String(255), default="")
+
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
     updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow)
 
+    sas = db.relationship("Sas", back_populates="members")
     motivation_tester = db.relationship("User", foreign_keys=[motivation_completed_by])
     sessions = db.relationship(
         "TechnicalTestSession", back_populates="candidate", cascade="all, delete-orphan",

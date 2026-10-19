@@ -18,7 +18,7 @@
         <td>{{ log.user.email if log.user else '—' }}</td>
         <td>{{ labels.get(log.action, log.action) }}</td>
         <td>{{ log.entity_type or '' }} {{ ('#' ~ log.entity_id) if log.entity_id }}</td>
-        <td class="small text-break" style="max-width:420px">{% if log.details %}{% for k, v in log.details.items() %}<span class="text-muted">{{ k }}</span>={{ v }}{{ ', ' if not loop.last }}{% endfor %}{% endif %}</td>
+        <td class="small text-wrap text-break" style="min-width:260px;max-width:480px">{% if log.details %}{% for k, v in log.details.items() %}<span class="text-muted">{{ k }}</span>={{ v }}{{ ', ' if not loop.last }}{% endfor %}{% endif %}</td>
         <td class="small">{{ log.ip_address or '' }}</td></tr>
     {% else %}<tr><td colspan="6" class="text-center text-muted py-4">Aucune entrée.</td></tr>{% endfor %}
     </tbody>
