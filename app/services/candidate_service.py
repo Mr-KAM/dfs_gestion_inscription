@@ -9,6 +9,8 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 import segno
+from cryptography.exceptions import InvalidTag
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from flask import current_app
 from markupsafe import Markup
 from sqlalchemy import case, event, exists, func, or_, select
@@ -64,51 +66,48 @@ QR_TOKEN_MAX = 400
 
 QR_UNREADABLE = "QR code illisible : ce n'est pas un QR code matricule DFS."
 QR_FORGED = "QR code refusé : signature invalide (QR code modifié ou non émis par cette application)."
+QR_NONCE = 12  # AES-GCM nonce bytes
 
 
-def _b64(raw: bytes) -> str:
-    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
-
-
-def _unb64(text: str) -> bytes:
-    return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
-
-
-def _qr_signature(payload: str) -> str:
-    """HMAC-SHA256 of the payload, keyed from SECRET_KEY (purpose-bound key), truncated to 128 bits."""
-    key = hmac.new(current_app.config["SECRET_KEY"].encode(), b"dfs-matricule-qr-v1", hashlib.sha256).digest()
-    return _b64(hmac.new(key, payload.encode("ascii"), hashlib.sha256).digest()[:16])
+def _qr_cipher() -> AESGCM:
+    """AES-256-GCM, key derived from SECRET_KEY for this purpose only (not shared with encrypt_secret)."""
+    key = hmac.new(current_app.config["SECRET_KEY"].encode(), b"dfs-matricule-qr-aesgcm-v1", hashlib.sha256).digest()
+    return AESGCM(key)
 
 
 def encode_matricule(matricule: str) -> str:
-    """QR content "<payload>.<signature>".
-    payload: 5 random chars + matricule + 5 random chars -> binary ('0'/'1' per bit) -> base64.
-    signature: only the server knows the key, so nobody can build a valid QR for another matricule.
-    Changing SECRET_KEY invalidates printed QR codes (screens regenerate them on every display)."""
+    """QR content: base64url(nonce + AES-256-GCM(binary)).
+    binary: 5 random chars + matricule + 5 random chars -> '0'/'1' per bit.
+    Encrypted: nothing readable without the server key. The GCM tag is the signature: any modified
+    or home-made QR code fails decryption. Changing SECRET_KEY invalidates printed QR codes."""
     noise = lambda: "".join(secrets.choice(QR_NOISE) for _ in range(5))  # noqa: E731
     bits = "".join(f"{byte:08b}" for byte in (noise() + matricule + noise()).encode("ascii"))
-    payload = _b64(bits.encode("ascii"))
-    return f"{payload}.{_qr_signature(payload)}"
+    nonce = secrets.token_bytes(QR_NONCE)
+    sealed = _qr_cipher().encrypt(nonce, bits.encode("ascii"), None)
+    return base64.urlsafe_b64encode(nonce + sealed).decode("ascii").rstrip("=")
 
 
 def decode_matricule(token: str) -> str:
-    """Admin scanner: verify the signature FIRST (constant time), then base64 -> binary -> text -> matricule.
+    """Admin scanner: base64 -> decrypt + verify the tag -> binary -> text -> matricule.
     Raises BusinessError on anything that is not a QR code issued by this application."""
     token = (token or "").strip()
-    payload, _, signature = token.partition(".")
-    if not payload or not signature or len(token) > QR_TOKEN_MAX or not token.isascii():
-        raise BusinessError(QR_UNREADABLE)
-    if not hmac.compare_digest(signature, _qr_signature(payload)):
-        raise BusinessError(QR_FORGED)
     try:
-        bits = _unb64(payload).decode("ascii")
-        if not re.fullmatch(r"(?:[01]{8})+", bits):
+        if not token or len(token) > QR_TOKEN_MAX or not token.isascii():
             raise ValueError
-        text = bytes(int(bits[i:i + 8], 2) for i in range(0, len(bits), 8)).decode("ascii")
-    except ValueError:  # binascii.Error and UnicodeDecodeError are ValueErrors
+        raw = base64.urlsafe_b64decode(token + "=" * (-len(token) % 4))
+        if len(raw) <= QR_NONCE + 16:  # nonce + GCM tag, nothing inside
+            raise ValueError
+    except ValueError:  # binascii.Error is a ValueError
         raise BusinessError(QR_UNREADABLE)
+    try:
+        bits = _qr_cipher().decrypt(raw[:QR_NONCE], raw[QR_NONCE:], None).decode("ascii")
+    except InvalidTag:
+        raise BusinessError(QR_FORGED)
+    if not re.fullmatch(r"(?:[01]{8}){22}", bits):
+        raise BusinessError(QR_UNREADABLE)
+    text = bytes(int(bits[i:i + 8], 2) for i in range(0, len(bits), 8)).decode("ascii", "replace")
     matricule = text[5:-5]
-    if len(text) != 22 or not MATRICULE_RE.match(matricule):
+    if not MATRICULE_RE.match(matricule):
         raise BusinessError(QR_UNREADABLE)
     return matricule
 
