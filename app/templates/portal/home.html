@@ -47,7 +47,7 @@
           <dd class="col-7">{{ status(('success', 'Terminé') if c.motivation_completed else ('secondary', 'En attente')) }}</dd>
           <dt class="col-5">Test technique</dt><dd class="col-7">{{ status(c.technical_badge) }}</dd>
           {% if c.motivation_completed %}
-          <dt class="col-5">Numéro de pièce</dt><dd class="col-7 fs-5">{{ c.piece_number }}</dd>
+          <dt class="col-5">Numéro de pièce</dt><dd class="col-7 fs-5">{{ c.piece_number or '—' }}</dd>
           <dt class="col-5">Code examen</dt><dd class="col-7 fs-5"><code>{{ c.exam_code }}</code></dd>
           {% endif %}
         </dl>

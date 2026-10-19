@@ -20,7 +20,7 @@ from app.models.candidate import FILE_MISSING, FILE_NOT_FOUND, FILE_STATUSES
 from app.models.user import ROLE_ADMIN, ROLE_CANDIDATE, ROLES
 from app.services import audit_service, candidate_service, import_service, settings_service
 from app.services.audit_service import ACTION_LABELS
-from app.utils import roles_required, utcnow
+from app.utils import roles_required
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
 MIN_PASSWORD = 8
@@ -319,7 +319,8 @@ def sas_detail(sas_id: int):
 
 @bp.post("/sas/<int:sas_id>/members")
 def sas_admit(sas_id: int):
-    """Admit candidates by matricule / email (pasted list), or every candidate who validated both tests."""
+    """Admit candidates by matricule / email (pasted list), or every candidate who validated both tests.
+    Admission marks both tests completed + validated."""
     sas = db.get_or_404(Sas, sas_id)
     unknown = []
     if request.form.get("validated"):
@@ -333,7 +334,7 @@ def sas_admit(sas_id: int):
         unknown = sorted(k for k in keys if k.upper() not in found and k.lower() not in found)
     admitted = [c for c in candidates if c.sas_id != sas.id]
     for c in admitted:  # ponytail: a candidate already in another SAS is moved (one SAS per candidate)
-        c.sas, c.sas_admitted_at = sas, utcnow()
+        candidate_service.admit_to_sas(c, sas, current_user)
     if admitted:
         audit_service.log("sas_admit", sas, {"matricules": [c.matricule for c in admitted]})
     db.session.commit()
