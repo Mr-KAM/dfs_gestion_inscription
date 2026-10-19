@@ -114,9 +114,11 @@ def decode_matricule(token: str) -> str:
 
 def matricule_qr(candidate: Candidate) -> Markup:
     """Inline SVG QR code (new random noise on every render), used as a Jinja global.
-    border=4: the quiet zone required by the QR spec, cameras miss codes without it."""
+    border=4: the quiet zone required by the QR spec, cameras miss codes without it.
+    omitsize: viewBox instead of fixed width/height, so the CSS width SCALES the code (with a fixed
+    size and no viewBox the browser crops it: right/bottom edge cut off, unreadable)."""
     svg = segno.make(encode_matricule(candidate.matricule), error="m").svg_inline(
-        scale=8, border=4, dark="#000", light="#fff")
+        border=4, dark="#000", light="#fff", omitsize=True)
     return Markup(svg)
 
 

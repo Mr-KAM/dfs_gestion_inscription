@@ -31,6 +31,14 @@ def test_qr_is_small_enough_for_cameras(app):
     assert qr.mode == "alphanumeric" and qr.version <= 4  # was version 12: too dense to scan
 
 
+def test_svg_scales_instead_of_being_cropped(app):
+    """Fixed width/height without viewBox + CSS width = the browser crops the code (was unreadable)."""
+    from app.services.candidate_service import matricule_qr
+    svg = str(matricule_qr(make_candidate()))
+    tag = svg[:svg.index(">")]
+    assert "viewBox=" in tag and "width=" not in tag and "height=" not in tag
+
+
 def test_tampering_is_rejected(app):
     raw = bytearray(_raw(encode_matricule("26CAND000001")))
     for index in (0, QR_NONCE, len(raw) // 2, len(raw) - 1):  # nonce, ciphertext, tag
