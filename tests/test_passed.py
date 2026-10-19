@@ -81,3 +81,13 @@ def test_results_import_admin_only(app, client, motivation_user):
 def test_results_confirm_without_upload(app, client, admin):
     login(client, admin)
     assert client.post("/admin/imports/results/confirm").headers["Location"].endswith("/admin/imports")
+
+
+def test_completing_a_test_ticks_validated_by_default(app, db, room, motivation_user, technical_user):
+    from app.services import candidate_service, timer_service
+    c = make_candidate()
+    candidate_service.validate_motivation(c, "P1", "DFS-2026-0001", motivation_user)
+    assert c.motivation_passed and not c.technical_passed
+    session = timer_service.start_test(c.id, room.id, room.workstations[0].id, 60, technical_user)
+    timer_service.complete(session.id)
+    assert db.session.get(Candidate, c.id).technical_passed

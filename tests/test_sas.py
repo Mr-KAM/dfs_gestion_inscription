@@ -26,6 +26,13 @@ def test_admin_creates_sas_admits_and_assigns(app, db, client, admin):
     db.session.expire_all()
     assert {c.email for c in sas.members} == {"a@test.ci", "b@test.ci"}
 
+    html = client.get(f"/admin/sas/{sas.id}").get_data(as_text=True)
+    assert f"/candidates/{a.id}/passed/technical" in html  # validation ticked from the SAS page
+    back = f"/admin/sas/{sas.id}?"
+    resp = client.post(f"/candidates/{a.id}/passed/technical", data={"next": back})  # unticked: saved, back on the SAS
+    db.session.expire_all()
+    assert resp.headers["Location"].endswith(f"/admin/sas/{sas.id}") and not a.technical_passed
+
     client.post(f"/admin/sas/{sas.id}/members/{b.id}", data={"bedroom": "B-12", "equipment": "Laptop n°12"})
     db.session.expire_all()
     assert (b.sas_bedroom, b.sas_equipment) == ("B-12", "Laptop n°12")

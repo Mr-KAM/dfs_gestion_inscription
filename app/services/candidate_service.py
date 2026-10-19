@@ -258,6 +258,7 @@ def validate_motivation(candidate: Candidate, piece_number: str, exam_code: str,
         candidate.exam_code = code
         if not candidate.motivation_completed:
             candidate.motivation_completed = True
+            candidate.motivation_passed = True  # validated by default, the jury can untick it
             candidate.motivation_completed_at = utcnow()
             candidate.motivation_completed_by = user.id
         if code_changed:

@@ -171,6 +171,7 @@ def complete(session_id: int) -> TechnicalTestSession:
     session.status = STATUS_COMPLETED
     session.finished_at = now
     session.candidate.technical_completed = True
+    session.candidate.technical_passed = True  # validated by default, the jury can untick it
     session.candidate.technical_completed_at = now
     audit_service.log("test_complete", session, {"elapsed_seconds": session.elapsed_seconds(now)})
     db.session.commit()
