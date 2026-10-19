@@ -27,6 +27,8 @@ class Candidate(db.Model):
     __tablename__ = "candidates"
 
     id = db.Column(db.Integer, primary_key=True)
+    # 26CAND000001: set automatically on insert (candidate_service._assign_matricules), never edited.
+    matricule = db.Column(db.String(12), unique=True, nullable=False)
     candidate_number = db.Column(db.String(50), index=True)
     group_name = db.Column(db.String(50), index=True)
     scheduled_date = db.Column(db.Date, index=True)

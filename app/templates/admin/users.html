@@ -43,18 +43,18 @@
 {% else %}
 <form class="d-flex gap-2 mb-3" method="get" style="max-width: 560px">
   <input type="hidden" name="tab" value="candidats">
-  <input class="form-control" name="q" value="{{ args.q }}" placeholder="Nom, email, téléphone, code examen" aria-label="Rechercher un candidat">
+  <input class="form-control" name="q" value="{{ args.q }}" placeholder="Nom, matricule, email, téléphone, code examen" aria-label="Rechercher un candidat">
   <button class="btn btn-primary"><i class="bi bi-search"></i></button>
 </form>
 {% set back = request.full_path %}
 <div class="card"><div class="table-responsive">
   <table class="table table-hover table-sm">
-    <thead><tr><th>Nom et prénoms</th><th>Identifiant (email)</th><th>Code examen</th><th>Compte</th><th>Mot de passe</th>
+    <thead><tr><th>Matricule</th><th>Nom et prénoms</th><th>Identifiant (email)</th><th>Code examen</th><th>Compte</th><th>Mot de passe</th>
       <th>Dernière connexion</th><th>Statut</th><th></th></tr></thead>
     <tbody>
     {% for c in page.items %}{% set acc = c.account %}
       <tr>
-        <td class="fw-semibold">{{ c.full_name }}</td><td>{{ acc.email if acc else (c.email or '—') }}</td>
+        <td><code>{{ c.matricule }}</code></td><td class="fw-semibold">{{ c.full_name }}</td><td>{{ acc.email if acc else (c.email or '—') }}</td>
         <td><code>{{ c.exam_code or '' }}</code></td>
         <td>{% if acc %}{{ status(('success', 'Actif') if acc.active else ('secondary', 'Désactivé')) }}{% else %}{{ status(('warning', 'Sans compte')) }}{% endif %}</td>
         <td>{% if acc %}{{ status(('warning', 'Initial, à changer') if acc.must_change_password else ('success', 'Personnalisé')) }}{% endif %}</td>
@@ -81,7 +81,7 @@
         </td>
       </tr>
     {% else %}
-      <tr><td colspan="8" class="text-center text-muted py-4">Aucun candidat.</td></tr>
+      <tr><td colspan="9" class="text-center text-muted py-4">Aucun candidat.</td></tr>
     {% endfor %}
     </tbody>
   </table>

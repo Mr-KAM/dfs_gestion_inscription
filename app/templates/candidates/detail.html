@@ -27,6 +27,7 @@
   <div class="col-lg-5">
     <div class="card mb-3"><div class="card-header"><i class="bi bi-person"></i> Identité</div>
       <div class="card-body"><dl class="kv row mb-0">
+        <dt class="col-5">Matricule</dt><dd class="col-7"><code>{{ c.matricule }}</code></dd>
         <dt class="col-5">Nom et prénoms</dt><dd class="col-7">{{ c.full_name }}</dd>
         <dt class="col-5">Sexe</dt><dd class="col-7">{{ c.gender or '—' }}</dd>
         <dt class="col-5">Date de naissance</dt><dd class="col-7">{{ c.birth_date | d or '—' }}</dd>

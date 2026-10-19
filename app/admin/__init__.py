@@ -44,10 +44,11 @@ def users():
 def _candidate_accounts():
     """Candidates tab: profiles + logins. Editing/deleting goes through the candidate routes."""
     args = {"tab": "candidats", "q": request.args.get("q", "").strip()}
-    stmt = select(Candidate).options(selectinload(Candidate.account)).order_by(Candidate.full_name)
+    stmt = select(Candidate).options(selectinload(Candidate.account)).order_by(Candidate.matricule)
     if args["q"]:
         like = f"%{args['q']}%"
         stmt = stmt.where(or_(Candidate.full_name.ilike(like), Candidate.email.ilike(like),
+                              Candidate.matricule.ilike(like),
                               Candidate.exam_code.ilike(like), Candidate.phone.ilike(like)))
     page = db.paginate(stmt, page=request.args.get("page", 1, type=int), per_page=current_app.config["PER_PAGE"],
                        error_out=False)  # last row of the last page deleted: empty page, not a 404
@@ -389,7 +390,7 @@ def _export_row(c: Candidate) -> dict:
     s = c.latest_session
     fmt = current_app.jinja_env.filters["dt"]
     return {
-        "N°": c.candidate_number, "Nom": c.full_name, "Email": c.email, "Téléphone": c.phone,
+        "Matricule": c.matricule, "N°": c.candidate_number, "Nom": c.full_name, "Email": c.email, "Téléphone": c.phone,
         "Groupe": c.group_name, "Date": c.scheduled_date, "Ordre": c.passage_order, "CNI": c.cni,
         "Kobo": c.kobo_badge[1], "Dossier physique": FILE_STATUSES.get(c.physical_file_status, ""),
         "Numéro pièce": c.piece_number, "Code examen": c.exam_code,

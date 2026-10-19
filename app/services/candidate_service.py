@@ -3,9 +3,9 @@ import re
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import case, exists, func, or_, select
+from sqlalchemy import case, event, exists, func, or_, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import Session, selectinload
 
 from app.extensions import db
 from app.models import Candidate, KoboSubmission, TechnicalTestSession, User
@@ -27,6 +27,28 @@ def today() -> date:
     return datetime.now(ZoneInfo(settings_service.get("timezone") or "UTC")).date()
 
 
+# ---------------------------------------------------------------- matricule
+
+def matricule_prefix() -> str:
+    return f"{today():%y}CAND"  # 2026 -> "26CAND"
+
+
+@event.listens_for(Session, "before_flush")
+def _assign_matricules(session, _context, _instances) -> None:
+    """Every new candidate, whatever the path (form, import, sign-up), gets 26CAND000001, 26CAND000002...
+    in insertion order (session.new keeps it)."""
+    new = [obj for obj in session.new if isinstance(obj, Candidate) and not obj.matricule]
+    if not new:
+        return
+    prefix = matricule_prefix()
+    # ponytail: max+1, two simultaneous sign-ups can collide -> the UNIQUE constraint rejects the second one.
+    last = session.scalar(select(func.max(Candidate.matricule)).where(Candidate.matricule.like(f"{prefix}%")))
+    number = int(last[len(prefix):]) if last else 0
+    for candidate in new:
+        number += 1
+        candidate.matricule = f"{prefix}{number:06d}"
+
+
 def _active_session_exists():
     return exists().where(
         TechnicalTestSession.candidate_id == Candidate.id, TechnicalTestSession.status.in_(ACTIVE_STATUSES)
@@ -34,6 +56,7 @@ def _active_session_exists():
 
 
 SORTS = {
+    "matricule": Candidate.matricule,
     "number": Candidate.candidate_number,
     "group": Candidate.group_name,
     "date": Candidate.scheduled_date,
@@ -59,7 +82,7 @@ def filtered_query(args, eligible_only: bool = False):
         stmt = stmt.where(or_(
             Candidate.full_name.ilike(like), Candidate.email.ilike(like), Candidate.phone.ilike(like),
             Candidate.cni.ilike(like), Candidate.exam_code.ilike(like), Candidate.piece_number.ilike(like),
-            Candidate.candidate_number.ilike(like),
+            Candidate.candidate_number.ilike(like), Candidate.matricule.ilike(like),
         ))
     if args.get("group"):
         stmt = stmt.where(Candidate.group_name == args["group"])
