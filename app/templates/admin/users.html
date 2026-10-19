@@ -1,11 +1,21 @@
 {% extends "base.html" %}
-{% from "_macros.html" import status, csrf %}
+{% from "_macros.html" import status, csrf, pagination %}
 {% block title %}Utilisateurs{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h1 class="page-title">Utilisateurs</h1>
+  {% if tab == 'staff' %}
   <a class="btn btn-primary" href="{{ url_for('admin.user_new') }}"><i class="bi bi-person-plus"></i> Nouvel utilisateur</a>
+  {% else %}
+  <a class="btn btn-primary" href="{{ url_for('candidates.create') }}"><i class="bi bi-person-plus"></i> Nouveau candidat</a>
+  {% endif %}
 </div>
+<ul class="nav nav-tabs mb-3">
+  <li class="nav-item"><a class="nav-link {{ 'active' if tab == 'staff' }}" href="{{ url_for('admin.users') }}">Équipe</a></li>
+  <li class="nav-item"><a class="nav-link {{ 'active' if tab == 'candidats' }}" href="{{ url_for('admin.users', tab='candidats') }}">Candidats</a></li>
+</ul>
+
+{% if tab == 'staff' %}
 <div class="card"><div class="table-responsive">
   <table class="table table-hover">
     <thead><tr><th>Nom</th><th>Email</th><th>Rôle</th><th>Statut</th><th>Dernière connexion</th><th>Créé le</th><th></th></tr></thead>
@@ -29,4 +39,53 @@
     </tbody>
   </table>
 </div></div>
+
+{% else %}
+<form class="d-flex gap-2 mb-3" method="get" style="max-width: 560px">
+  <input type="hidden" name="tab" value="candidats">
+  <input class="form-control" name="q" value="{{ args.q }}" placeholder="Nom, email, téléphone, code examen" aria-label="Rechercher un candidat">
+  <button class="btn btn-primary"><i class="bi bi-search"></i></button>
+</form>
+{% set back = request.full_path %}
+<div class="card"><div class="table-responsive">
+  <table class="table table-hover table-sm">
+    <thead><tr><th>Nom et prénoms</th><th>Identifiant (email)</th><th>Code examen</th><th>Compte</th><th>Mot de passe</th>
+      <th>Dernière connexion</th><th>Statut</th><th></th></tr></thead>
+    <tbody>
+    {% for c in page.items %}{% set acc = c.account %}
+      <tr>
+        <td class="fw-semibold">{{ c.full_name }}</td><td>{{ acc.email if acc else (c.email or '—') }}</td>
+        <td><code>{{ c.exam_code or '' }}</code></td>
+        <td>{% if acc %}{{ status(('success', 'Actif') if acc.active else ('secondary', 'Désactivé')) }}{% else %}{{ status(('warning', 'Sans compte')) }}{% endif %}</td>
+        <td>{% if acc %}{{ status(('warning', 'Initial, à changer') if acc.must_change_password else ('success', 'Personnalisé')) }}{% endif %}</td>
+        <td>{{ (acc.last_login_at | dt or 'jamais') if acc else '—' }}</td>
+        <td>{{ c.global_status }}</td>
+        <td class="text-end text-nowrap">
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('candidates.detail', candidate_id=c.id) }}" title="Voir le profil"><i class="bi bi-eye"></i></a>
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('candidates.edit', candidate_id=c.id) }}" title="Modifier"><i class="bi bi-pencil"></i></a>
+          {% if acc %}
+          <form class="d-inline" method="post" action="{{ url_for('candidates.reset_password', candidate_id=c.id) }}"
+                data-confirm="Remettre le mot de passe initial pour {{ acc.email }} ?">{{ csrf() }}<input type="hidden" name="next" value="{{ back }}">
+            <button class="btn btn-sm btn-outline-secondary" title="Réinitialiser le mot de passe"><i class="bi bi-key"></i></button>
+          </form>
+          <form class="d-inline" method="post" action="{{ url_for('admin.user_toggle', user_id=acc.id) }}"
+                data-confirm="{{ 'Désactiver' if acc.active else 'Réactiver' }} le compte {{ acc.email }} ?">{{ csrf() }}<input type="hidden" name="next" value="{{ back }}">
+            <button class="btn btn-sm {{ 'btn-outline-warning' if acc.active else 'btn-outline-success' }}"
+                    title="{{ 'Désactiver' if acc.active else 'Activer' }} le compte"><i class="bi bi-{{ 'person-slash' if acc.active else 'person-check' }}"></i></button>
+          </form>
+          {% endif %}
+          <form class="d-inline" method="post" action="{{ url_for('candidates.delete', candidate_id=c.id) }}"
+                data-confirm="Supprimer définitivement {{ c.full_name }} (profil, compte et résultats) ?">{{ csrf() }}<input type="hidden" name="next" value="{{ back }}">
+            <button class="btn btn-sm btn-outline-danger" title="Supprimer"><i class="bi bi-trash"></i></button>
+          </form>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="8" class="text-center text-muted py-4">Aucun candidat.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div></div>
+{{ pagination(page, args) }}
+{% endif %}
 {% endblock %}

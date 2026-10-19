@@ -7,11 +7,12 @@ import pandas as pd
 from flask import (Blueprint, abort, current_app, flash, redirect, render_template, request, send_file, session,
                    url_for)
 from flask_login import current_user, login_user
-from sqlalchemy import exists, func, select
+from sqlalchemy import exists, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from werkzeug.utils import secure_filename
 
+from app.auth import _safe_next
 from app.extensions import db
 from app.models import AuditLog, Candidate, KoboSubmission, Room, TechnicalTestSession, User, Workstation
 from app.models.candidate import FILE_MISSING, FILE_NOT_FOUND, FILE_STATUSES
@@ -34,8 +35,23 @@ def require_admin():
 
 @bp.get("/users")
 def users():
-    staff = select(User).where(User.role != ROLE_CANDIDATE).order_by(User.role, User.email)  # candidates: see their file
-    return render_template("admin/users.html", users=db.session.scalars(staff).all())
+    if request.args.get("tab") == "candidats":
+        return _candidate_accounts()
+    staff = select(User).where(User.role != ROLE_CANDIDATE).order_by(User.role, User.email)
+    return render_template("admin/users.html", users=db.session.scalars(staff).all(), tab="staff")
+
+
+def _candidate_accounts():
+    """Candidates tab: profiles + logins. Editing/deleting goes through the candidate routes."""
+    args = {"tab": "candidats", "q": request.args.get("q", "").strip()}
+    stmt = select(Candidate).options(selectinload(Candidate.account)).order_by(Candidate.full_name)
+    if args["q"]:
+        like = f"%{args['q']}%"
+        stmt = stmt.where(or_(Candidate.full_name.ilike(like), Candidate.email.ilike(like),
+                              Candidate.exam_code.ilike(like), Candidate.phone.ilike(like)))
+    page = db.paginate(stmt, page=request.args.get("page", 1, type=int), per_page=current_app.config["PER_PAGE"],
+                       error_out=False)  # last row of the last page deleted: empty page, not a 404
+    return render_template("admin/users.html", page=page, args=args, tab="candidats")
 
 
 def _user_from_form(user: User, creating: bool) -> None:
@@ -108,15 +124,17 @@ def user_edit(user_id: int):
 
 @bp.post("/users/<int:user_id>/toggle")
 def user_toggle(user_id: int):
-    user = _staff_user(user_id)
+    """Staff and candidate logins alike (a deactivated candidate can no longer log into their space)."""
+    user = db.get_or_404(User, user_id)
+    back = _safe_next(request.form.get("next")) if request.form.get("next") else url_for("admin.users")
     if user.id == current_user.id:
         flash("Vous ne pouvez pas désactiver votre propre compte.", "danger")
-        return redirect(url_for("admin.users"))
+        return redirect(back)
     user.active = not user.active
     audit_service.log("user_activate" if user.active else "user_deactivate", user, {"email": user.email})
     db.session.commit()
     flash(f"Compte {'activé' if user.active else 'désactivé'} : {user.email}.", "success")
-    return redirect(url_for("admin.users"))
+    return redirect(back)
 
 
 # ------------------------------------------------------------------ rooms & workstations

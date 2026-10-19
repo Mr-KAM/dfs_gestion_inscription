@@ -141,7 +141,7 @@ def delete(candidate_id: int):
     db.session.delete(candidate)
     db.session.commit()
     flash("Candidat supprimé.", "success")
-    return redirect(url_for("candidates.index"))
+    return redirect(_safe_next(request.form["next"]) if request.form.get("next") else url_for("candidates.index"))
 
 
 @bp.post("/<int:candidate_id>/passed/<test>")
@@ -171,5 +171,7 @@ def reset_password(candidate_id: int):
     if candidate.account is None:
         abort(404)
     account_service.reset_password(candidate.account)
-    flash("Mot de passe réinitialisé au mot de passe initial.", "success")
+    flash(f"Mot de passe de {candidate.full_name} réinitialisé au mot de passe initial.", "success")
+    if request.form.get("next"):
+        return redirect(_safe_next(request.form["next"]))
     return redirect(url_for("candidates.detail", candidate_id=candidate.id))
