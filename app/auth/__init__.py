@@ -1,13 +1,14 @@
 from urllib.parse import urlsplit
 
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, flash, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 from sqlalchemy import func, select
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.extensions import db
 from app.models import User
-from app.services import audit_service
+from app.services import account_service, audit_service
+from app.services.candidate_service import BusinessError
 from app.utils import utcnow
 
 bp = Blueprint("auth", __name__)
@@ -87,3 +88,36 @@ def logout():
     logout_user()
     flash("Vous êtes déconnecté.", "info")
     return redirect(url_for("portal.login" if was_candidate else "auth.login"))
+
+
+@bp.route("/profil", methods=["GET", "POST"])
+@login_required
+def profile():
+    """Staff profile: name, phone, photo, password. Candidates have their own page."""
+    if current_user.is_candidate:
+        return redirect(url_for("portal.profile"))
+    user = current_user._get_current_object()
+    if request.method == "POST":
+        try:
+            if request.form.get("action") == "password":
+                form = request.form
+                account_service.change_password(user, form.get("current_password", ""), form.get("password", ""),
+                                                form.get("password_confirm", ""))
+                login_user(user)  # new password = new session id; other sessions are logged out
+                flash("Mot de passe modifié.", "success")
+            else:
+                account_service.update_staff_profile(user, request.form, request.files.get("photo"))
+                flash("Profil mis à jour.", "success")
+            return redirect(url_for("auth.profile"))
+        except BusinessError as exc:
+            db.session.rollback()
+            flash(str(exc), "danger")
+    return render_template("auth/profile.html", user=user)
+
+
+@bp.get("/profil/photo")
+@login_required
+def photo():
+    if current_user.is_candidate:
+        abort(404)
+    return account_service.photo_response(current_user._get_current_object())  # own photo only

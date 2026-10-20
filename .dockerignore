@@ -13,3 +13,4 @@ tests
 *.db
 *.sqlite
 uploads
+parametre_sensible.md

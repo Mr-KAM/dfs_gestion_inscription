@@ -145,16 +145,29 @@ def _photo_type(data: bytes) -> str | None:
     return None
 
 
+def _read_photo(form, photo) -> bytes | None:
+    """The uploaded photo, checked (size, real format), or None when none was sent / it is being removed."""
+    if photo is None or not photo.filename or form.get("remove_photo"):
+        return None
+    data = photo.read(PHOTO_MAX_BYTES + 1)
+    if len(data) > PHOTO_MAX_BYTES:
+        raise BusinessError("Photo trop lourde : 2 Mo maximum.")
+    if _photo_type(data) is None:
+        raise BusinessError("Photo invalide : formats JPEG, PNG ou WebP uniquement.")
+    return data
+
+
+def _apply_photo(owner, form, data: bytes | None) -> None:
+    if form.get("remove_photo"):
+        owner.photo = owner.photo_type = None
+    elif data:
+        owner.photo, owner.photo_type = data, _photo_type(data)
+
+
 def update_profile(candidate: Candidate, form, photo=None) -> None:
     """The candidate edits contact details and photo. Name, CNI and email (login, file matching) stay with the DFS.
     On BusinessError the caller rolls back."""
-    data = None
-    if photo is not None and photo.filename and not form.get("remove_photo"):
-        data = photo.read(PHOTO_MAX_BYTES + 1)
-        if len(data) > PHOTO_MAX_BYTES:
-            raise BusinessError("Photo trop lourde : 2 Mo maximum.")
-        if _photo_type(data) is None:
-            raise BusinessError("Photo invalide : formats JPEG, PNG ou WebP uniquement.")
+    data = _read_photo(form, photo)
     phone = norm_phone(form.get("phone"))
     if not phone:
         raise BusinessError("Le numéro de téléphone est obligatoire.")
@@ -164,18 +177,26 @@ def update_profile(candidate: Candidate, form, photo=None) -> None:
     candidate.birth_date = _parse_birth_date(form.get("birth_date", ""))
     candidate.gender = form.get("gender") if form.get("gender") in ("M", "F") else None
     candidate.city = form.get("city", "").strip()[:120] or None
-    if form.get("remove_photo"):
-        candidate.photo = candidate.photo_type = None
-    elif data:
-        candidate.photo, candidate.photo_type = data, _photo_type(data)
+    _apply_photo(candidate, form, data)
     audit_service.log("profile_update", candidate, {"photo": "removed" if form.get("remove_photo") else bool(data)})
     db.session.commit()
 
 
-def photo_response(candidate: Candidate):
-    if not candidate.photo_type:
+def update_staff_profile(user: User, form, photo=None) -> None:
+    """A staff member (coach, reception...) edits his name, phone and photo. Email and role stay with the admin."""
+    data = _read_photo(form, photo)
+    user.full_name = " ".join(form.get("full_name", "").split())[:200]
+    user.phone = norm_phone(form.get("phone")) or None
+    _apply_photo(user, form, data)
+    audit_service.log("profile_update", user, {"photo": "removed" if form.get("remove_photo") else bool(data)})
+    db.session.commit()
+
+
+def photo_response(owner):
+    """A candidate's or a staff member's photo."""
+    if not owner.photo_type:
         abort(404)
-    response = send_file(io.BytesIO(candidate.photo), mimetype=candidate.photo_type, max_age=0)
+    response = send_file(io.BytesIO(owner.photo), mimetype=owner.photo_type, max_age=0)
     response.headers["Cache-Control"] = "private, no-cache"  # personal data: never in shared caches
     return response
 

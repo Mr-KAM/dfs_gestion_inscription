@@ -50,6 +50,12 @@ class User(UserMixin, db.Model):
     # use_alter: users <-> candidates reference each other (motivation_completed_by), so this FK is added last.
     candidate_id = db.Column(db.Integer, db.ForeignKey("candidates.id", ondelete="CASCADE", use_alter=True), unique=True)
 
+    # Own profile (any staff member): phone + photo (JPEG / PNG / WebP, deferred: never loaded with lists).
+    phone = db.Column(db.String(30))
+    photo = db.deferred(db.Column(db.LargeBinary))
+    photo_type = db.Column(db.String(20))
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow,
+                           server_default=db.func.now())
     # Coach: the classes he teaches, as "sas_id:class name" strings.
     coach_classes = db.Column(db.JSON, nullable=False, default=list, server_default="[]")
 

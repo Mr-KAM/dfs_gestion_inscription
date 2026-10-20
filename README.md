@@ -115,7 +115,7 @@ Données de démonstration (jamais lancées automatiquement) :
 docker compose exec web flask seed      # 1 superviseur, 4 testeurs, 2 salles × 10 PC, 20 candidats du jour
 ```
 
-Comptes de démo : `superviseur@demo.local`, `motivation1@demo.local`, `motivation2@demo.local`, `technique1@demo.local`, `technique2@demo.local`, mot de passe `Demo1234!`. Avec `FLASK_ENV=production`, la commande exige `--force`.
+Les identifiants des comptes de démo sont dans `parametre_sensible.md` (fichier local, non versionné). Avec `FLASK_ENV=production`, la commande exige `--force`.
 
 ### Sans Docker (développement)
 
@@ -123,8 +123,8 @@ Comptes de démo : `superviseur@demo.local`, `motivation1@demo.local`, `motivati
 python -m venv .venv && source .venv/bin/activate      # Windows : .venv\Scripts\activate
 pip install -r requirements.txt
 export FLASK_APP=wsgi.py FLASK_ENV=development
-export DATABASE_URL=postgresql+psycopg://dfs:motdepasse@localhost:5432/dfs
-export ADMIN_EMAIL=admin@dfs.ci ADMIN_PASSWORD='Admin1234!'
+export DATABASE_URL=postgresql+psycopg://<utilisateur>:<mot_de_passe>@localhost:5432/dfs
+export ADMIN_EMAIL=<email_admin> ADMIN_PASSWORD='<mot_de_passe_admin>'
 flask db upgrade
 flask create-admin
 flask run --port 8000
@@ -141,7 +141,7 @@ flask run --port 8000
 | `DATABASE_URL` | URL complète, prioritaire sur `POSTGRES_*` | construite depuis `POSTGRES_*` |
 | `SESSION_COOKIE_SECURE` | cookies uniquement en HTTPS (`localhost` est accepté par les navigateurs) | `true` en production |
 | `KOBO_BASE_URL`, `KOBO_TOKEN`, `KOBO_ASSET_UID` | valeurs par défaut Kobo (l'écran admin est prioritaire) | `https://kf.kobotoolbox.org` |
-| `CANDIDATE_DEFAULT_PASSWORD` | mot de passe initial des comptes candidats (changement imposé à la 1re connexion) | `00000000` |
+| `CANDIDATE_DEFAULT_PASSWORD` | mot de passe initial des comptes candidats (changement imposé à la 1re connexion) | voir `parametre_sensible.md` |
 | `DEFAULT_TECHNICAL_TEST_DURATION` | durée par défaut en minutes | `60` |
 | `TIMEZONE` | fuseau d'affichage | `Africa/Abidjan` |
 | `EXAM_CODE_PREFIX` | préfixe des codes générés | `DFS` |
@@ -175,10 +175,10 @@ docker compose exec web flask list-users
 
 ## Espace candidat
 
-* **Comptes créés automatiquement** : chaque candidat chargé (import, création manuelle, ou déjà en base) reçoit un compte : identifiant = **son email**, mot de passe initial = `CANDIDATE_DEFAULT_PASSWORD` (`00000000`). Ils sont créés au démarrage du conteneur (`flask create-candidate-accounts`, idempotent) et juste après chaque import. Le rapport d'import et la commande listent les candidats **sans compte** : sans email valide, ou email déjà pris par un autre compte (un email = un compte).
-* **Première connexion** : le candidat doit remplacer `00000000` par un mot de passe personnel avant d'accéder à son espace (le mot de passe initial étant le même pour tous, il ne protège le compte que jusqu'à ce changement).
+* **Comptes créés automatiquement** : chaque candidat chargé (import, création manuelle, ou déjà en base) reçoit un compte : identifiant = **son email**, mot de passe initial = `CANDIDATE_DEFAULT_PASSWORD`. Ils sont créés au démarrage du conteneur (`flask create-candidate-accounts`, idempotent) et juste après chaque import. Le rapport d'import et la commande listent les candidats **sans compte** : sans email valide, ou email déjà pris par un autre compte (un email = un compte).
+* **Première connexion** : le candidat doit remplacer le mot de passe initial par un mot de passe personnel avant d'accéder à son espace (le mot de passe initial étant le même pour tous, il ne protège le compte que jusqu'à ce changement).
 * **Inscription** (`/candidat/inscription`) : crée la fiche candidat et le compte. Refusée si l'email, le téléphone ou la CNI existe déjà (pas de doublon de dossier).
-* **Support** : fiche candidat → carte « Compte candidat » → *Réinitialiser le mot de passe* (remet `00000000` et réimpose le changement). Modifier l'email d'un candidat met à jour son identifiant ; supprimer le candidat supprime son compte. Les comptes candidats n'apparaissent pas dans **Utilisateurs** (réservé au personnel).
+* **Support** : fiche candidat → carte « Compte candidat » → *Réinitialiser le mot de passe* (remet le mot de passe initial et réimpose le changement). Modifier l'email d'un candidat met à jour son identifiant ; supprimer le candidat supprime son compte. Les comptes candidats n'apparaissent pas dans **Utilisateurs** (réservé au personnel).
 
 ```bash
 docker compose exec web flask create-candidate-accounts
@@ -228,7 +228,7 @@ docker compose down               # arrêter (les données restent dans le volum
 2. Dans Dokploy : **Create Project** → **Create Service** → **Compose**.
 3. **Provider** : GitHub, choisissez le repository et la branche ; **Compose Path** : `./docker-compose.yml`.
 4. Onglet **Environment** : collez le contenu de votre `.env` de production (Dokploy écrit le fichier `.env` utilisé par `env_file`). Générez `SECRET_KEY` avec `python -c "import secrets; print(secrets.token_urlsafe(48))"`. Gardez `SESSION_COOKIE_SECURE=true`. Si le port 8000 de l'hôte est déjà occupé, ajoutez `WEB_PORT=` avec un autre port (ou supprimez le bloc `ports:` : Traefik n'en a pas besoin).
-5. Onglet **Domains** : **Add Domain** → service `web`, port **8000**, votre domaine (ex. `recrutement.dfs.ci`), chemin `/`.
+5. Onglet **Domains** : **Add Domain** → service `web`, port **8000**, votre domaine, chemin `/`.
 6. **HTTPS** : activez HTTPS avec le certificat **Let's Encrypt** (le DNS du domaine doit pointer vers le serveur Dokploy).
 7. **Deploy**. Les journaux doivent montrer `Applying database migrations…`, `Administrateur … créé.` puis `Listening at: http://0.0.0.0:8000`.
 8. Vérifiez `https://votre-domaine/health` → `{"status": "ok", "database": "connected"}`, puis connectez-vous.
@@ -258,7 +258,7 @@ Conseil pour les jours de recrutement : une sauvegarde le matin, à midi et le s
 ```bash
 pip install -r requirements-dev.txt                      # outils de test (absents de l'image Docker)
 pytest                                                   # SQLite en mémoire
-TEST_DATABASE_URL=postgresql+psycopg://dfs:pw@localhost:5432/dfs_test pytest   # PostgreSQL réel
+TEST_DATABASE_URL=postgresql+psycopg://<utilisateur>:<mot_de_passe>@localhost:5432/dfs_test pytest   # PostgreSQL réel
 pip-audit -r requirements.txt                            # vulnérabilités connues des dépendances
 ```
 
@@ -266,13 +266,13 @@ Couverture : authentification et rôles (dont les limites du superviseur), CSRF,
 
 ## Sécurité
 
-* **Secrets** : uniquement dans `.env` (jamais commité : `.gitignore` et `.dockerignore` excluent tout fichier `.env`). En production, ils vivent dans l'onglet *Environment* de Dokploy. Le dépôt GitHub étant public, ne commitez jamais d'export, de liste de candidats ni de capture contenant des données personnelles.
-* **Connexion** : 5 échecs par email ou 30 par IP en 15 min bloquent les tentatives suivantes (visible dans *Audit* : « Connexion bloquée »). Inscriptions limitées à 10 par IP et par heure.
-* **Sessions** : expirent après 12 h ; un compte désactivé ou un mot de passe changé/réinitialisé déconnecte immédiatement toutes ses sessions ouvertes.
+* **Secrets** : uniquement dans `.env` et `parametre_sensible.md` (jamais commités : exclus par `.gitignore` et `.dockerignore`). En production, ils vivent dans l'onglet *Environment* de Dokploy. Le dépôt GitHub étant public, ne commitez jamais d'export, de liste de candidats ni de capture contenant des données personnelles.
+* **Connexion** : les échecs répétés (par email et par IP) bloquent temporairement les tentatives suivantes (visible dans *Audit* : « Connexion bloquée ») ; les inscriptions sont limitées par IP. Seuils : voir `parametre_sensible.md`.
+* **Sessions** : expirent automatiquement ; un compte désactivé ou un mot de passe changé/réinitialisé déconnecte immédiatement toutes ses sessions ouvertes.
 * **Navigateur** : Content-Security-Policy (aucun script en ligne), HSTS en HTTPS, pages personnelles non mises en cache, protection CSRF, cookies `HttpOnly`/`Secure`/`SameSite`.
 * **Exports** : les cellules commençant par `=`, `+`, `-`, `@` sont neutralisées (injection de formules Excel).
 * **Réseau** : PostgreSQL n'est jamais publié ; l'app n'est publiée que sur `127.0.0.1` (Traefik la sert en HTTPS).
-* **Mot de passe initial des candidats** : `CANDIDATE_DEFAULT_PASSWORD`. Une valeur évidente comme `00000000` se devine : préférez une valeur propre à la campagne, transmise aux candidats par un canal privé (SMS, convocation). Le changement reste imposé à la première connexion.
+* **Mot de passe initial des candidats** : `CANDIDATE_DEFAULT_PASSWORD`. Une valeur évidente se devine : préférez une valeur propre à la campagne, transmise aux candidats par un canal privé (SMS, convocation). Le changement reste imposé à la première connexion.
 
 ## Dépannage
 

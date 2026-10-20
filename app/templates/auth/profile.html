@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, avatar %}
+{% block title %}Mon profil{% endblock %}
+{% block content %}
+<div class="mb-3">
+  <div class="eyebrow mb-1">{{ user.role_label }}</div>
+  <h1 class="page-title">Mon profil</h1>
+</div>
+<div class="row g-3">
+  <div class="col-lg-7">
+    <form class="card card-body" method="post" enctype="multipart/form-data">
+      {{ csrf() }}<input type="hidden" name="action" value="profile">
+      <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
+        {{ avatar(user, url_for('auth.photo'), 96) }}
+        <div class="flex-grow-1">
+          <label class="form-label" for="photo">Photo de profil</label>
+          <input class="form-control" id="photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp">
+          <div class="form-text">JPEG, PNG ou WebP, 2 Mo maximum.</div>
+          {% if user.photo_type %}
+          <div class="form-check mt-1"><input class="form-check-input" type="checkbox" id="remove_photo" name="remove_photo" value="1">
+            <label class="form-check-label" for="remove_photo">Supprimer ma photo</label></div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="row g-3">
+        <div class="col-md-6"><label class="form-label" for="full_name">Nom complet</label>
+          <input class="form-control" id="full_name" name="full_name" maxlength="200" autocomplete="name"
+                 value="{{ request.form.get('full_name', user.full_name or '') }}"></div>
+        <div class="col-md-6"><label class="form-label" for="phone">Téléphone</label>
+          <input class="form-control" id="phone" name="phone" type="tel" autocomplete="tel"
+                 value="{{ request.form.get('phone', user.phone or '') }}"></div>
+      </div>
+      <dl class="kv row mt-3 mb-0 small">
+        <dt class="col-4">Email (identifiant)</dt><dd class="col-8 text-break">{{ user.email }}</dd>
+        <dt class="col-4">Rôle</dt><dd class="col-8">{{ user.role_label }}</dd>
+      </dl>
+      <p class="small text-muted">L'email et le rôle sont gérés par l'administrateur.</p>
+      <div><button class="btn btn-primary"><i class="bi bi-check2"></i> Enregistrer</button></div>
+    </form>
+  </div>
+  <div class="col-lg-5">
+    <form class="card card-body" method="post" autocomplete="off">
+      {{ csrf() }}<input type="hidden" name="action" value="password">
+      <h2 class="h6"><i class="bi bi-key"></i> Changer mon mot de passe</h2>
+      <div class="mb-2"><label class="form-label" for="current_password">Mot de passe actuel</label>
+        <input class="form-control" id="current_password" name="current_password" type="password" autocomplete="current-password" required></div>
+      <div class="mb-2"><label class="form-label" for="password">Nouveau mot de passe</label>
+        <input class="form-control" id="password" name="password" type="password" minlength="8" autocomplete="new-password" required></div>
+      <div class="mb-3"><label class="form-label" for="password_confirm">Confirmation</label>
+        <input class="form-control" id="password_confirm" name="password_confirm" type="password" minlength="8" autocomplete="new-password" required></div>
+      <div><button class="btn btn-outline-primary">Modifier le mot de passe</button></div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -11,6 +11,7 @@
 </head>
 <body>
 {% import "_brand.html" as brand %}
+{% from "_macros.html" import avatar %}
 {% if current_user.is_authenticated %}
 {% set role = current_user.role %}
 {% macro is_active(endpoint, match=None) -%}
@@ -28,10 +29,15 @@
   <a class="text-decoration-none" href="{{ url_for('dashboard.index') }}" aria-label="Accueil">{{ brand.logo(32) }}</a>
   <span class="app-label d-none d-md-inline">{{ app_name }}</span>
   <div class="ms-auto d-flex align-items-center gap-3">
-    <div class="user-chip text-end d-none d-md-block">
-      <div class="fw-semibold">{{ current_user.display_name }}</div>
-      <small>{{ current_user.role_label }}</small>
-    </div>
+    {% set me = current_user.candidate if current_user.is_candidate else current_user %}
+    <a class="d-flex align-items-center gap-2 text-decoration-none text-reset" title="Mon profil"
+       href="{{ url_for('portal.profile' if current_user.is_candidate else 'auth.profile') }}">
+      <div class="user-chip text-end d-none d-md-block">
+        <div class="fw-semibold">{{ current_user.display_name }}</div>
+        <small>{{ current_user.role_label }}</small>
+      </div>
+      {{ avatar(me, url_for('portal.photo' if current_user.is_candidate else 'auth.photo'), 34) }}
+    </a>
     <form method="post" action="{{ url_for('auth.logout') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-box-arrow-right"></i><span class="d-none d-sm-inline"> Déconnexion</span></button>
@@ -91,6 +97,7 @@
         {{ nav('admin.settings', 'gear', 'Paramètres') }}
       {% endif %}
       {% endif %}
+      {{ nav('auth.profile', 'person-circle', 'Mon profil') }}
       {% endif %}
     </div>
   </nav>

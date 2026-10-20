@@ -9,3 +9,5 @@ uploads/
 instance/
 .kilo/
 *.env
+# Local notes with credentials / default passwords (see README > Sécurité)
+parametre_sensible.md
