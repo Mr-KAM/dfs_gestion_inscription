@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Notifications{% endblock %}
+{% block content %}
+<div class="mb-3">
+  <div class="eyebrow mb-1">Espace candidat</div>
+  <h1 class="page-title">Notifications</h1>
+</div>
+<div class="card" style="max-width: 760px"><ul class="list-group list-group-flush">
+{% for n in notifications %}
+  <li class="list-group-item">
+    <div class="d-flex justify-content-between flex-wrap gap-2"><strong>{{ n.title }}</strong>
+      <span class="small text-muted">{{ n.created_at | dt }}{% if n.author %} · {{ n.author.display_name }}{% endif %}</span></div>
+    {% if n.body %}<div class="mt-1" style="white-space: pre-line">{{ n.body }}</div>{% endif %}
+  </li>
+{% else %}<li class="list-group-item text-muted">Aucune notification.</li>{% endfor %}
+</ul></div>
+{% endblock %}

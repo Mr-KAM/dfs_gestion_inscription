@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, status %}
+{% block title %}{{ e.title }}{% endblock %}
+{% block content %}
+<a class="small text-muted text-decoration-none" href="{{ url_for('campus.exercises') }}"><i class="bi bi-arrow-left"></i> Exercices</a>
+<h1 class="page-title mt-1">{{ e.title }}</h1>
+<div class="text-muted mb-3">{{ e.sas.name }} · {{ e.class_name or 'tout le SAS' }} ·
+  {% if e.is_published %}publié le {{ e.opens_at | dt }}{% else %}programmé pour le {{ e.opens_at | dt }} (invisible pour les étudiants){% endif %}
+  {% if e.due_at %}· limite {{ e.due_at | dt }}{% endif %}</div>
+{% if e.instructions %}<div class="card card-body mb-3" style="white-space: pre-line">{{ e.instructions }}</div>{% endif %}
+
+<div class="card"><div class="card-header"><i class="bi bi-check2-square"></i> Résultats</div>
+<ul class="list-group list-group-flush">
+{% for c in students %}{% set sub = submissions.get(c.id) %}
+  <li class="list-group-item" id="s{{ c.id }}">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div><strong>{{ c.full_name }}</strong> <code class="small">{{ c.matricule }}</code> <span class="small text-muted">{{ c.sas_class or '' }}</span></div>
+      <div>{% if sub %}{{ status(sub.badge) }}{% if sub.score %} <strong>{{ sub.score }}</strong>{% endif %}{% else %}{{ status(('secondary', 'Pas de réponse')) }}{% endif %}</div>
+    </div>
+    {% if sub and sub.answer %}
+    <div class="small bg-light rounded p-2 mt-2" style="white-space: pre-line">{{ sub.answer }}</div>
+    <div class="small text-muted">Rendu le {{ sub.submitted_at | dt }}</div>
+    {% endif %}
+    <form class="row g-2 align-items-end mt-1" method="post" action="{{ url_for('campus.exercise_review', exercise_id=e.id, candidate_id=c.id) }}">
+      {{ csrf() }}
+      <div class="col-4 col-md-2"><input class="form-control form-control-sm" name="score" maxlength="20" placeholder="Note" value="{{ sub.score if sub else '' }}" aria-label="Note de {{ c.full_name }}"></div>
+      <div class="col-8 col-md-6"><input class="form-control form-control-sm" name="feedback" maxlength="5000" placeholder="Commentaire" value="{{ sub.feedback if sub else '' }}" aria-label="Commentaire pour {{ c.full_name }}"></div>
+      <div class="col-md-4 d-flex gap-1">
+        <button class="btn btn-sm btn-success" name="status" value="{{ VALIDATED }}"><i class="bi bi-check2"></i> Valider</button>
+        <button class="btn btn-sm btn-outline-danger" name="status" value="{{ REJECTED }}"><i class="bi bi-arrow-counterclockwise"></i> À refaire</button>
+      </div>
+    </form>
+  </li>
+{% else %}<li class="list-group-item text-muted">Aucun étudiant dans cette classe.</li>{% endfor %}
+</ul></div>
+{% endblock %}

@@ -8,7 +8,7 @@ import uuid
 import pandas as pd
 from flask import (Blueprint, abort, current_app, flash, make_response, redirect, render_template, request, send_file,
                    session, url_for)
-from flask_login import current_user, login_user
+from flask_login import current_user, login_required, login_user
 from sqlalchemy import exists, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
@@ -16,22 +16,29 @@ from werkzeug.utils import secure_filename
 
 from app.auth import _safe_next
 from app.extensions import db
-from app.models import AttendanceSession, AuditLog, Candidate, KoboSubmission, Room, Sas, TechnicalTestSession, User, Workstation
-from app.models.attendance import METHOD_LABELS
+from app.models import AuditLog, Candidate, KoboSubmission, Room, Sas, TechnicalTestSession, User, Workstation
 from app.models.candidate import FILE_MISSING, FILE_NOT_FOUND, FILE_STATUSES
-from app.models.user import ROLE_ADMIN, ROLE_CANDIDATE, ROLES
-from app.services import attendance_service, audit_service, candidate_service, import_service, sas_service, settings_service
+from app.models.user import ROLE_ADMIN, ROLE_CANDIDATE, ROLE_COACH, ROLE_RESIDENCE, ROLES
+from app.services import audit_service, campus_service, candidate_service, import_service, sas_service, settings_service
 from app.services.audit_service import ACTION_LABELS
-from app.utils import allow_camera, roles_required
+from app.utils import allow_camera
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
 MIN_PASSWORD = 8
 
 
+# Responsable de cité: classes / bedrooms / equipment of the SAS students, nothing else of /admin.
+RESIDENCE_ENDPOINTS = {"admin.sas_list", "admin.sas_detail", "admin.sas_member", "admin.sas_import",
+                       "admin.sas_template", "admin.sas_auto_assign"}
+
+
 @bp.before_request
-@roles_required(ROLE_ADMIN)
+@login_required
 def require_admin():
-    """Every /admin route is admin-only (server-side)."""
+    """Every /admin route is admin-only (server-side), except the SAS assignment pages for the residence manager."""
+    if current_user.role != ROLE_ADMIN and not (current_user.role == ROLE_RESIDENCE
+                                                 and request.endpoint in RESIDENCE_ENDPOINTS):
+        abort(403)
 
 
 # ------------------------------------------------------------------ users
@@ -72,6 +79,7 @@ def _user_from_form(user: User, creating: bool) -> None:
         raise candidate_service.BusinessError("Un utilisateur utilise déjà cet email.")
     user.email, user.role = email, role
     user.full_name = request.form.get("full_name", "").strip()[:200]
+    user.coach_classes = sorted(set(request.form.getlist("coach_classes"))) if role == ROLE_COACH else []
     password = request.form.get("password", "")
     if creating or password:
         if len(password) < MIN_PASSWORD:
@@ -102,7 +110,7 @@ def user_new():
         except (candidate_service.BusinessError, IntegrityError) as exc:
             db.session.rollback()
             flash(str(exc) if isinstance(exc, candidate_service.BusinessError) else "Email déjà utilisé.", "danger")
-    return render_template("admin/user_form.html", user=user)
+    return render_template("admin/user_form.html", user=user, class_choices=campus_service.class_choices())
 
 
 @bp.route("/users/<int:user_id>/edit", methods=["GET", "POST"])
@@ -123,7 +131,7 @@ def user_edit(user_id: int):
         except candidate_service.BusinessError as exc:
             db.session.rollback()
             flash(str(exc), "danger")
-    return render_template("admin/user_form.html", user=user)
+    return render_template("admin/user_form.html", user=user, class_choices=campus_service.class_choices())
 
 
 @bp.post("/users/<int:user_id>/toggle")
@@ -402,6 +410,8 @@ def sas_member(sas_id: int, candidate_id: int):
     if c.sas_id != sas_id:
         abort(404)
     if "remove" in request.form:
+        if current_user.role != ROLE_ADMIN:
+            abort(403)
         c.sas, c.sas_admitted_at, c.sas_class, c.sas_bedroom, c.sas_equipment = None, None, "", "", ""
         audit_service.log("sas_remove", c, {"sas_id": sas_id})
         flash(f"{c.full_name} retiré(e) du SAS.", "success")
@@ -416,71 +426,6 @@ def sas_member(sas_id: int, candidate_id: int):
                     else url_for("admin.sas_detail", sas_id=sas_id))  # back to the same filters
 
 
-
-# ------------------------------------------------------------------ SAS check-in (pointage)
-
-@bp.post("/sas/<int:sas_id>/attendance")
-def attendance_open(sas_id: int):
-    sas = db.get_or_404(Sas, sas_id)
-    try:
-        session = attendance_service.open_session(sas, request.form.get("class_name", ""), request.form.get("label", ""),
-                                                  request.form.get("minutes", 0, type=int) or 0, current_user)
-    except candidate_service.BusinessError as exc:
-        flash(str(exc), "danger")
-        return redirect(url_for("admin.sas_detail", sas_id=sas.id))
-    return redirect(url_for("admin.attendance", session_id=session.id))
-
-
-@bp.get("/attendance/<int:session_id>")
-def attendance(session_id: int):
-    session = db.get_or_404(AttendanceSession, session_id)
-    if request.args.get("partial"):
-        return _attendance_live(session)
-    return allow_camera(make_response(render_template(
-        "admin/attendance.html", s=session, **_attendance_context(session))))
-
-
-def _attendance_context(session: AttendanceSession) -> dict:
-    students = attendance_service.roster(session)
-    marks = {m.candidate_id: m for m in session.marks}
-    return {"students": students, "marks": marks, "present": sum(1 for c in students if c.id in marks),
-            "method_labels": METHOD_LABELS, "qr": attendance_service.qr_svg(session) if session.is_open else None}
-
-
-def _attendance_live(session: AttendanceSession):
-    return render_template("admin/_attendance_live.html", s=session, **_attendance_context(session))
-
-
-@bp.post("/attendance/<int:session_id>/scan")
-def attendance_scan(session_id: int):
-    """The admin scans the student's matricule QR code (works open or closed)."""
-    session = db.get_or_404(AttendanceSession, session_id)
-    try:
-        candidate, new = attendance_service.admin_scan(session, request.form.get("token", ""), current_user)
-        flash(f"{candidate.full_name} : présent(e)." if new else f"{candidate.full_name} était déjà marqué(e) présent(e).",
-              "success" if new else "info")
-    except candidate_service.BusinessError as exc:
-        flash(str(exc), "danger")
-    return redirect(url_for("admin.attendance", session_id=session.id))
-
-
-@bp.post("/attendance/<int:session_id>/mark/<int:candidate_id>")
-def attendance_mark(session_id: int, candidate_id: int):
-    session = db.get_or_404(AttendanceSession, session_id)
-    try:
-        attendance_service.admin_set(session, db.get_or_404(Candidate, candidate_id),
-                                     request.form.get("present") == "1", current_user)
-    except candidate_service.BusinessError as exc:
-        flash(str(exc), "danger")
-    return redirect(url_for("admin.attendance", session_id=session.id))
-
-
-@bp.post("/attendance/<int:session_id>/close")
-def attendance_close(session_id: int):
-    session = db.get_or_404(AttendanceSession, session_id)
-    attendance_service.close_session(session)
-    flash("Pointage clôturé : les étudiants ne peuvent plus marquer leur présence.", "success")
-    return redirect(url_for("admin.attendance", session_id=session.id))
 
 
 # ------------------------------------------------------------------ imports

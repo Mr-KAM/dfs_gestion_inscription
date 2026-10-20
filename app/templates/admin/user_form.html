@@ -20,6 +20,14 @@
       {% for key, label in ROLES.items() %}<option value="{{ key }}" {{ 'selected' if f.get('role', user.role) == key }}>{{ label }}</option>{% endfor %}
     </select>
   </div>
+  <fieldset class="mb-3">
+    <legend class="form-label">Classes du coach <span class="text-muted small">(rôle « Coach technique » uniquement)</span></legend>
+    {% set chosen = f.getlist('coach_classes') if f else (user.coach_classes or []) %}
+    {% for c in class_choices %}
+    <div class="form-check"><input class="form-check-input" type="checkbox" name="coach_classes" value="{{ c.key }}" id="cc{{ loop.index }}" {{ 'checked' if c.key in chosen }}>
+      <label class="form-check-label" for="cc{{ loop.index }}">{{ c.sas.name }} — {{ c.class_name }} <span class="text-muted">({{ c.count }} étudiants)</span></label></div>
+    {% else %}<div class="form-text">Aucune classe : attribuez d'abord des classes aux étudiants d'un SAS.</div>{% endfor %}
+  </fieldset>
   <div class="mb-3">
     <label class="form-label" for="password">{{ 'Nouveau mot de passe' if user.id else 'Mot de passe' }}{% if not user.id %} <span class="text-danger">*</span>{% endif %}</label>
     <input class="form-control" id="password" name="password" type="password" minlength="8" autocomplete="new-password" {{ 'required' if not user.id }}>

@@ -2,13 +2,17 @@
 {% from "_macros.html" import csrf, passed_checkbox, status %}
 {% block title %}{{ sas.name }}{% endblock %}
 {% block content %}
+{% set is_admin = current_user.role == 'admin' %}
 <a class="small text-muted text-decoration-none" href="{{ url_for('admin.sas_list') }}"><i class="bi bi-arrow-left"></i> SAS</a>
 <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mt-1 mb-3">
   <h1 class="page-title">{{ sas.name }} <span class="status status-info align-middle">{{ sas.members | length }} admis</span></h1>
+  {% if is_admin %}
   <form method="post" action="{{ url_for('admin.sas_delete', sas_id=sas.id) }}" data-confirm="Supprimer le SAS « {{ sas.name }} » ?">
     {{ csrf() }}<button class="btn btn-outline-danger" {{ 'disabled title="Retirez d\'abord les candidats"' | safe if sas.members }}><i class="bi bi-trash"></i> Supprimer</button></form>
+  {% endif %}
 </div>
 
+{% if is_admin %}
 <form class="card card-body mb-3" method="post" action="{{ url_for('admin.sas_save') }}">
   {{ csrf() }}<input type="hidden" name="sas_id" value="{{ sas.id }}">
   <div class="row g-2 align-items-end">
@@ -38,13 +42,13 @@
 
 <div class="card mb-3"><div class="card-header"><i class="bi bi-calendar-check"></i> Pointages de présence</div>
   <div class="card-body">
-    <form class="row g-2 align-items-end" method="post" action="{{ url_for('admin.attendance_open', sas_id=sas.id) }}">
+    <form class="row g-2 align-items-end" method="post" action="{{ url_for('campus.attendance_open') }}">
       {{ csrf() }}
       <div class="col-md-4"><label class="form-label" for="att-label">Intitulé</label>
         <input class="form-control" id="att-label" name="label" maxlength="100" placeholder="Cours du matin"></div>
       <div class="col-md-3"><label class="form-label" for="att-class">Classe</label>
-        <select class="form-select" id="att-class" name="class_name"><option value="">Tout le SAS</option>
-          {% for name in classes %}<option>{{ name }}</option>{% endfor %}</select></div>
+        <select class="form-select" id="att-class" name="target"><option value="{{ sas.id }}:">Tout le SAS</option>
+          {% for name in classes %}<option value="{{ sas.id }}:{{ name }}">{{ name }}</option>{% endfor %}</select></div>
       <div class="col-6 col-md-2"><label class="form-label" for="att-minutes">Durée (min)</label>
         <input class="form-control" id="att-minutes" name="minutes" type="number" min="1" max="720" value="15" required></div>
       <div class="col-6 col-md-3"><button class="btn btn-primary w-100"><i class="bi bi-play-circle"></i> Lancer le pointage</button></div>
@@ -55,7 +59,7 @@
   <ul class="list-group list-group-flush">
   {% for s in sas.attendance_sessions %}
     <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
-      <a href="{{ url_for('admin.attendance', session_id=s.id) }}"><strong>{{ s.label }}</strong></a>
+      <a href="{{ url_for('campus.attendance', session_id=s.id) }}"><strong>{{ s.label }}</strong></a>
       <span class="small text-muted">{{ s.class_name or 'Tout le SAS' }} · {{ s.opened_at | dt }} · {{ s.marks | length }} présent(s)</span>
       {{ status(('warning', 'En cours') if s.is_open else ('secondary', 'Clôturé')) }}
     </li>
@@ -63,6 +67,7 @@
   </ul>
   {% endif %}
 </div>
+{% endif %}
 
 <details class="card mb-3">
   <summary class="card-header"><i class="bi bi-magic"></i> Attribuer les classes, chambres et matériel (automatique ou fichier)</summary>
@@ -138,8 +143,8 @@
       <td><code>{{ c.matricule }}</code></td>
       <td><a href="{{ url_for('candidates.detail', candidate_id=c.id) }}">{{ c.full_name }}</a><div class="small text-muted">{{ c.email or '' }}</div></td>
       <td>{{ c.gender or '—' }}</td>
-      <td>{{ passed_checkbox(c, 'motivation', True) }}</td>
-      <td>{{ passed_checkbox(c, 'technical', True) }}</td>
+      <td>{{ passed_checkbox(c, 'motivation', is_admin) }}</td>
+      <td>{{ passed_checkbox(c, 'technical', is_admin) }}</td>
       <td class="small">{{ c.sas_admitted_at | dt }}</td>
       <td><input class="form-control form-control-sm" form="m{{ c.id }}" name="class" value="{{ c.sas_class or '' }}" maxlength="50" placeholder="Ex. Classe A" aria-label="Classe de {{ c.full_name }}" style="min-width:110px"></td>
       <td><input class="form-control form-control-sm" form="m{{ c.id }}" name="bedroom" value="{{ c.sas_bedroom or '' }}" maxlength="50" placeholder="Ex. B-12" aria-label="Chambre de {{ c.full_name }}" style="min-width:90px"></td>
@@ -147,7 +152,7 @@
       <td class="text-nowrap"><form id="m{{ c.id }}" method="post" action="{{ url_for('admin.sas_member', sas_id=sas.id, candidate_id=c.id) }}" class="d-flex gap-1">
         {{ csrf() }}<input type="hidden" name="next" value="{{ request.full_path }}">
         <button class="btn btn-sm btn-primary" title="Enregistrer"><i class="bi bi-save"></i></button>
-        <button class="btn btn-sm btn-outline-danger" name="remove" value="1" title="Retirer du SAS" data-confirm="Retirer {{ c.full_name }} du SAS ?"><i class="bi bi-person-dash"></i></button></form></td>
+        {% if is_admin %}<button class="btn btn-sm btn-outline-danger" name="remove" value="1" title="Retirer du SAS" data-confirm="Retirer {{ c.full_name }} du SAS ?"><i class="bi bi-person-dash"></i></button>{% endif %}</form></td>
     </tr>
   {% else %}<tr><td colspan="10" class="text-muted">{{ 'Aucun candidat ne correspond aux filtres.' if sas.members else 'Aucun candidat admis.' }}</td></tr>{% endfor %}
   </tbody>

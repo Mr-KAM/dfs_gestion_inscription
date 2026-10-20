@@ -1,0 +1,137 @@
+"""Campus roles: coach (roll call, notifications, exercises for his classes), reception (visits, problems),
+residence manager (SAS bedrooms / equipment). One logged-in user per test (Flask-Login caches it in `g`)."""
+from datetime import timedelta
+
+from app.models import AttendanceSession, Exercise, Incident, Notification, Sas, User, Visit
+from app.services import campus_service
+from app.utils import utcnow
+from tests.conftest import login, make_candidate, make_user
+from tests.test_portal import _logged_candidate
+
+
+def _campus(db):
+    """SAS 2026: ALPHA in Classe A, BETA in Classe B; coach of Classe A."""
+    sas = Sas(name="SAS 2026")
+    db.session.add(sas)
+    db.session.commit()
+    a = make_candidate(email="a@test.ci", cni="A", phone="0101010101", full_name="ALPHA", sas=sas, sas_class="Classe A")
+    b = make_candidate(email="b@test.ci", cni="B", phone="0202020202", full_name="BETA", sas=sas, sas_class="Classe B")
+    coach = make_user("coach", "coach@test.ci")
+    coach.coach_classes = [f"{sas.id}:Classe A"]
+    db.session.commit()
+    return sas, a, b, coach
+
+
+def test_admin_creates_coach_with_classes(app, db, client, admin):
+    sas, *_ = _campus(db)
+    login(client, admin)
+    html = client.get("/admin/users/new").get_data(as_text=True)
+    assert "Coach technique" in html and "Responsable accueil" in html and "Responsable de cité" in html
+    assert f'value="{sas.id}:Classe B"' in html
+    client.post("/admin/users/new", data={"email": "new@test.ci", "role": "coach", "password": "Password123!",
+                                          "coach_classes": [f"{sas.id}:Classe A", f"{sas.id}:Classe B"]})
+    assert User.query.filter_by(email="new@test.ci").one().coach_classes == [f"{sas.id}:Classe A", f"{sas.id}:Classe B"]
+    client.post("/admin/users/new", data={"email": "rec@test.ci", "role": "reception", "password": "Password123!",
+                                          "coach_classes": [f"{sas.id}:Classe A"]})
+    assert User.query.filter_by(email="rec@test.ci").one().coach_classes == []  # classes: coaches only
+
+
+def test_coach_works_on_his_classes_only(app, db, client):
+    sas, a, b, coach = _campus(db)
+    login(client, coach)
+    assert client.get("/").headers["Location"].endswith("/campus/")
+    assert client.get("/candidates/").status_code == 403 and client.get("/admin/users").status_code == 403
+    html = client.get("/campus/").get_data(as_text=True)
+    assert "Classe A" in html and "Classe B" not in html
+    assert client.post("/campus/attendance", data={"target": f"{sas.id}:Classe B", "minutes": "10"},
+                       follow_redirects=True).status_code == 200 and AttendanceSession.query.count() == 0  # refused
+    resp = client.post("/campus/attendance", data={"target": f"{sas.id}:Classe A", "label": "Appel", "minutes": "10"})
+    s = AttendanceSession.query.one()
+    assert resp.headers["Location"].endswith(f"/campus/attendance/{s.id}") and s.class_name == "Classe A"
+    other = AttendanceSession(sas=sas, class_name="Classe B", label="x", closes_at=utcnow() + timedelta(minutes=5))
+    db.session.add(other)
+    db.session.commit()
+    assert client.get(f"/campus/attendance/{other.id}").status_code == 403
+
+    client.post("/campus/notifications", data={"target": f"{sas.id}:Classe A", "title": "Cours annulé", "body": "Demain"})
+    client.post("/campus/notifications", data={"target": f"{sas.id}:", "title": "Pour tous"})  # whole SAS: not a coach
+    assert [n.title for n in Notification.query] == ["Cours annulé"]
+
+    client.post("/campus/exercises", data={"target": f"{sas.id}:Classe A", "title": "Boucles", "instructions": "Écrire…"})
+    e = Exercise.query.one()
+    assert e.is_published
+    html = client.get(f"/campus/exercises/{e.id}").get_data(as_text=True)
+    assert "ALPHA" in html and "BETA" not in html
+    client.post(f"/campus/exercises/{e.id}/review/{a.id}", data={"status": "validated", "score": "16/20", "feedback": "Bien"})
+    sub = e.submissions[0]
+    assert (sub.status, sub.score, sub.feedback) == ("validated", "16/20", "Bien")
+    assert client.get("/campus/visits").status_code == 403  # reception only
+
+
+def test_student_sees_notifications_and_scheduled_exercises(app, db, client):
+    sas, a, b, coach = _campus(db)
+    c = _logged_candidate(client, email="me@test.ci", cni="ME", phone="0303030303")
+    c.sas, c.sas_class = sas, "Classe A"
+    db.session.commit()
+    campus_service.send_notification(coach, f"{sas.id}:Classe A", "Cours annulé", "Demain 8h")
+    later = (utcnow() + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M")
+    hidden = campus_service.create_exercise(coach, {"target": f"{sas.id}:Classe A", "title": "Demain", "opens_at": later})
+    now = campus_service.create_exercise(coach, {"target": f"{sas.id}:Classe A", "title": "Boucles"})
+    assert "Cours annulé" in client.get("/candidat/").get_data(as_text=True)
+    html = client.get("/candidat/exercices").get_data(as_text=True)
+    assert "Boucles" in html and "Demain" not in html  # scheduled: not visible yet
+    assert client.post("/candidat/exercices", data={"exercise_id": hidden.id, "answer": "x"}).status_code == 404
+    client.post("/candidat/exercices", data={"exercise_id": now.id, "answer": "for i in range(3): print(i)"})
+    db.session.expire_all()
+    assert now.submissions[0].answer.startswith("for i") and now.submissions[0].status == "submitted"
+    campus_service.review(now, c, coach, "validated", "18", "Parfait")
+    html = client.get("/candidat/exercices").get_data(as_text=True)
+    assert "Validé" in html and "Parfait" in html and "Renvoyer" not in html
+
+
+def test_reception_visits_and_problems(app, db, client):
+    sas, a, b, coach = _campus(db)
+    reception = make_user("reception", "rec@test.ci")
+    login(client, reception)
+    client.post("/campus/visits", data={"visitor_name": "Mme KOUAME", "student": f"{a.matricule} — ALPHA", "reason": "Colis"})
+    v = Visit.query.one()
+    assert v.candidate_id == a.id and v.left_at is None
+    client.post(f"/campus/visits/{v.id}/leave")
+    db.session.expire_all()
+    assert v.left_at is not None
+    html = client.post("/campus/visits", data={"visitor_name": "X", "student": "26CAND999999"},
+                       follow_redirects=True).get_data(as_text=True)
+    assert "Aucun étudiant du SAS" in html
+    client.post("/campus/incidents", data={"student": a.matricule, "category": "health", "description": "Fièvre"})
+    i = Incident.query.one()
+    client.post(f"/campus/incidents/{i.id}/resolve", data={"resolution": "Vu par l'infirmière"})
+    db.session.expire_all()
+    assert i.resolved_at and i.resolution == "Vu par l'infirmière"
+    assert "Fièvre" in client.get("/campus/incidents?status=resolved").get_data(as_text=True)
+
+
+def test_coach_reports_problem_but_sees_only_his_own(app, db, client):
+    sas, a, b, coach = _campus(db)
+    db.session.add(Incident(candidate=b, description="Signalé par l'accueil", created_by=None))
+    db.session.commit()
+    login(client, coach)
+    client.post("/campus/incidents", data={"student": a.email, "category": "discipline", "description": "Retards"})
+    html = client.get("/campus/incidents").get_data(as_text=True)
+    assert "Retards" in html and "Signalé par" not in html and "Suite donnée" not in html
+    assert client.post(f"/campus/incidents/{Incident.query.first().id}/resolve").status_code == 403
+
+
+def test_residence_manages_bedrooms_only(app, db, client):
+    sas, a, b, coach = _campus(db)
+    residence = make_user("residence", "cite@test.ci")
+    login(client, residence)
+    assert client.get("/").headers["Location"].endswith("/campus/")
+    html = client.get(f"/admin/sas/{sas.id}").get_data(as_text=True)
+    assert "Chambre" in html and "Admettre des candidats" not in html and "Supprimer" not in html
+    client.post(f"/admin/sas/{sas.id}/members/{a.id}", data={"class": "Classe A", "bedroom": "CH-01", "equipment": "Laptop"})
+    db.session.expire_all()
+    assert a.sas_bedroom == "CH-01"
+    assert client.post(f"/admin/sas/{sas.id}/members/{a.id}", data={"remove": "1"}).status_code == 403
+    for url in ("/admin/users", "/admin/rooms", f"/admin/sas/{sas.id}/delete", "/campus/visits", "/candidates/"):
+        resp = client.post(url) if url.endswith("delete") else client.get(url)
+        assert resp.status_code == 403, url

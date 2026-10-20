@@ -4,7 +4,8 @@ from flask_login import current_user, login_required, login_user
 
 from app.auth import _safe_next, login_attempt
 from app.extensions import db
-from app.services import account_service, attendance_service, audit_service
+from app.models import Exercise
+from app.services import account_service, attendance_service, audit_service, campus_service
 from app.services.candidate_service import BusinessError
 from app.utils import allow_camera
 
@@ -62,7 +63,34 @@ def home():
     candidate = current_user.candidate
     marks = attendance_service.marks_by_session(candidate)
     pending = [s for s in attendance_service.sessions_for(candidate) if s.is_open and s.id not in marks]
-    return render_template("portal/home.html", c=candidate, pending=pending)
+    return render_template("portal/home.html", c=candidate, pending=pending,
+                           notifications=campus_service.notifications_for(candidate, limit=3))
+
+
+@bp.get("/notifications")
+@login_required
+def notifications():
+    return render_template("portal/notifications.html",
+                           notifications=campus_service.notifications_for(current_user.candidate))
+
+
+@bp.route("/exercices", methods=["GET", "POST"])
+@login_required
+def exercises():
+    candidate = current_user.candidate
+    if request.method == "POST":
+        exercise = db.session.get(Exercise, request.form.get("exercise_id", 0, type=int))
+        if exercise is None or exercise not in campus_service.exercises_for(candidate):
+            abort(404)  # not published yet, or not for this student's class
+        try:
+            campus_service.submit_answer(exercise, candidate, request.form.get("answer", ""))
+            flash("Réponse envoyée à votre coach.", "success")
+        except BusinessError as exc:
+            flash(str(exc), "danger")
+        return redirect(url_for("portal.exercises") + f"#e{exercise.id}")
+    items = campus_service.exercises_for(candidate)
+    submissions = {s.exercise_id: s for e in items for s in e.submissions if s.candidate_id == candidate.id}
+    return render_template("portal/exercises.html", exercises=items, submissions=submissions)
 
 
 @bp.route("/profil", methods=["GET", "POST"])

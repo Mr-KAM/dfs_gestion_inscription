@@ -11,16 +11,23 @@ ROLE_ADMIN = "admin"
 ROLE_MOTIVATION = "motivation_tester"
 ROLE_TECHNICAL = "technical_tester"
 ROLE_SUPERVISOR = "supervisor"
+ROLE_COACH = "coach"            # permanent instructor: roll calls, notifications, exercises for his classes
+ROLE_RECEPTION = "reception"    # reception: visits, absences, problems with students
+ROLE_RESIDENCE = "residence"    # residence: bedrooms and equipment
 ROLES = {
     ROLE_ADMIN: "Administrateur",
     ROLE_SUPERVISOR: "Superviseur",
     ROLE_MOTIVATION: "Testeur motivation",
     ROLE_TECHNICAL: "Testeur technique",
+    ROLE_COACH: "Coach technique",
+    ROLE_RECEPTION: "Responsable accueil",
+    ROLE_RESIDENCE: "Responsable de cité",
 }
 # Who may do what. The supervisor combines both tester profiles, without any admin right.
 MOTIVATION_ROLES = (ROLE_ADMIN, ROLE_SUPERVISOR, ROLE_MOTIVATION)
 TECHNICAL_ROLES = (ROLE_ADMIN, ROLE_SUPERVISOR, ROLE_TECHNICAL)
-ALL_ROLES = tuple(ROLES)  # staff only: candidates are never granted a staff page
+RECRUITMENT_ROLES = (ROLE_ADMIN, ROLE_SUPERVISOR, ROLE_MOTIVATION, ROLE_TECHNICAL)  # candidate list / files
+CAMPUS_ROLES = (ROLE_ADMIN, ROLE_COACH, ROLE_RECEPTION, ROLE_RESIDENCE)  # SAS life (/campus)
 
 # Candidates log in to their own space only; never part of ROLES / ALL_ROLES.
 ROLE_CANDIDATE = "candidate"
@@ -43,11 +50,14 @@ class User(UserMixin, db.Model):
     # use_alter: users <-> candidates reference each other (motivation_completed_by), so this FK is added last.
     candidate_id = db.Column(db.Integer, db.ForeignKey("candidates.id", ondelete="CASCADE", use_alter=True), unique=True)
 
+    # Coach: the classes he teaches, as "sas_id:class name" strings.
+    coach_classes = db.Column(db.JSON, nullable=False, default=list, server_default="[]")
+
     candidate = db.relationship("Candidate", back_populates="account", foreign_keys=[candidate_id])
 
     __table_args__ = (
         db.CheckConstraint(
-            f"role IN ('{ROLE_ADMIN}', '{ROLE_SUPERVISOR}', '{ROLE_MOTIVATION}', '{ROLE_TECHNICAL}', '{ROLE_CANDIDATE}')",
+            "role IN (" + ", ".join(f"'{r}'" for r in (*ROLES, ROLE_CANDIDATE)) + ")",
             name="role",
         ),
         # A candidate account is always tied to exactly one candidate; staff accounts never are.

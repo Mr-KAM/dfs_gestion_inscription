@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, status %}
+{% block title %}Problèmes étudiants{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Problèmes avec les étudiants</h1>
+<form class="card card-body mb-3" method="post">
+  {{ csrf() }}
+  <div class="row g-2 align-items-end">
+    <div class="col-md-4">{% with field_label='Étudiant', required=True %}{% include "campus/_student_input.html" %}{% endwith %}</div>
+    <div class="col-md-2"><label class="form-label" for="category">Catégorie</label>
+      <select class="form-select" id="category" name="category">
+        {% for key, label in categories.items() %}<option value="{{ key }}" {{ 'selected' if request.form.get('category') == key }}>{{ label }}</option>{% endfor %}</select></div>
+    <div class="col-md-6"><label class="form-label" for="description">Description</label>
+      <textarea class="form-control" id="description" name="description" rows="2" maxlength="5000" required>{{ request.form.get('description', '') }}</textarea></div>
+  </div>
+  <div><button class="btn btn-primary mt-2"><i class="bi bi-flag"></i> Signaler</button></div>
+  {% if not can_resolve %}<div class="form-text">Le responsable accueil suit et résout les problèmes signalés. Vous voyez vos propres signalements.</div>{% endif %}
+</form>
+
+<div class="d-flex gap-2 mb-2">
+  {% for key, label in (('open', 'En cours'), ('resolved', 'Résolus'), ('all', 'Tous')) %}
+  <a class="btn btn-sm {{ 'btn-primary' if status == key else 'btn-outline-primary' }}" href="{{ url_for('campus.incidents', status=key) }}">{{ label }}</a>
+  {% endfor %}
+</div>
+<div class="card"><ul class="list-group list-group-flush">
+{% for i in incidents %}
+  <li class="list-group-item">
+    <div class="d-flex justify-content-between flex-wrap gap-2">
+      <div><strong>{{ i.candidate.full_name }}</strong> <code class="small">{{ i.candidate.matricule }}</code>
+        <span class="status status-secondary">{{ i.category_label }}</span></div>
+      <span class="small text-muted">{{ i.created_at | dt }} · {{ i.author.display_name if i.author else '—' }}</span>
+    </div>
+    <div class="mt-1" style="white-space: pre-line">{{ i.description }}</div>
+    {% if i.resolved_at %}
+      <div class="small mt-1">{{ status(('success', 'Résolu le ' ~ (i.resolved_at | dt))) }} {{ i.resolution }}</div>
+    {% elif can_resolve %}
+      <form class="d-flex gap-2 mt-2" method="post" action="{{ url_for('campus.incident_resolve', incident_id=i.id) }}">{{ csrf() }}
+        <input class="form-control form-control-sm" name="resolution" placeholder="Suite donnée" aria-label="Suite donnée">
+        <button class="btn btn-sm btn-success text-nowrap"><i class="bi bi-check2"></i> Résolu</button></form>
+    {% endif %}
+  </li>
+{% else %}<li class="list-group-item text-muted">Aucun problème.</li>{% endfor %}
+</ul></div>
+{% endblock %}

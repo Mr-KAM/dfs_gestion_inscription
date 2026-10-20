@@ -21,7 +21,7 @@
       <td>{{ c.sas_class or '—' }}</td>
       <td>{{ status(('success', 'Présent') if m else (('warning', 'En attente') if s.is_open else ('danger', 'Absent'))) }}</td>
       <td class="small">{% if m %}{{ m.marked_at | dt('%H:%M') }} · {{ method_labels[m.method] }}{% endif %}</td>
-      <td class="text-end"><form method="post" action="{{ url_for('admin.attendance_mark', session_id=s.id, candidate_id=c.id) }}">
+      <td class="text-end"><form method="post" action="{{ url_for('campus.attendance_mark', session_id=s.id, candidate_id=c.id) }}">
         {{ csrf() }}<input type="hidden" name="present" value="{{ '0' if m else '1' }}">
         <button class="btn btn-sm {{ 'btn-outline-danger' if m else 'btn-outline-success' }}">{{ 'Marquer absent' if m else 'Marquer présent' }}</button></form></td>
     </tr>

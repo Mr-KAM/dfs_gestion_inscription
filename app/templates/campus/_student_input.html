@@ -1,0 +1,7 @@
+{# Student picker: native <datalist> (type the name or the matricule). Needs `students`, `field_label`, `required`. #}
+<label class="form-label" for="student">{{ field_label }}</label>
+<input class="form-control" id="student" name="student" list="students-list" autocomplete="off" {{ 'required' if required }}
+       placeholder="Matricule ou nom" value="{{ request.form.get('student', '') }}">
+<datalist id="students-list">
+  {% for c in students %}<option value="{{ c.matricule }} — {{ c.full_name }}">{% endfor %}
+</datalist>

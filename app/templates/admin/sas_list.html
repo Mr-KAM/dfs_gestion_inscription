@@ -4,6 +4,7 @@
 {% block content %}
 <h1 class="page-title mb-1">SAS</h1>
 <p class="text-muted">Prochaine étape du recrutement : les candidats admis au SAS le voient sur leur espace, avec la chambre et le matériel attribués.</p>
+{% if current_user.role == 'admin' %}
 <form class="card card-body mb-3" method="post" action="{{ url_for('admin.sas_save') }}">
   {{ csrf() }}
   <div class="row g-2 align-items-end">
@@ -12,6 +13,7 @@
     <div class="col-md-2"><button class="btn btn-primary w-100"><i class="bi bi-plus-lg"></i> Créer</button></div>
   </div>
 </form>
+{% endif %}
 
 <div class="row g-3">
 {% for sas in sas_list %}

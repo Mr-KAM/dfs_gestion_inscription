@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, status %}
+{% block title %}Exercices{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Exercices</h1>
+{% if targets %}
+<form class="card card-body mb-3" method="post" style="max-width: 860px">
+  {{ csrf() }}
+  <div class="row g-2">
+    <div class="col-md-5"><label class="form-label" for="target">Classe</label>
+      <select class="form-select" id="target" name="target" required>
+        {% for t in targets %}<option value="{{ t.key }}" {{ 'selected' if request.form.get('target') == t.key }}>{{ t.label }}</option>{% endfor %}</select></div>
+    <div class="col-md-7"><label class="form-label" for="title">Titre</label>
+      <input class="form-control" id="title" name="title" maxlength="150" required value="{{ request.form.get('title', '') }}"></div>
+    <div class="col-12"><label class="form-label" for="instructions">Consignes</label>
+      <textarea class="form-control" id="instructions" name="instructions" rows="5">{{ request.form.get('instructions', '') }}</textarea></div>
+    <div class="col-md-6"><label class="form-label" for="opens_at">Publication</label>
+      <input class="form-control" id="opens_at" name="opens_at" type="datetime-local" value="{{ request.form.get('opens_at', '') }}">
+      <div class="form-text">Vide = tout de suite. Avant cette date, les étudiants ne voient pas l'exercice.</div></div>
+    <div class="col-md-6"><label class="form-label" for="due_at">Date limite de réponse</label>
+      <input class="form-control" id="due_at" name="due_at" type="datetime-local" value="{{ request.form.get('due_at', '') }}">
+      <div class="form-text">Vide = pas de limite.</div></div>
+  </div>
+  <div><button class="btn btn-primary mt-2"><i class="bi bi-calendar-plus"></i> Créer l'exercice</button></div>
+</form>
+{% else %}<div class="alert alert-info">Aucune classe ne vous est attribuée.</div>{% endif %}
+
+<div class="card"><div class="table-responsive"><table class="table table-sm align-middle mb-0">
+  <thead><tr><th>Exercice</th><th>Classe</th><th>Publication</th><th>Limite</th><th>Réponses</th><th>Validés</th></tr></thead>
+  <tbody>
+  {% for e in exercises %}
+    <tr>
+      <td><a href="{{ url_for('campus.exercise', exercise_id=e.id) }}">{{ e.title }}</a></td>
+      <td>{{ e.sas.name }} · {{ e.class_name or 'tout le SAS' }}</td>
+      <td>{% if e.is_published %}{{ e.opens_at | dt }}{% else %}{{ status(('info', 'Programmé ' ~ (e.opens_at | dt))) }}{% endif %}</td>
+      <td>{{ e.due_at | dt or '—' }}</td>
+      <td>{{ e.submissions | selectattr('submitted_at') | list | length }}</td>
+      <td>{{ e.submissions | selectattr('status', 'equalto', 'validated') | list | length }}</td>
+    </tr>
+  {% else %}<tr><td colspan="6" class="text-muted">Aucun exercice.</td></tr>{% endfor %}
+  </tbody>
+</table></div></div>
+{% endblock %}

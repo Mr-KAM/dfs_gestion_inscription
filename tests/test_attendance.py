@@ -63,24 +63,24 @@ def test_admin_flow(app, db, client, admin):
     a = make_candidate(email="a@test.ci", cni="A", full_name="ALPHA", sas=sas, sas_class="Classe A")
     b = make_candidate(email="b@test.ci", cni="B", full_name="BETA", sas=sas, sas_class="Classe A")
     out = make_candidate(email="c@test.ci", cni="C", full_name="GAMMA", sas=sas, sas_class="Classe B")
-    resp = client.post(f"/admin/sas/{sas.id}/attendance", data={"label": "Cours", "class_name": "Classe A", "minutes": "15"})
+    resp = client.post("/campus/attendance", data={"label": "Cours", "target": f"{sas.id}:Classe A", "minutes": "15"})
     s = AttendanceSession.query.one()
     page = client.get(resp.headers["Location"])
     html = page.get_data(as_text=True)
     assert "<svg" in html and "ALPHA" in html and "GAMMA" not in html and "camera=(self)" in page.headers["Permissions-Policy"]
-    assert "En attente" in client.get(f"/admin/attendance/{s.id}?partial=1").get_data(as_text=True)
+    assert "En attente" in client.get(f"/campus/attendance/{s.id}?partial=1").get_data(as_text=True)
 
-    client.post(f"/admin/attendance/{s.id}/close")
-    assert "Absent" in client.get(f"/admin/attendance/{s.id}?partial=1").get_data(as_text=True)
-    html = client.post(f"/admin/attendance/{s.id}/scan", data={"token": encode_matricule(a.matricule)},
+    client.post(f"/campus/attendance/{s.id}/close")
+    assert "Absent" in client.get(f"/campus/attendance/{s.id}?partial=1").get_data(as_text=True)
+    html = client.post(f"/campus/attendance/{s.id}/scan", data={"token": encode_matricule(a.matricule)},
                        follow_redirects=True).get_data(as_text=True)  # closed: the admin can still mark
     assert "ALPHA : présent(e)" in html
-    html = client.post(f"/admin/attendance/{s.id}/scan", data={"token": encode_matricule(out.matricule)},
+    html = client.post(f"/campus/attendance/{s.id}/scan", data={"token": encode_matricule(out.matricule)},
                        follow_redirects=True).get_data(as_text=True)
     assert "ne fait pas partie de ce pointage" in html
-    client.post(f"/admin/attendance/{s.id}/mark/{b.id}", data={"present": "1"})
+    client.post(f"/campus/attendance/{s.id}/mark/{b.id}", data={"present": "1"})
     assert _marked(db, s) == {a.matricule, b.matricule}
-    client.post(f"/admin/attendance/{s.id}/mark/{a.id}", data={"present": "0"})
+    client.post(f"/campus/attendance/{s.id}/mark/{a.id}", data={"present": "0"})
     assert _marked(db, s) == {b.matricule}
     assert "1 présent(s)" in client.get(f"/admin/sas/{sas.id}").get_data(as_text=True)
 
@@ -90,5 +90,5 @@ def test_attendance_admin_only(app, db, client, motivation_user):
     db.session.add(sas)
     db.session.commit()
     login(client, motivation_user)
-    assert client.post(f"/admin/sas/{sas.id}/attendance", data={"minutes": "15"}).status_code == 403
+    assert client.post("/campus/attendance", data={"target": f"{sas.id}:", "minutes": "15"}).status_code == 403
     assert AttendanceSession.query.count() == 0

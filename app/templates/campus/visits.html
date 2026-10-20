@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, status %}
+{% block title %}Visites{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Accueil — visites</h1>
+<form class="card card-body mb-3" method="post">
+  {{ csrf() }}
+  <div class="row g-2 align-items-end">
+    <div class="col-md-3"><label class="form-label" for="visitor_name">Visiteur</label>
+      <input class="form-control" id="visitor_name" name="visitor_name" maxlength="150" required value="{{ request.form.get('visitor_name', '') }}"></div>
+    <div class="col-md-2"><label class="form-label" for="visitor_phone">Téléphone</label>
+      <input class="form-control" id="visitor_phone" name="visitor_phone" type="tel" maxlength="30" value="{{ request.form.get('visitor_phone', '') }}"></div>
+    <div class="col-md-3">{% with field_label='Étudiant visité (facultatif)', required=False %}{% include "campus/_student_input.html" %}{% endwith %}</div>
+    <div class="col-md-3"><label class="form-label" for="reason">Motif</label>
+      <input class="form-control" id="reason" name="reason" maxlength="255" value="{{ request.form.get('reason', '') }}"></div>
+    <div class="col-md-1"><button class="btn btn-primary w-100" title="Enregistrer l'arrivée"><i class="bi bi-box-arrow-in-right"></i></button></div>
+  </div>
+</form>
+
+<div class="card"><div class="table-responsive"><table class="table table-sm align-middle mb-0">
+  <thead><tr><th>Visiteur</th><th>Téléphone</th><th>Étudiant</th><th>Motif</th><th>Arrivée</th><th>Départ</th></tr></thead>
+  <tbody>
+  {% for v in visits %}
+    <tr>
+      <td>{{ v.visitor_name }}</td><td>{{ v.visitor_phone or '—' }}</td>
+      <td>{% if v.candidate %}{{ v.candidate.full_name }} <code class="small">{{ v.candidate.matricule }}</code>{% else %}—{% endif %}</td>
+      <td class="text-wrap">{{ v.reason or '—' }}</td>
+      <td>{{ v.arrived_at | dt }}</td>
+      <td>{% if v.left_at %}{{ v.left_at | dt('%H:%M') }}{% else %}
+        <form method="post" action="{{ url_for('campus.visit_leave', visit_id=v.id) }}">{{ csrf() }}
+          <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-box-arrow-right"></i> Départ</button></form>{% endif %}</td>
+    </tr>
+  {% else %}<tr><td colspan="6" class="text-muted">Aucune visite.</td></tr>{% endfor %}
+  </tbody>
+</table></div></div>
+{% endblock %}

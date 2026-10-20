@@ -172,4 +172,6 @@ def test_database_ties_candidate_role_to_a_candidate(app, db):
 def test_candidate_bottom_navigation(client, app):
     _logged_candidate(client)
     bar = client.get("/candidat/").get_data(as_text=True).split('class="bottom-nav d-lg-none"')[1].split("</nav>")[0]
-    assert "Mon espace" in bar and "Mot de passe" in bar and "/candidates/" not in bar
+    assert "Mon espace" in bar and "Exercices" in bar and "/candidates/" not in bar
+    assert bar.count("bottom-nav-item") <= 5
+    assert "/candidat/mot-de-passe" in client.get("/candidat/profil").get_data(as_text=True)  # password: via the profile

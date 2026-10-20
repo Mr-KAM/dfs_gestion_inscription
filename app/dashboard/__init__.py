@@ -1,7 +1,7 @@
 from flask import Blueprint, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
-from app.models.user import ROLE_ADMIN, ROLE_MOTIVATION, ROLE_SUPERVISOR
+from app.models.user import CAMPUS_ROLES, ROLE_ADMIN, ROLE_MOTIVATION, ROLE_SUPERVISOR
 from app.services import candidate_service, timer_service
 
 bp = Blueprint("dashboard", __name__)
@@ -13,6 +13,8 @@ def index():
     """One URL, role-specific dashboard. `?partial=1` returns the polled fragment."""
     if current_user.is_candidate:
         return redirect(url_for("portal.home"))
+    if current_user.role in CAMPUS_ROLES and current_user.role != ROLE_ADMIN:
+        return redirect(url_for("campus.index"))
     partial = request.args.get("partial")
     if current_user.role == ROLE_ADMIN:
         ctx = {"stats": candidate_service.admin_stats(), "groups": candidate_service.group_summary()}

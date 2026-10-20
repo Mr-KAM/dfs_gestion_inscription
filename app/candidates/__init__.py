@@ -8,7 +8,7 @@ from app.auth import _safe_next
 from app.extensions import db
 from app.models import Candidate, Room
 from app.models.candidate import FILE_STATUSES
-from app.models.user import ALL_ROLES, MOTIVATION_ROLES, ROLE_ADMIN, ROLE_MOTIVATION, ROLE_TECHNICAL, TECHNICAL_ROLES  # noqa: E501
+from app.models.user import CAMPUS_ROLES, RECRUITMENT_ROLES, MOTIVATION_ROLES, ROLE_ADMIN, ROLE_MOTIVATION, ROLE_TECHNICAL, TECHNICAL_ROLES  # noqa: E501
 from app.services import account_service, audit_service, candidate_service, settings_service
 from app.utils import norm_email, norm_phone, roles_required
 
@@ -36,7 +36,7 @@ def get_visible_candidate(candidate_id: int) -> Candidate:
 
 
 @bp.get("/")
-@roles_required(*ALL_ROLES)
+@roles_required(*RECRUITMENT_ROLES)
 def index():
     if current_user.role == ROLE_TECHNICAL:
         return render_list("technical", "Candidats éligibles")
@@ -46,7 +46,7 @@ def index():
 
 
 @bp.get("/<int:candidate_id>")
-@roles_required(*ALL_ROLES)
+@roles_required(*RECRUITMENT_ROLES)
 def detail(candidate_id: int):
     candidate = get_visible_candidate(candidate_id)
     rooms = db.session.scalars(select(Room).where(Room.active.is_(True)).order_by(Room.name)).all()
@@ -145,13 +145,13 @@ def delete(candidate_id: int):
 
 
 @bp.get("/<int:candidate_id>/photo")
-@roles_required(*ALL_ROLES)
+@roles_required(*RECRUITMENT_ROLES, *CAMPUS_ROLES)
 def photo(candidate_id: int):
     return account_service.photo_response(get_visible_candidate(candidate_id))
 
 
 @bp.post("/<int:candidate_id>/passed/<test>")
-@roles_required(*ALL_ROLES)
+@roles_required(*RECRUITMENT_ROLES)
 def set_passed(candidate_id: int, test: str):
     """Checkbox in the list: the jury marks the motivation / technical test as validated."""
     roles, done = {"motivation": (MOTIVATION_ROLES, "motivation_completed"),

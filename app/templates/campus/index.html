@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, status %}
+{% block title %}Vie du SAS{% endblock %}
+{% block content %}
+{% set role = current_user.role %}
+<div class="mb-3">
+  <div class="eyebrow mb-1">{{ current_user.role_label }}</div>
+  <h1 class="page-title">Vie du SAS</h1>
+</div>
+
+<div class="d-flex gap-2 flex-wrap mb-3">
+  {% if role in ('admin', 'coach', 'reception') %}
+  <a class="btn btn-outline-primary" href="{{ url_for('campus.notifications') }}"><i class="bi bi-megaphone"></i> Notifications</a>
+  {% endif %}
+  {% if role in ('admin', 'coach') %}
+  <a class="btn btn-outline-primary" href="{{ url_for('campus.exercises') }}"><i class="bi bi-journal-code"></i> Exercices</a>
+  {% endif %}
+  {% if role in ('admin', 'reception') %}
+  <a class="btn btn-outline-primary" href="{{ url_for('campus.visits') }}"><i class="bi bi-person-badge"></i> Visites</a>
+  {% endif %}
+  <a class="btn btn-outline-primary" href="{{ url_for('campus.incidents') }}"><i class="bi bi-exclamation-triangle"></i> Problèmes étudiants</a>
+  {% if role in ('admin', 'residence') %}
+  <a class="btn btn-outline-primary" href="{{ url_for('admin.sas_list') }}"><i class="bi bi-door-open"></i> Chambres & matériel</a>
+  {% endif %}
+</div>
+
+{% if targets %}
+<div class="card mb-3"><div class="card-header"><i class="bi bi-calendar-check"></i> Lancer un appel (pointage)</div>
+  <form class="card-body row g-2 align-items-end" method="post" action="{{ url_for('campus.attendance_open') }}">
+    {{ csrf() }}
+    <div class="col-md-4"><label class="form-label" for="att-label">Intitulé</label>
+      <input class="form-control" id="att-label" name="label" maxlength="100" placeholder="Cours du matin"></div>
+    <div class="col-md-4"><label class="form-label" for="att-target">Classe</label>
+      <select class="form-select" id="att-target" name="target" required>
+        {% for t in targets %}<option value="{{ t.key }}">{{ t.label }}</option>{% endfor %}</select></div>
+    <div class="col-6 col-md-2"><label class="form-label" for="att-minutes">Durée (min)</label>
+      <input class="form-control" id="att-minutes" name="minutes" type="number" min="1" max="720" value="15" required></div>
+    <div class="col-6 col-md-2"><button class="btn btn-primary w-100"><i class="bi bi-play-circle"></i> Lancer</button></div>
+  </form></div>
+{% elif role == 'coach' %}
+<div class="alert alert-info">Aucune classe ne vous est encore attribuée : demandez à l'administrateur de vous associer à vos classes.</div>
+{% endif %}
+
+<div class="row g-3">
+  {% if classes %}
+  <div class="col-lg-5">
+    <div class="card"><div class="card-header"><i class="bi bi-people"></i> {{ 'Mes classes' if role == 'coach' else 'Classes' }}</div>
+      <ul class="list-group list-group-flush">
+      {% for c in classes %}
+        <li class="list-group-item d-flex justify-content-between"><span>{{ c.sas.name }} — <strong>{{ c.class_name }}</strong></span>
+          <span class="text-muted">{{ c.count }} étudiant(s)</span></li>
+      {% endfor %}
+      </ul></div>
+  </div>
+  {% endif %}
+  {% if sessions %}
+  <div class="col-lg-7">
+    <div class="card"><div class="card-header"><i class="bi bi-clipboard-check"></i> Appels récents et absences</div>
+      <ul class="list-group list-group-flush">
+      {% for s in sessions %}
+        <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <a href="{{ url_for('campus.attendance', session_id=s.id) }}"><strong>{{ s.label }}</strong></a>
+          <span class="small text-muted">{{ s.sas.name }} · {{ s.class_name or 'tout le SAS' }} · {{ s.opened_at | dt }} · {{ s.marks | length }} présent(s)</span>
+          {{ status(('warning', 'En cours') if s.is_open else ('secondary', 'Clôturé')) }}
+        </li>
+      {% endfor %}
+      </ul></div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

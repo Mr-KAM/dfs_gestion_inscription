@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}Notifications{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Notifications aux étudiants</h1>
+{% if targets %}
+<form class="card card-body mb-3" method="post" style="max-width: 760px">
+  {{ csrf() }}
+  <div class="row g-2">
+    <div class="col-md-5"><label class="form-label" for="target">Destinataires</label>
+      <select class="form-select" id="target" name="target" required>
+        {% for t in targets %}<option value="{{ t.key }}" {{ 'selected' if request.form.get('target') == t.key }}>{{ t.label }}</option>{% endfor %}</select></div>
+    <div class="col-md-7"><label class="form-label" for="title">Titre</label>
+      <input class="form-control" id="title" name="title" maxlength="150" required value="{{ request.form.get('title', '') }}"></div>
+    <div class="col-12"><label class="form-label" for="body">Message</label>
+      <textarea class="form-control" id="body" name="body" rows="4" maxlength="5000">{{ request.form.get('body', '') }}</textarea></div>
+  </div>
+  <div class="form-text">Les étudiants la voient dans leur espace (accueil et page « Notifications »).</div>
+  <div><button class="btn btn-primary mt-2"><i class="bi bi-send"></i> Envoyer</button></div>
+</form>
+{% else %}<div class="alert alert-info">Aucune classe ne vous est attribuée.</div>{% endif %}
+
+<div class="card"><div class="card-header">Envoyées</div>
+  <ul class="list-group list-group-flush">
+  {% for n in sent %}
+    <li class="list-group-item">
+      <div class="d-flex justify-content-between flex-wrap gap-2"><strong>{{ n.title }}</strong>
+        <span class="small text-muted">{{ n.sas.name }} · {{ n.class_name or 'tout le SAS' }} · {{ n.created_at | dt }} · {{ n.author.display_name if n.author else '—' }}</span></div>
+      {% if n.body %}<div class="small mt-1" style="white-space: pre-line">{{ n.body }}</div>{% endif %}
+    </li>
+  {% else %}<li class="list-group-item text-muted">Aucune notification.</li>{% endfor %}
+  </ul></div>
+{% endblock %}

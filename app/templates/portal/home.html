@@ -17,6 +17,18 @@
   <a class="btn btn-sm btn-warning" href="{{ url_for('portal.attendance') }}"><i class="bi bi-qr-code-scan"></i> Marquer ma présence</a>
 </div>
 {% endfor %}
+{% if notifications %}
+<div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center">
+  <span><i class="bi bi-megaphone"></i> Dernières notifications</span>
+  <a class="small" href="{{ url_for('portal.notifications') }}">Tout voir</a></div>
+  <ul class="list-group list-group-flush">
+  {% for n in notifications %}
+    <li class="list-group-item"><div class="d-flex justify-content-between flex-wrap gap-2"><strong>{{ n.title }}</strong>
+      <span class="small text-muted">{{ n.created_at | dt }}</span></div>
+      {% if n.body %}<div class="small" style="white-space: pre-line">{{ n.body | truncate(300) }}</div>{% endif %}</li>
+  {% endfor %}
+  </ul></div>
+{% endif %}
 {% if c.sas %}
 <div class="alert alert-success d-flex gap-3 align-items-start mb-4" role="status">
   <i class="bi bi-trophy fs-2" aria-hidden="true"></i>
