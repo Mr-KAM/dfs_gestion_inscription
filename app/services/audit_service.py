@@ -44,7 +44,7 @@ ACTION_LABELS = {
     "sas_update": "Gestion SAS",
     "sas_admit": "Admission au SAS",
     "sas_remove": "Retrait du SAS",
-    "sas_assign": "Attribution chambre / matériel SAS",
+    "sas_assign": "Attribution classe / chambre / matériel SAS",
     "settings_update": "Modification paramètres",
     "export": "Export",
 }

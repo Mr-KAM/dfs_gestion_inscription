@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import status, copy_button, qr_card %}
+{% from "_macros.html" import status, qr_card %}
 {% block title %}Mon espace{% endblock %}
 {% block content %}
 <div class="mb-4">
@@ -15,6 +15,7 @@
     <h2 class="h5 mb-1">Félicitations, vous êtes admis(e) au SAS !</h2>
     <div><strong>{{ c.sas.name }}</strong>{% if c.sas.description %} — {{ c.sas.description }}{% endif %}</div>
     <dl class="kv row mb-0 mt-2">
+      <dt class="col-5 col-md-3">Classe</dt><dd class="col-7 col-md-9 fs-5">{{ c.sas_class or "En cours d'attribution" }}</dd>
       <dt class="col-5 col-md-3">Chambre</dt><dd class="col-7 col-md-9 fs-5">{{ c.sas_bedroom or "En cours d'attribution" }}</dd>
       <dt class="col-5 col-md-3">Matériel</dt><dd class="col-7 col-md-9">{{ c.sas_equipment or "En cours d'attribution" }}</dd>
     </dl>
@@ -48,10 +49,8 @@
           <dt class="col-5">Test technique</dt><dd class="col-7">{{ status(c.technical_badge) }}</dd>
           {% if c.motivation_completed %}
           <dt class="col-5">Numéro de pièce</dt><dd class="col-7 fs-5">{{ c.piece_number or '—' }}</dd>
-          <dt class="col-5">Code examen</dt><dd class="col-7 fs-5"><code>{{ c.exam_code }}</code></dd>
           {% endif %}
         </dl>
-        {{ copy_button(c) }}
       </div></div>
   </div>
 

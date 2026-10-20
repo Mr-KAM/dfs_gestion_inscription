@@ -35,24 +35,24 @@ def test_admin_creates_sas_admits_and_assigns(app, db, client, admin):
     db.session.expire_all()
     assert resp.headers["Location"].endswith(f"/admin/sas/{sas.id}") and not a.technical_passed
 
-    client.post(f"/admin/sas/{sas.id}/members/{b.id}", data={"bedroom": "B-12", "equipment": "Laptop n°12"})
+    client.post(f"/admin/sas/{sas.id}/members/{b.id}", data={"class": "Classe A", "bedroom": "B-12", "equipment": "Laptop n°12"})
     db.session.expire_all()
-    assert (b.sas_bedroom, b.sas_equipment) == ("B-12", "Laptop n°12")
+    assert (b.sas_class, b.sas_bedroom, b.sas_equipment) == ("Classe A", "B-12", "Laptop n°12")
 
     assert client.post(f"/admin/sas/{sas.id}/delete").status_code == 302 and db.session.get(Sas, sas.id)  # not empty
     client.post(f"/admin/sas/{sas.id}/members/{b.id}", data={"remove": "1"})
     db.session.expire_all()
-    assert b.sas_id is None and b.sas_bedroom == ""
+    assert b.sas_id is None and b.sas_bedroom == b.sas_class == ""
     assert client.post(f"/admin/sas/{sas.id}/members/{b.id}", data={}).status_code == 404  # no longer a member
 
 
 def test_candidate_sees_admission(app, db, client):
     c = _logged_candidate(client)
     assert "admis(e) au SAS" not in client.get("/candidat/").get_data(as_text=True)
-    c.sas, c.sas_bedroom = Sas(name="SAS 2026"), "B-12"
+    c.sas, c.sas_class, c.sas_bedroom = Sas(name="SAS 2026"), "Classe A", "B-12"
     db.session.commit()
     html = client.get("/candidat/").get_data(as_text=True)
-    assert "admis(e) au SAS" in html and "B-12" in html and "attribution" in html  # equipment not yet given
+    assert "admis(e) au SAS" in html and "B-12" in html and "Classe A" in html and "attribution" in html  # equipment not yet given
 
 
 def test_sas_is_admin_only(app, client, motivation_user):

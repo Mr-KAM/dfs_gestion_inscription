@@ -36,9 +36,9 @@
     </form>
   </div></div>
 
-<div class="card"><div class="card-header"><i class="bi bi-house-door"></i> Admis : chambre et matériel</div>
+<div class="card"><div class="card-header"><i class="bi bi-house-door"></i> Admis : classe, chambre et matériel</div>
 <div class="table-responsive"><table class="table table-sm align-middle mb-0">
-  <thead><tr><th>Matricule</th><th>Candidat</th><th>Motivation validée</th><th>Technique validé</th><th>Admis le</th><th>Chambre</th><th>Matériel</th><th></th></tr></thead>
+  <thead><tr><th>Matricule</th><th>Candidat</th><th>Motivation validée</th><th>Technique validé</th><th>Admis le</th><th>Classe</th><th>Chambre</th><th>Matériel</th><th></th></tr></thead>
   <tbody>
   {% for c in sas.members %}
     <tr>
@@ -47,13 +47,14 @@
       <td>{{ passed_checkbox(c, 'motivation', True) }}</td>
       <td>{{ passed_checkbox(c, 'technical', True) }}</td>
       <td class="small">{{ c.sas_admitted_at | dt }}</td>
+      <td><input class="form-control form-control-sm" form="m{{ c.id }}" name="class" value="{{ c.sas_class or '' }}" maxlength="50" placeholder="Ex. Classe A" aria-label="Classe de {{ c.full_name }}" style="min-width:110px"></td>
       <td><input class="form-control form-control-sm" form="m{{ c.id }}" name="bedroom" value="{{ c.sas_bedroom or '' }}" maxlength="50" placeholder="Ex. B-12" aria-label="Chambre de {{ c.full_name }}" style="min-width:90px"></td>
       <td><input class="form-control form-control-sm" form="m{{ c.id }}" name="equipment" value="{{ c.sas_equipment or '' }}" maxlength="255" placeholder="Ex. Laptop n°12, casque" aria-label="Matériel de {{ c.full_name }}" style="min-width:200px"></td>
       <td class="text-nowrap"><form id="m{{ c.id }}" method="post" action="{{ url_for('admin.sas_member', sas_id=sas.id, candidate_id=c.id) }}" class="d-flex gap-1">
         {{ csrf() }}<button class="btn btn-sm btn-primary" title="Enregistrer"><i class="bi bi-save"></i></button>
         <button class="btn btn-sm btn-outline-danger" name="remove" value="1" title="Retirer du SAS" data-confirm="Retirer {{ c.full_name }} du SAS ?"><i class="bi bi-person-dash"></i></button></form></td>
     </tr>
-  {% else %}<tr><td colspan="8" class="text-muted">Aucun candidat admis.</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="9" class="text-muted">Aucun candidat admis.</td></tr>{% endfor %}
   </tbody>
 </table></div></div>
 {% endblock %}

@@ -69,8 +69,9 @@ def test_candidate_sees_only_own_data(client, app):
     _logged_candidate(client, motivation_completed=True, exam_code="dfs-Ab1", piece_number="P-1",
                       group_name="G2", scheduled_date=date(2026, 10, 20), scheduled_time="10:00")
     page = client.get("/candidat/").get_data(as_text=True)
-    for expected in ("dfs-Ab1", "P-1", "G2", "20/10/2026", "10:00", "js-copy"):
+    for expected in ("P-1", "G2", "20/10/2026", "10:00"):
         assert expected in page, expected
+    assert "dfs-Ab1" not in page and "Code examen" not in page and "js-copy" not in page  # staff only
     # No candidate id in any portal URL: nothing to tamper with to reach someone else's file.
     assert other.full_name not in page and "SECRET-9" not in page
 

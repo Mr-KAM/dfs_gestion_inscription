@@ -346,19 +346,20 @@ def sas_admit(sas_id: int):
 
 @bp.post("/sas/<int:sas_id>/members/<int:candidate_id>")
 def sas_member(sas_id: int, candidate_id: int):
-    """Save bedroom + equipment, or remove the candidate from the SAS."""
+    """Save class, bedroom + equipment, or remove the candidate from the SAS."""
     c = db.get_or_404(Candidate, candidate_id)
     if c.sas_id != sas_id:
         abort(404)
     if "remove" in request.form:
-        c.sas, c.sas_admitted_at, c.sas_bedroom, c.sas_equipment = None, None, "", ""
+        c.sas, c.sas_admitted_at, c.sas_class, c.sas_bedroom, c.sas_equipment = None, None, "", "", ""
         audit_service.log("sas_remove", c, {"sas_id": sas_id})
         flash(f"{c.full_name} retiré(e) du SAS.", "success")
     else:
+        c.sas_class = request.form.get("class", "").strip()[:50]
         c.sas_bedroom = request.form.get("bedroom", "").strip()[:50]
         c.sas_equipment = request.form.get("equipment", "").strip()[:255]
-        audit_service.log("sas_assign", c, {"bedroom": c.sas_bedroom, "equipment": c.sas_equipment})
-        flash(f"Chambre et matériel de {c.full_name} enregistrés.", "success")
+        audit_service.log("sas_assign", c, {"class": c.sas_class, "bedroom": c.sas_bedroom, "equipment": c.sas_equipment})
+        flash(f"Classe, chambre et matériel de {c.full_name} enregistrés.", "success")
     db.session.commit()
     return redirect(url_for("admin.sas_detail", sas_id=sas_id))
 

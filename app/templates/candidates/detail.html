@@ -29,7 +29,7 @@
       <div class="card-body"><dl class="kv row mb-0">
         <dt class="col-5">Matricule</dt><dd class="col-7"><code>{{ c.matricule }}</code></dd>
         {% if c.sas %}<dt class="col-5">SAS</dt><dd class="col-7">{% if current_user.role == 'admin' %}<a href="{{ url_for('admin.sas_detail', sas_id=c.sas_id) }}">{{ c.sas.name }}</a>{% else %}{{ c.sas.name }}{% endif %}
-          <div class="small text-muted">Chambre {{ c.sas_bedroom or '—' }} · Matériel {{ c.sas_equipment or '—' }}</div></dd>{% endif %}
+          <div class="small text-muted">Classe {{ c.sas_class or '—' }} · Chambre {{ c.sas_bedroom or '—' }} · Matériel {{ c.sas_equipment or '—' }}</div></dd>{% endif %}
         <dt class="col-5">Nom et prénoms</dt><dd class="col-7">{{ c.full_name }}</dd>
         <dt class="col-5">Sexe</dt><dd class="col-7">{{ c.gender or '—' }}</dd>
         <dt class="col-5">Date de naissance</dt><dd class="col-7">{{ c.birth_date | d or '—' }}</dd>

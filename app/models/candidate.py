@@ -60,9 +60,10 @@ class Candidate(db.Model):
     motivation_passed = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
     technical_passed = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
 
-    # SAS (next stage): admission, then bedroom and equipment given by the admin.
+    # SAS (next stage): admission, then class, bedroom and equipment given by the admin.
     sas_id = db.Column(db.Integer, db.ForeignKey("sas.id", ondelete="SET NULL"), index=True)
     sas_admitted_at = db.Column(db.DateTime(timezone=True))
+    sas_class = db.Column(db.String(50), default="")
     sas_bedroom = db.Column(db.String(50), default="")
     sas_equipment = db.Column(db.String(255), default="")
 
