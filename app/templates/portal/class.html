@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, scanner, invitation_cards %}
+{% block title %}Ma classe{% endblock %}
+{% block content %}
+<div class="mb-3">
+  <div class="eyebrow mb-1">Espace candidat</div>
+  <h1 class="page-title">Ma classe</h1>
+  <div class="text-muted">{% if c.sas_class %}Vous êtes dans la classe <strong>{{ c.sas_class }}</strong>{% if c.sas %} ({{ c.sas.name }}){% endif %}.
+    {% else %}Vous n'êtes dans aucune classe.{% endif %}</div>
+</div>
+{{ invitation_cards(invitations) }}
+{% if target %}
+<form class="card card-body mb-3 text-center" method="post" style="max-width: 560px">
+  {{ csrf() }}<input type="hidden" name="token" value="{{ code }}">
+  <p class="mb-2">Rejoindre la classe <strong>{{ target.name }}</strong> ({{ target.sas.name }}) ?
+    {% if c.sas_class and c.sas_class != target.name %}<br><span class="small text-muted">Vous quitterez la classe {{ c.sas_class }}.</span>{% endif %}</p>
+  <div><button class="btn btn-success btn-lg"><i class="bi bi-box-arrow-in-right"></i> Rejoindre la classe</button></div>
+</form>
+{% endif %}
+{% if c.sas %}
+<div class="card" style="max-width: 560px"><div class="card-header"><i class="bi bi-qr-code-scan"></i> Rejoindre une classe</div>
+  <div class="card-body">
+    <p class="small text-muted">Scannez le QR code de la classe (ici ou avec l'appareil photo du téléphone), ou saisissez le code
+      ou l'adresse donnés par votre coach.</p>
+    {{ scanner(url_for('portal.join_class'), '<i class="bi bi-box-arrow-in-right"></i> Rejoindre' | safe,
+               'Ex. K7P2QX9M ou https://…/candidat/classe?code=…', 'Code ou adresse de la classe') }}
+  </div></div>
+{% else %}
+<p class="text-muted">Les classes concernent les étudiants admis au SAS.</p>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/jsQR.js') }}"></script>
+<script src="{{ url_for('static', filename='js/scan.js') }}"></script>
+{% endblock %}

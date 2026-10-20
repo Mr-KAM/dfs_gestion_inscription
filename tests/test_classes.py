@@ -1,0 +1,91 @@
+"""Classes: a coach creates a class, students join it by QR code / address / code, or accept an invitation."""
+from app.models import ClassInvitation, Sas, SasClass, User
+from app.services import campus_service
+from tests.conftest import login, make_candidate, make_user
+from tests.test_portal import _logged_candidate
+
+
+def _setup(db):
+    sas, other = Sas(name="SAS 2026"), Sas(name="SAS 2027")
+    db.session.add_all([sas, other])
+    db.session.commit()
+    a = make_candidate(email="a@test.ci", cni="A", phone="0101010101", full_name="ALPHA", sas=sas)
+    out = make_candidate(email="o@test.ci", cni="O", phone="0202020202", full_name="OUT", sas=other)
+    coach = make_user("coach", "coach@test.ci")
+    return sas, other, a, out, coach
+
+
+def test_coach_creates_class_and_invites(app, db, client):
+    sas, other, a, out, coach = _setup(db)
+    login(client, coach)
+    resp = client.post("/campus/classes", data={"sas_id": sas.id, "name": "  Dev   Web "})
+    k = SasClass.query.one()
+    assert k.name == "Dev Web" and len(k.join_code) == 8 and resp.headers["Location"].endswith(f"/campus/classes/{k.id}")
+    assert db.session.get(User, coach.id).coach_classes == [f"{sas.id}:Dev Web"]  # now one of his classes
+    assert "Dev Web" in client.get("/campus/classes").get_data(as_text=True)  # listed though still empty
+    html = client.get(f"/campus/classes/{k.id}").get_data(as_text=True)
+    assert "<svg" in html and k.join_code in html and f"/candidat/classe?code={k.join_code}" in html
+    html = client.post("/campus/classes", data={"sas_id": sas.id, "name": "Dev Web"}, follow_redirects=True).get_data(as_text=True)
+    assert "existe déjà" in html and SasClass.query.count() == 1
+
+    html = client.post(f"/campus/classes/{k.id}/invite", data={"candidates": f"{a.matricule.lower()}\n{out.email}\ninconnu@x.ci"},
+                       follow_redirects=True).get_data(as_text=True)
+    assert "1 invitation(s)" in html and "pas admis dans SAS 2026" in html and "inconnu@x.ci : introuvable" in html
+    assert [(i.candidate_id, i.status) for i in ClassInvitation.query] == [(a.id, "pending")]
+    html = client.post(f"/campus/classes/{k.id}/invite", data={"candidates": a.email}, follow_redirects=True).get_data(as_text=True)
+    assert "déjà invité" in html
+
+    old = k.join_code
+    client.post(f"/campus/classes/{k.id}/renew")
+    db.session.expire_all()
+    assert k.join_code != old
+
+    other_class = campus_service.get_class(other.id, "Autre")
+    assert client.get(f"/campus/classes/{other_class.id}").status_code == 403  # not his class
+
+
+def test_student_accepts_invitation(app, db, client):
+    sas, other, a, out, coach = _setup(db)
+    c = _logged_candidate(client, email="me@test.ci", cni="ME", phone="0303030303")
+    c.sas = sas
+    db.session.commit()
+    k = campus_service.create_class(coach, sas.id, "Dev Web")
+    campus_service.invite(k, coach, c.matricule)
+    html = client.get("/candidat/").get_data(as_text=True)
+    assert "vous invite à rejoindre" in html and "Dev Web" in html
+    invitation = ClassInvitation.query.one()
+    client.post(f"/candidat/invitations/{invitation.id}", data={"accept": "1", "next": "/candidat/"})
+    db.session.expire_all()
+    assert c.sas_class == "Dev Web" and invitation.status == "accepted"
+    assert "vous invite" not in client.get("/candidat/").get_data(as_text=True)
+    k2 = campus_service.create_class(coach, sas.id, "Data")
+    campus_service.invite(k2, coach, c.email)
+    client.post(f"/candidat/invitations/{ClassInvitation.query.filter_by(class_id=k2.id).one().id}", data={"accept": "0"})
+    db.session.expire_all()
+    assert c.sas_class == "Dev Web"  # declined: stays in his class
+    assert client.post(f"/candidat/invitations/{invitation.id}", data={"accept": "1"},
+                       follow_redirects=True).status_code == 200  # already answered: refused, no crash
+
+
+def test_student_joins_by_code_or_address(app, db, client):
+    sas, other, a, out, coach = _setup(db)
+    c = _logged_candidate(client, email="me@test.ci", cni="ME", phone="0303030303")
+    c.sas = sas
+    db.session.commit()
+    k = campus_service.create_class(coach, sas.id, "Dev Web")
+    resp = client.get(f"/candidat/classe?code={k.join_code}")  # phone camera opened the QR code address
+    assert "Rejoindre la classe" in resp.get_data(as_text=True) and "camera=(self)" in resp.headers["Permissions-Policy"]
+    html = client.post("/candidat/classe", data={"token": f"https://dfs.example/candidat/classe?code={k.join_code}"},
+                       follow_redirects=True).get_data(as_text=True)
+    assert "Vous avez rejoint la classe « Dev Web »" in html
+    k2 = campus_service.create_class(coach, sas.id, "Data")
+    client.post("/candidat/classe", data={"token": f"  {k2.join_code.lower()} "})  # typed by hand
+    db.session.expire_all()
+    assert c.sas_class == "Data"
+    foreign = campus_service.create_class(coach, other.id, "Ailleurs")
+    html = client.post("/candidat/classe", data={"token": foreign.join_code}, follow_redirects=True).get_data(as_text=True)
+    assert "vous n" in html and "admis" in html
+    html = client.post("/candidat/classe", data={"token": "ZZZZZZZZ"}, follow_redirects=True).get_data(as_text=True)
+    assert "Code de classe inconnu" in html
+    db.session.expire_all()
+    assert c.sas_class == "Data"

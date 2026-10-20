@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}Classes{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">{{ 'Mes classes' if current_user.role == 'coach' else 'Classes' }}</h1>
+{% if can_create %}
+<form class="card card-body mb-3" method="post" style="max-width: 760px">
+  {{ csrf() }}
+  <div class="row g-2 align-items-end">
+    <div class="col-md-5"><label class="form-label" for="sas_id">SAS</label>
+      <select class="form-select" id="sas_id" name="sas_id" required>
+        {% for s in sas_list %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-4"><label class="form-label" for="name">Nom de la classe</label>
+      <input class="form-control" id="name" name="name" maxlength="50" required placeholder="Classe A"></div>
+    <div class="col-md-3"><button class="btn btn-primary w-100"><i class="bi bi-plus-lg"></i> Créer</button></div>
+  </div>
+  <div class="form-text">Les étudiants admis à ce SAS la rejoignent par QR code, par adresse, ou sur invitation.</div>
+</form>
+{% endif %}
+<div class="card"><ul class="list-group list-group-flush">
+{% for c in classes %}
+  <li class="list-group-item d-flex justify-content-between align-items-center">
+    <a href="{{ url_for('campus.class_open', key=c.key) }}"><strong>{{ c.class_name }}</strong></a>
+    <span class="text-muted small">{{ c.sas.name }} · {{ c.count }} étudiant(s)</span>
+  </li>
+{% else %}<li class="list-group-item text-muted">Aucune classe.</li>{% endfor %}
+</ul></div>
+{% endblock %}

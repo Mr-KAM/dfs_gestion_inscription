@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, status %}
+{% block title %}{{ k.name }}{% endblock %}
+{% block content %}
+<a class="small text-muted text-decoration-none" href="{{ url_for('campus.classes') }}"><i class="bi bi-arrow-left"></i> Classes</a>
+<h1 class="page-title mt-1">{{ k.name }} <span class="status status-info align-middle">{{ members | length }} étudiant(s)</span></h1>
+<div class="text-muted mb-3">{{ k.sas.name }}</div>
+
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-qr-code"></i> Rejoindre la classe</div>
+      <div class="card-body text-center">
+        <div class="qr-code qr-lg d-inline-block bg-white p-2 rounded" role="img" aria-label="QR code pour rejoindre la classe">{{ qr }}</div>
+        <div class="mt-2">Code : <code class="fs-4">{{ k.join_code }}</code></div>
+        <div class="small text-break mt-1"><a href="{{ join_url }}">{{ join_url }}</a></div>
+        <button type="button" class="btn btn-sm btn-outline-primary mt-2 js-copy" data-copy="{{ join_url }}"><i class="bi bi-clipboard"></i> Copier l'adresse</button>
+        <form class="mt-3" method="post" action="{{ url_for('campus.class_renew', class_id=k.id) }}"
+              data-confirm="Générer un nouveau code ? L'ancien QR code et l'ancienne adresse ne fonctionneront plus.">
+          {{ csrf() }}<button class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-repeat"></i> Nouveau code</button></form>
+        <p class="small text-muted mt-2 mb-0">Réservé aux étudiants admis à {{ k.sas.name }}.</p>
+      </div></div>
+  </div>
+  <div class="col-lg-7">
+    <form class="card card-body mb-3" method="post" action="{{ url_for('campus.class_invite', class_id=k.id) }}">
+      {{ csrf() }}
+      <label class="form-label" for="candidates"><i class="bi bi-envelope-plus"></i> Inviter des étudiants (matricules ou emails)</label>
+      <textarea class="form-control font-monospace" id="candidates" name="candidates" rows="3" required placeholder="26CAND000001&#10;aya@exemple.ci"></textarea>
+      <div class="form-text">L'invitation apparaît sur la page de l'étudiant, qui l'accepte ou la refuse.</div>
+      <div><button class="btn btn-primary mt-2"><i class="bi bi-send"></i> Inviter</button></div>
+    </form>
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-people"></i> Étudiants</div>
+      <ul class="list-group list-group-flush">
+      {% for c in members %}
+        <li class="list-group-item d-flex justify-content-between"><span>{{ c.full_name }}</span><code class="small">{{ c.matricule }}</code></li>
+      {% else %}<li class="list-group-item text-muted">Personne pour l'instant.</li>{% endfor %}
+      </ul></div>
+    {% if k.invitations %}
+    <div class="card"><div class="card-header"><i class="bi bi-envelope"></i> Invitations</div>
+      <ul class="list-group list-group-flush">
+      {% for i in k.invitations %}
+        <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <span>{{ i.candidate.full_name }} <code class="small">{{ i.candidate.matricule }}</code></span>
+          <span class="small text-muted">{{ i.created_at | dt }}</span>{{ status(i.badge) }}</li>
+      {% endfor %}
+      </ul></div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

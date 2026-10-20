@@ -1,10 +1,12 @@
 {% extends "base.html" %}
+{% from "_macros.html" import invitation_cards %}
 {% block title %}Notifications{% endblock %}
 {% block content %}
 <div class="mb-3">
   <div class="eyebrow mb-1">Espace candidat</div>
   <h1 class="page-title">Notifications</h1>
 </div>
+{{ invitation_cards(invitations) }}
 <div class="card" style="max-width: 760px"><ul class="list-group list-group-flush">
 {% for n in notifications %}
   <li class="list-group-item">

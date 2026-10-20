@@ -1,12 +1,17 @@
 """SAS campus: who manages which class, notifications, exercises, visits, incidents."""
+import re
+import secrets
 from datetime import datetime, timezone
+from urllib.parse import parse_qs, urlsplit
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, or_, select
 
 from app.extensions import db
-from app.models import Candidate, Exercise, ExerciseSubmission, Incident, Notification, Sas, Visit
-from app.models.campus import INCIDENT_CATEGORIES, REJECTED, SUBMITTED, VALIDATED
+from app.models import (Candidate, ClassInvitation, Exercise, ExerciseSubmission, Incident, Notification, Sas,
+                        SasClass, Visit)
+from app.models.campus import (INCIDENT_CATEGORIES, INVITE_ACCEPTED, INVITE_DECLINED, INVITE_PENDING, REJECTED,
+                               SUBMITTED, VALIDATED)
 from app.models.user import ROLE_ADMIN, ROLE_COACH, ROLE_RECEPTION
 from app.services import audit_service, settings_service
 from app.services.candidate_service import BusinessError
@@ -16,12 +21,17 @@ from app.utils import utcnow
 # ---- classes and rights
 
 def class_choices() -> list[dict]:
-    """Every (SAS, class) holding students: [{key, sas, class_name, count}]."""
-    rows = db.session.execute(
-        select(Sas, Candidate.sas_class, func.count(Candidate.id)).join(Candidate, Candidate.sas_id == Sas.id)
-        .where(Candidate.sas_class.is_not(None), Candidate.sas_class != "")
-        .group_by(Sas.id, Candidate.sas_class).order_by(Sas.name, Candidate.sas_class)).all()
-    return [{"key": f"{sas.id}:{name}", "sas": sas, "class_name": name, "count": count} for sas, name, count in rows]
+    """Every (SAS, class): created by a coach (maybe still empty) or holding students.
+    [{key, sas, class_name, count}]"""
+    counts = {(sas_id, name): n for sas_id, name, n in db.session.execute(
+        select(Candidate.sas_id, Candidate.sas_class, func.count(Candidate.id))
+        .where(Candidate.sas_id.is_not(None), Candidate.sas_class.is_not(None), Candidate.sas_class != "")
+        .group_by(Candidate.sas_id, Candidate.sas_class))}
+    keys = set(counts) | set(db.session.execute(select(SasClass.sas_id, SasClass.name)).tuples())
+    sas_by_id = {s.id: s for s in db.session.scalars(select(Sas).where(Sas.id.in_({k[0] for k in keys})))}
+    choices = [{"key": f"{sas_id}:{name}", "sas": sas_by_id[sas_id], "class_name": name,
+                "count": counts.get((sas_id, name), 0)} for sas_id, name in keys]
+    return sorted(choices, key=lambda c: (c["sas"].name, c["class_name"]))
 
 
 def can_manage(user, sas_id: int, class_name: str) -> bool:
@@ -35,7 +45,8 @@ def targets(user) -> list[dict]:
     """Classes (and whole SAS for admin / reception) the user may address: [{key, label}]."""
     out = []
     if user.role in (ROLE_ADMIN, ROLE_RECEPTION):
-        out = [{"key": f"{s.id}:", "label": f"{s.name} — tout le SAS"} for s in db.session.scalars(select(Sas).order_by(Sas.name))]
+        out = [{"key": f"{s.id}:", "label": f"{s.name} — tout le SAS"}
+               for s in db.session.scalars(select(Sas).order_by(Sas.name))]
     out += [{"key": c["key"], "label": f"{c['sas'].name} — {c['class_name']} ({c['count']})"}
             for c in class_choices() if can_manage(user, c["sas"].id, c["class_name"])]
     return out
@@ -86,7 +97,8 @@ def send_notification(user, target: str, title: str, body: str) -> Notification:
     title = title.strip()[:150]
     if not title:
         raise BusinessError("Le titre est obligatoire.")
-    notification = Notification(sas=sas, class_name=class_name, title=title, body=body.strip()[:5000], created_by=user.id)
+    notification = Notification(sas=sas, class_name=class_name, title=title, body=body.strip()[:5000],
+                                created_by=user.id)
     db.session.add(notification)
     db.session.flush()
     audit_service.log("notification_send", notification, {"class": class_name, "title": title})
@@ -112,7 +124,8 @@ def create_exercise(user, form) -> Exercise:
     due_at = local_datetime(form.get("due_at", ""))
     if due_at and due_at <= opens_at:
         raise BusinessError("La date limite doit être après la publication.")
-    exercise = Exercise(sas=sas, class_name=class_name, title=title, instructions=form.get("instructions", "").strip()[:20000],
+    exercise = Exercise(sas=sas, class_name=class_name, title=title,
+                        instructions=form.get("instructions", "").strip()[:20000],
                         opens_at=opens_at, due_at=due_at, created_by=user.id)
     db.session.add(exercise)
     db.session.flush()
@@ -130,7 +143,8 @@ def exercises_for(candidate: Candidate) -> list[Exercise]:
 
 
 def exercise_roster(exercise: Exercise) -> list[Candidate]:
-    stmt = select(Candidate).where(Candidate.sas_id == exercise.sas_id).order_by(Candidate.sas_class, Candidate.full_name)
+    stmt = (select(Candidate).where(Candidate.sas_id == exercise.sas_id)
+            .order_by(Candidate.sas_class, Candidate.full_name))
     if exercise.class_name:
         stmt = stmt.where(Candidate.sas_class == exercise.class_name)
     return db.session.scalars(stmt).all()
@@ -181,14 +195,16 @@ def find_student(text: str) -> Candidate | None:
     if not key:
         return None
     candidate = db.session.scalar(select(Candidate).where(
-        Candidate.sas_id.is_not(None), or_(Candidate.matricule == key.upper(), func.lower(Candidate.email) == key.lower())))
+        Candidate.sas_id.is_not(None),
+        or_(Candidate.matricule == key.upper(), func.lower(Candidate.email) == key.lower())))
     if candidate is None:
         raise BusinessError(f"Aucun étudiant du SAS ne correspond à « {key} ».")
     return candidate
 
 
 def sas_students() -> list[Candidate]:
-    return db.session.scalars(select(Candidate).where(Candidate.sas_id.is_not(None)).order_by(Candidate.full_name)).all()
+    return db.session.scalars(select(Candidate).where(Candidate.sas_id.is_not(None))
+                              .order_by(Candidate.full_name)).all()
 
 
 def add_visit(user, form) -> Visit:
@@ -219,3 +235,134 @@ def add_incident(user, form) -> Incident:
     audit_service.log("incident_add", incident, {"matricule": candidate.matricule, "category": category})
     db.session.commit()
     return incident
+
+
+# ---- classes: creation, join code (QR / address), invitations
+
+JOIN_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # no 0/O, 1/I/L: typed by hand from a projected screen
+
+
+def _new_join_code() -> str:
+    while True:
+        code = "".join(secrets.choice(JOIN_ALPHABET) for _ in range(8))
+        if not db.session.scalar(select(SasClass.id).where(SasClass.join_code == code)):
+            return code
+
+
+def get_class(sas_id: int, name: str, user=None) -> SasClass:
+    """The class row, created on first use (classes assigned by import have none yet)."""
+    klass = db.session.scalar(select(SasClass).where(SasClass.sas_id == sas_id, SasClass.name == name))
+    if klass is None:
+        klass = SasClass(sas_id=sas_id, name=name, join_code=_new_join_code(), created_by=getattr(user, "id", None))
+        db.session.add(klass)
+        db.session.commit()
+    return klass
+
+
+def create_class(user, sas_id: int, name: str) -> SasClass:
+    name = " ".join(name.split())[:50]
+    sas = db.session.get(Sas, sas_id or 0)
+    if sas is None or not name:
+        raise BusinessError("Choisissez un SAS et un nom de classe.")
+    if user.role not in (ROLE_ADMIN, ROLE_RECEPTION, ROLE_COACH):  # a coach's new class becomes one of his classes
+        raise BusinessError("Création de classe non autorisée.")
+    taken = db.session.scalar(select(SasClass.id).where(SasClass.sas_id == sas.id, SasClass.name == name))
+    used = db.session.scalar(select(Candidate.id).where(Candidate.sas_id == sas.id, Candidate.sas_class == name).limit(1))
+    if taken or used:
+        raise BusinessError(f"La classe « {name} » existe déjà dans {sas.name}.")
+    klass = SasClass(sas=sas, name=name, join_code=_new_join_code(), created_by=user.id)
+    db.session.add(klass)
+    if user.role == ROLE_COACH:
+        user.coach_classes = sorted({*(user.coach_classes or []), f"{sas.id}:{name}"})  # new list: JSON change tracked
+    db.session.flush()
+    audit_service.log("class_create", klass, {"sas": sas.name, "name": name})
+    db.session.commit()
+    return klass
+
+
+def renew_join_code(klass: SasClass) -> None:
+    """The old QR code / address stops working (shared too widely)."""
+    klass.join_code = _new_join_code()
+    audit_service.log("class_code_renew", klass)
+    db.session.commit()
+
+
+def class_members(klass: SasClass) -> list[Candidate]:
+    return db.session.scalars(select(Candidate).where(Candidate.sas_id == klass.sas_id,
+                                                      Candidate.sas_class == klass.name)
+                              .order_by(Candidate.full_name)).all()
+
+
+def class_from_code(text: str) -> SasClass:
+    """The bare code or the scanned / typed address (…?code=XXXX)."""
+    text = (text or "").strip()[:500]
+    if "code=" in text:
+        text = (parse_qs(urlsplit(text).query).get("code") or [""])[0]
+    klass = db.session.scalar(select(SasClass).where(SasClass.join_code == text.strip().upper())) if text else None
+    if klass is None:
+        raise BusinessError("Code de classe inconnu : vérifiez l'adresse ou demandez le nouveau code à votre coach.")
+    return klass
+
+
+def _enter(klass: SasClass, candidate: Candidate, how: str) -> None:
+    if candidate.sas_id != klass.sas_id:
+        raise BusinessError(f"Cette classe appartient au SAS « {klass.sas.name} » : vous n'y êtes pas admis.")
+    candidate.sas_class = klass.name
+    for invitation in klass.invitations:
+        if invitation.candidate_id == candidate.id and invitation.status == INVITE_PENDING:
+            invitation.status, invitation.responded_at = INVITE_ACCEPTED, utcnow()
+    audit_service.log("class_join", klass, {"matricule": candidate.matricule, "how": how})
+    db.session.commit()
+
+
+def join_with_code(candidate: Candidate, code: str) -> SasClass:
+    klass = class_from_code(code)
+    _enter(klass, candidate, "code")
+    return klass
+
+
+def invite(klass: SasClass, user, text: str) -> tuple[int, list[str]]:
+    """Invite by matricules / emails. Returns (invited, problems)."""
+    keys = {k for k in re.split(r"[\s,;]+", text or "") if k}
+    found = db.session.scalars(select(Candidate).where(or_(
+        Candidate.matricule.in_({k.upper() for k in keys}),
+        func.lower(Candidate.email).in_({k.lower() for k in keys})))).all()
+    known = {c.matricule for c in found} | {(c.email or "").lower() for c in found}
+    problems = [f"{k} : introuvable" for k in sorted(keys) if k.upper() not in known and k.lower() not in known]
+    existing = {i.candidate_id: i for i in klass.invitations}
+    invited = 0
+    for c in found:
+        if c.sas_id != klass.sas_id:
+            problems.append(f"{c.matricule} : pas admis dans {klass.sas.name}")
+        elif c.sas_class == klass.name:
+            problems.append(f"{c.matricule} : déjà dans la classe")
+        elif existing.get(c.id) and existing[c.id].status == INVITE_PENDING:
+            problems.append(f"{c.matricule} : déjà invité(e)")
+        else:
+            invitation = existing.get(c.id) or ClassInvitation(candidate=c)
+            invitation.status, invitation.invited_by, invitation.created_at, invitation.responded_at = \
+                INVITE_PENDING, user.id, utcnow(), None
+            if invitation not in klass.invitations:
+                klass.invitations.append(invitation)
+            invited += 1
+    if invited:
+        audit_service.log("class_invite", klass, {"invited": invited})
+    db.session.commit()
+    return invited, problems
+
+
+def pending_invitations(candidate: Candidate) -> list[ClassInvitation]:
+    return db.session.scalars(select(ClassInvitation).where(
+        ClassInvitation.candidate_id == candidate.id, ClassInvitation.status == INVITE_PENDING)
+        .order_by(ClassInvitation.created_at.desc())).all()
+
+
+def answer_invitation(invitation: ClassInvitation, candidate: Candidate, accept: bool) -> None:
+    if invitation.candidate_id != candidate.id or invitation.status != INVITE_PENDING:
+        raise BusinessError("Cette invitation n'est plus valable.")
+    if accept:
+        _enter(invitation.klass, candidate, "invitation")
+        return
+    invitation.status, invitation.responded_at = INVITE_DECLINED, utcnow()
+    audit_service.log("class_decline", invitation.klass, {"matricule": candidate.matricule})
+    db.session.commit()

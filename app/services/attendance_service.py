@@ -5,9 +5,9 @@ import hmac
 from datetime import timedelta
 from urllib.parse import parse_qs, urlsplit
 
+import segno
 from flask import current_app, url_for
 from markupsafe import Markup
-import segno
 from sqlalchemy import or_, select
 
 from app.extensions import db

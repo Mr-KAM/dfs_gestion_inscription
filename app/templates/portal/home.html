@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import status, qr_card, avatar %}
+{% from "_macros.html" import status, qr_card, avatar, invitation_cards %}
 {% block title %}Mon espace{% endblock %}
 {% block content %}
 <div class="mb-4 d-flex align-items-center gap-3">
@@ -17,6 +17,7 @@
   <a class="btn btn-sm btn-warning" href="{{ url_for('portal.attendance') }}"><i class="bi bi-qr-code-scan"></i> Marquer ma présence</a>
 </div>
 {% endfor %}
+{{ invitation_cards(invitations) }}
 {% if notifications %}
 <div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center">
   <span><i class="bi bi-megaphone"></i> Dernières notifications</span>

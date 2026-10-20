@@ -4,7 +4,7 @@ from flask_login import current_user, login_required, login_user
 
 from app.auth import _safe_next, login_attempt
 from app.extensions import db
-from app.models import Exercise
+from app.models import ClassInvitation, Exercise
 from app.services import account_service, attendance_service, audit_service, campus_service
 from app.services.candidate_service import BusinessError
 from app.utils import allow_camera
@@ -64,14 +64,16 @@ def home():
     marks = attendance_service.marks_by_session(candidate)
     pending = [s for s in attendance_service.sessions_for(candidate) if s.is_open and s.id not in marks]
     return render_template("portal/home.html", c=candidate, pending=pending,
-                           notifications=campus_service.notifications_for(candidate, limit=3))
+                           notifications=campus_service.notifications_for(candidate, limit=3),
+                           invitations=campus_service.pending_invitations(candidate))
 
 
 @bp.get("/notifications")
 @login_required
 def notifications():
     return render_template("portal/notifications.html",
-                           notifications=campus_service.notifications_for(current_user.candidate))
+                           notifications=campus_service.notifications_for(current_user.candidate),
+                           invitations=campus_service.pending_invitations(current_user.candidate))
 
 
 @bp.route("/exercices", methods=["GET", "POST"])
@@ -131,6 +133,43 @@ def attendance():
     return allow_camera(make_response(render_template(
         "portal/attendance.html", c=candidate, sessions=sessions, code=request.args.get("code", "")[:200],
         marks=attendance_service.marks_by_session(candidate))))
+
+
+@bp.route("/classe", methods=["GET", "POST"])
+@login_required
+def join_class():
+    """Join a class: QR code scanned (phone camera opens ?code=..., or the in-page scanner), or address / code typed."""
+    candidate = current_user.candidate
+    if request.method == "POST":
+        try:
+            klass = campus_service.join_with_code(candidate, request.form.get("token", ""))
+            flash(f"Vous avez rejoint la classe « {klass.name} ».", "success")
+        except BusinessError as exc:
+            flash(str(exc), "danger")
+        return redirect(url_for("portal.join_class"))
+    target = None
+    if request.args.get("code"):
+        try:
+            target = campus_service.class_from_code(request.args["code"])
+        except BusinessError as exc:
+            flash(str(exc), "danger")
+    return allow_camera(make_response(render_template(
+        "portal/class.html", c=candidate, target=target, code=request.args.get("code", "")[:50],
+        invitations=campus_service.pending_invitations(candidate))))
+
+
+@bp.post("/invitations/<int:invitation_id>")
+@login_required
+def answer_invitation(invitation_id: int):
+    invitation = db.get_or_404(ClassInvitation, invitation_id)
+    accept = request.form.get("accept") == "1"
+    try:
+        campus_service.answer_invitation(invitation, current_user.candidate, accept)
+        flash(f"Vous avez rejoint la classe « {invitation.klass.name} »." if accept else "Invitation refusée.",
+              "success" if accept else "info")
+    except BusinessError as exc:
+        flash(str(exc), "danger")
+    return redirect(_safe_next(request.form["next"]) if request.form.get("next") else url_for("portal.join_class"))
 
 
 @bp.route("/mot-de-passe", methods=["GET", "POST"])

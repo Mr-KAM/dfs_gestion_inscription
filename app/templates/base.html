@@ -44,6 +44,7 @@
       {% if role == 'candidate' %}
         {{ nav('portal.home', 'house', 'Mon espace') }}
         {{ nav('portal.attendance', 'qr-code-scan', 'Ma présence') }}
+        {{ nav('portal.join_class', 'people', 'Ma classe') }}
         {{ nav('portal.exercises', 'journal-code', 'Exercices') }}
         {{ nav('portal.notifications', 'megaphone', 'Notifications') }}
         {{ nav('portal.profile', 'person-circle', 'Mon profil') }}
@@ -52,6 +53,7 @@
       {% if role in ('coach', 'reception', 'residence') %}
         {{ nav('campus.index', 'house-door', 'Vie du SAS') }}
         {% if role == 'residence' %}{{ nav('admin.sas_list', 'door-open', 'Chambres & matériel', 'admin.sas') }}{% endif %}
+        {% if role in ('coach', 'reception') %}{{ nav('campus.classes', 'people', 'Classes', 'campus.class') }}{% endif %}
         {% if role == 'coach' %}
           {{ nav('campus.notifications', 'megaphone', 'Notifications') }}
           {{ nav('campus.exercises', 'journal-code', 'Exercices', 'campus.exercise') }}

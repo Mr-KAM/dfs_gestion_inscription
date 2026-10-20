@@ -12,6 +12,9 @@
   {% if role in ('admin', 'coach', 'reception') %}
   <a class="btn btn-outline-primary" href="{{ url_for('campus.notifications') }}"><i class="bi bi-megaphone"></i> Notifications</a>
   {% endif %}
+  {% if role in ('admin', 'coach', 'reception') %}
+  <a class="btn btn-outline-primary" href="{{ url_for('campus.classes') }}"><i class="bi bi-people"></i> Classes</a>
+  {% endif %}
   {% if role in ('admin', 'coach') %}
   <a class="btn btn-outline-primary" href="{{ url_for('campus.exercises') }}"><i class="bi bi-journal-code"></i> Exercices</a>
   {% endif %}

@@ -4,7 +4,8 @@ from app.extensions import db
 from app.utils import as_utc, utcnow
 
 SUBMITTED, VALIDATED, REJECTED = "submitted", "validated", "rejected"
-SUBMISSION_BADGES = {SUBMITTED: ("info", "À corriger"), VALIDATED: ("success", "Validé"), REJECTED: ("danger", "À refaire")}
+SUBMISSION_BADGES = {SUBMITTED: ("info", "À corriger"), VALIDATED: ("success", "Validé"),
+                     REJECTED: ("danger", "À refaire")}
 
 INCIDENT_CATEGORIES = {"discipline": "Discipline", "health": "Santé", "housing": "Logement", "equipment": "Matériel",
                        "other": "Autre"}
@@ -67,7 +68,9 @@ class ExerciseSubmission(db.Model):
     exercise = db.relationship("Exercise", back_populates="submissions")
     candidate = db.relationship("Candidate")
 
-    __table_args__ = (db.UniqueConstraint("exercise_id", "candidate_id", name="uq_exercise_submissions_exercise_candidate"),)
+    __table_args__ = (
+        db.UniqueConstraint("exercise_id", "candidate_id", name="uq_exercise_submissions_exercise_candidate"),
+    )
 
     @property
     def badge(self) -> tuple[str, str]:
@@ -110,3 +113,53 @@ class Incident(db.Model):
     @property
     def category_label(self) -> str:
         return INCIDENT_CATEGORIES.get(self.category, self.category)
+
+
+INVITE_PENDING, INVITE_ACCEPTED, INVITE_DECLINED = "pending", "accepted", "declined"
+INVITE_BADGES = {INVITE_PENDING: ("warning", "En attente"), INVITE_ACCEPTED: ("success", "Acceptée"),
+                 INVITE_DECLINED: ("secondary", "Refusée")}
+
+
+class SasClass(db.Model):
+    """A class created by a coach, with a join code (QR / address). Students keep the name in candidate.sas_class;
+    a class only used by students (assigned by import) gets its row on first use."""
+    __tablename__ = "sas_classes"
+
+    id = db.Column(db.Integer, primary_key=True)
+    sas_id = db.Column(db.Integer, db.ForeignKey("sas.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = db.Column(db.String(50), nullable=False)
+    join_code = db.Column(db.String(12), nullable=False, unique=True)
+    created_by = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+
+    sas = db.relationship("Sas")
+    invitations = db.relationship("ClassInvitation", back_populates="klass", cascade="all, delete-orphan",
+                                  order_by="ClassInvitation.created_at.desc()")
+
+    __table_args__ = (db.UniqueConstraint("sas_id", "name", name="uq_sas_classes_sas_name"),)
+
+    @property
+    def key(self) -> str:
+        return f"{self.sas_id}:{self.name}"
+
+
+class ClassInvitation(db.Model):
+    __tablename__ = "class_invitations"
+
+    id = db.Column(db.Integer, primary_key=True)
+    class_id = db.Column(db.Integer, db.ForeignKey("sas_classes.id", ondelete="CASCADE"), nullable=False, index=True)
+    candidate_id = db.Column(db.Integer, db.ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False, index=True)
+    invited_by = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    status = db.Column(db.String(20), nullable=False, default=INVITE_PENDING)
+    responded_at = db.Column(db.DateTime(timezone=True))
+
+    klass = db.relationship("SasClass", back_populates="invitations")
+    candidate = db.relationship("Candidate")
+    inviter = db.relationship("User")
+
+    __table_args__ = (db.UniqueConstraint("class_id", "candidate_id", name="uq_class_invitations_class_candidate"),)
+
+    @property
+    def badge(self) -> tuple[str, str]:
+        return INVITE_BADGES.get(self.status, ("secondary", self.status))

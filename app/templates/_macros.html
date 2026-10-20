@@ -34,7 +34,7 @@
 {%- endmacro %}
 
 {# QR scanner form (static/js/scan.js + vendor/jsQR.js): camera, photo or handheld scanner -> POST `token`. #}
-{% macro scanner(action, button='Décoder', placeholder='Rempli automatiquement (ou par une douchette)') -%}
+{% macro scanner(action, button='Décoder', placeholder='Rempli automatiquement (ou par une douchette)', label='Contenu du QR code') -%}
   <form id="scan-form" method="post" action="{{ action }}">
     {{ csrf() }}
     <div class="d-flex gap-2 flex-wrap mb-3">
@@ -44,7 +44,7 @@
     </div>
     <video id="scan-video" class="w-100 rounded border mb-3" playsinline muted hidden></video>
     <div id="scan-status" class="small text-muted mb-3" role="status" aria-live="polite"></div>
-    <label class="form-label" for="token">Contenu du QR code</label>
+    <label class="form-label" for="token">{{ label }}</label>
     <input class="form-control font-monospace" id="token" name="token" autocomplete="off" placeholder="{{ placeholder }}">
     <div class="form-text">La caméra demande HTTPS (ou localhost). Sinon, utilisez « Photo du QR code ».</div>
     <div><button class="btn btn-outline-secondary mt-3">{{ button }}</button></div>
@@ -109,4 +109,19 @@
       </div>
     {% endif %}
   {% endif %}
+{%- endmacro %}
+
+{# Pending class invitations on the student's pages (accept = joins the class). #}
+{% macro invitation_cards(invitations) -%}
+{% for i in invitations %}
+<div class="alert alert-info d-flex justify-content-between align-items-center flex-wrap gap-2" role="status">
+  <span><i class="bi bi-envelope-open"></i> {{ i.inviter.display_name if i.inviter else 'Votre coach' }} vous invite à rejoindre
+    la classe <strong>{{ i.klass.name }}</strong> ({{ i.klass.sas.name }}).</span>
+  <form class="d-flex gap-2" method="post" action="{{ url_for('portal.answer_invitation', invitation_id=i.id) }}">
+    {{ csrf() }}<input type="hidden" name="next" value="{{ request.full_path }}">
+    <button class="btn btn-sm btn-success" name="accept" value="1"><i class="bi bi-check2"></i> Accepter</button>
+    <button class="btn btn-sm btn-outline-secondary" name="accept" value="0">Refuser</button>
+  </form>
+</div>
+{% endfor %}
 {%- endmacro %}

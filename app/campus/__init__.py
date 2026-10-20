@@ -1,15 +1,17 @@
 """SAS campus life, for the admin and the campus staff:
 coach (roll calls, notifications, exercises for his classes), reception (visits, absences, problems),
 residence manager (bedrooms / equipment: the /admin/sas pages)."""
+import segno
 from flask import Blueprint, abort, flash, make_response, redirect, render_template, request, url_for
 from flask_login import current_user
+from markupsafe import Markup
 from sqlalchemy import select
 
 from app.extensions import db
-from app.models import AttendanceSession, Candidate, Exercise, Incident, Notification, Sas, Visit
+from app.models import AttendanceSession, Candidate, Exercise, Incident, Notification, Sas, SasClass, Visit
 from app.models.attendance import METHOD_LABELS
 from app.models.campus import INCIDENT_CATEGORIES, REJECTED, VALIDATED
-from app.models.user import CAMPUS_ROLES, ROLE_ADMIN, ROLE_RECEPTION
+from app.models.user import CAMPUS_ROLES, ROLE_ADMIN, ROLE_COACH, ROLE_RECEPTION
 from app.services import attendance_service, audit_service, campus_service
 from app.services.candidate_service import BusinessError
 from app.utils import allow_camera, roles_required, utcnow
@@ -38,8 +40,8 @@ def _require_desk() -> None:
 def index():
     classes = [c for c in campus_service.class_choices()
                if campus_service.can_manage(current_user, c["sas"].id, c["class_name"])]
-    sessions = [s for s in db.session.scalars(select(AttendanceSession).order_by(AttendanceSession.opened_at.desc())
-                                              .limit(100)) if campus_service.can_manage(current_user, s.sas_id, s.class_name)]
+    recent = db.session.scalars(select(AttendanceSession).order_by(AttendanceSession.opened_at.desc()).limit(100))
+    sessions = [s for s in recent if campus_service.can_manage(current_user, s.sas_id, s.class_name)]
     return render_template("campus/index.html", classes=classes, sessions=sessions[:30],
                            targets=campus_service.targets(current_user))
 
@@ -85,8 +87,8 @@ def attendance_scan(session_id: int):
     session = _session(session_id)
     try:
         candidate, new = attendance_service.admin_scan(session, request.form.get("token", ""), current_user)
-        flash(f"{candidate.full_name} : présent(e)." if new else f"{candidate.full_name} était déjà marqué(e) présent(e).",
-              "success" if new else "info")
+        flash(f"{candidate.full_name} : présent(e)." if new
+              else f"{candidate.full_name} était déjà marqué(e) présent(e).", "success" if new else "info")
     except BusinessError as exc:
         flash(str(exc), "danger")
     return redirect(url_for("campus.attendance", session_id=session.id))
@@ -162,8 +164,9 @@ def exercise(exercise_id: int):
 def exercise_review(exercise_id: int, candidate_id: int):
     exercise = _exercise(exercise_id)
     try:
+        form = request.form
         campus_service.review(exercise, db.get_or_404(Candidate, candidate_id), current_user,
-                              request.form.get("status", ""), request.form.get("score", ""), request.form.get("feedback", ""))
+                              form.get("status", ""), form.get("score", ""), form.get("feedback", ""))
     except BusinessError as exc:
         flash(str(exc), "danger")
     return redirect(url_for("campus.exercise", exercise_id=exercise.id) + f"#s{candidate_id}")
@@ -181,7 +184,8 @@ def visits():
             return redirect(url_for("campus.visits"))
         except BusinessError as exc:
             flash(str(exc), "danger")
-    items = db.session.scalars(select(Visit).order_by(Visit.left_at.is_not(None), Visit.arrived_at.desc()).limit(200)).all()
+    stmt = select(Visit).order_by(Visit.left_at.is_not(None), Visit.arrived_at.desc()).limit(200)  # still here first
+    items = db.session.scalars(stmt).all()
     return render_template("campus/visits.html", visits=items, students=campus_service.sas_students())
 
 
@@ -228,3 +232,65 @@ def incident_resolve(incident_id: int):
     db.session.commit()
     flash("Problème marqué comme résolu.", "success")
     return redirect(url_for("campus.incidents"))
+
+
+# ------------------------------------------------------------------ classes: creation, join QR code, invitations
+
+@bp.route("/classes", methods=["GET", "POST"])
+def classes():
+    if request.method == "POST":
+        try:
+            klass = campus_service.create_class(current_user, request.form.get("sas_id", 0, type=int),
+                                                request.form.get("name", ""))
+            flash(f"Classe « {klass.name} » créée : partagez son QR code ou invitez des étudiants.", "success")
+            return redirect(url_for("campus.class_page", class_id=klass.id))
+        except BusinessError as exc:
+            flash(str(exc), "danger")
+    mine = [c for c in campus_service.class_choices()
+            if campus_service.can_manage(current_user, c["sas"].id, c["class_name"])]
+    sas_list = db.session.scalars(select(Sas).order_by(Sas.created_at.desc())).all()
+    return render_template("campus/classes.html", classes=mine, sas_list=sas_list,
+                           can_create=current_user.role in (ROLE_ADMIN, ROLE_RECEPTION, ROLE_COACH))
+
+
+@bp.get("/classes/open")
+def class_open():
+    """From the class list: classes assigned by import get their row (join code) on first opening."""
+    sas_id, _, name = request.args.get("key", "").partition(":")
+    if not sas_id.isdigit() or not name:
+        abort(404)
+    _require_class(int(sas_id), name)
+    db.get_or_404(Sas, int(sas_id))
+    return redirect(url_for("campus.class_page", class_id=campus_service.get_class(int(sas_id), name, current_user).id))
+
+
+def _klass(class_id: int) -> SasClass:
+    klass = db.get_or_404(SasClass, class_id)
+    _require_class(klass.sas_id, klass.name)
+    return klass
+
+
+@bp.get("/classes/<int:class_id>")
+def class_page(class_id: int):
+    klass = _klass(class_id)
+    join_url = url_for("portal.join_class", code=klass.join_code, _external=True)
+    qr = Markup(segno.make(join_url, error="m").svg_inline(border=4, dark="#000", light="#fff", omitsize=True))
+    return render_template("campus/class.html", k=klass, join_url=join_url, qr=qr,
+                           members=campus_service.class_members(klass))
+
+
+@bp.post("/classes/<int:class_id>/invite")
+def class_invite(class_id: int):
+    klass = _klass(class_id)
+    invited, problems = campus_service.invite(klass, current_user, request.form.get("candidates", ""))
+    flash(f"{invited} invitation(s) envoyée(s) : les étudiants la voient sur leur espace.", "success")
+    if problems:
+        flash("Non invité(s) : " + " · ".join(problems[:20]) + (" …" if len(problems) > 20 else ""), "warning")
+    return redirect(url_for("campus.class_page", class_id=klass.id))
+
+
+@bp.post("/classes/<int:class_id>/renew")
+def class_renew(class_id: int):
+    campus_service.renew_join_code(_klass(class_id))
+    flash("Nouveau code : l'ancien QR code et l'ancienne adresse ne fonctionnent plus.", "success")
+    return redirect(url_for("campus.class_page", class_id=class_id))
