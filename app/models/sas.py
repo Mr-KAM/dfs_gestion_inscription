@@ -12,3 +12,5 @@ class Sas(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
 
     members = db.relationship("Candidate", back_populates="sas", order_by="Candidate.full_name")
+    attendance_sessions = db.relationship("AttendanceSession", back_populates="sas", cascade="all, delete-orphan",
+                                          order_by="AttendanceSession.opened_at.desc()")

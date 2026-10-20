@@ -1,0 +1,30 @@
+{# Refreshed every 10 s (data-poll): rotating QR code + roster. #}
+{% from "_macros.html" import csrf, status %}
+{% if qr %}
+<div class="card mb-3"><div class="card-header"><i class="bi bi-qr-code"></i> QR code à scanner par les étudiants</div>
+  <div class="card-body text-center">
+    <div class="qr-code qr-lg d-inline-block bg-white p-2 rounded" role="img" aria-label="QR code du pointage">{{ qr }}</div>
+    <p class="small text-muted mt-2 mb-0">Projetez ce QR code. Il change chaque minute : une photo partagée expire vite.
+      Les étudiants le scannent depuis « Ma présence » ou avec l'appareil photo de leur téléphone.</p>
+  </div></div>
+{% endif %}
+<div class="card"><div class="card-header d-flex justify-content-between align-items-center">
+  <span><i class="bi bi-people"></i> Étudiants</span>
+  <span class="status status-{{ 'success' if present == students | length and students else 'info' }}">{{ present }} / {{ students | length }} présent(s)</span></div>
+<div class="table-responsive"><table class="table table-sm align-middle mb-0">
+  <thead><tr><th>Matricule</th><th>Étudiant</th><th>Classe</th><th>Statut</th><th>Pointé</th><th></th></tr></thead>
+  <tbody>
+  {% for c in students %}{% set m = marks.get(c.id) %}
+    <tr>
+      <td><code>{{ c.matricule }}</code></td>
+      <td>{{ c.full_name }}</td>
+      <td>{{ c.sas_class or '—' }}</td>
+      <td>{{ status(('success', 'Présent') if m else (('warning', 'En attente') if s.is_open else ('danger', 'Absent'))) }}</td>
+      <td class="small">{% if m %}{{ m.marked_at | dt('%H:%M') }} · {{ method_labels[m.method] }}{% endif %}</td>
+      <td class="text-end"><form method="post" action="{{ url_for('admin.attendance_mark', session_id=s.id, candidate_id=c.id) }}">
+        {{ csrf() }}<input type="hidden" name="present" value="{{ '0' if m else '1' }}">
+        <button class="btn btn-sm {{ 'btn-outline-danger' if m else 'btn-outline-success' }}">{{ 'Marquer absent' if m else 'Marquer présent' }}</button></form></td>
+    </tr>
+  {% else %}<tr><td colspan="6" class="text-muted">Aucun étudiant dans cette classe.</td></tr>{% endfor %}
+  </tbody>
+</table></div></div>

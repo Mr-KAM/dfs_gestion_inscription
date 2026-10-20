@@ -10,6 +10,12 @@ from flask import abort, current_app
 from flask_login import current_user, login_required
 
 
+def allow_camera(response):
+    """Scanner pages are the only ones allowed to use the camera (blocked everywhere else by security_headers)."""
+    response.headers["Permissions-Policy"] = "camera=(self), microphone=(), geolocation=(), payment=()"
+    return response
+
+
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 

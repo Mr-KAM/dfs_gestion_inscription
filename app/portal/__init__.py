@@ -1,11 +1,12 @@
 """Candidate space: login, sign-up, own profile and password. Candidates only ever see their own data."""
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, make_response, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user
 
-from app.auth import login_attempt
+from app.auth import _safe_next, login_attempt
 from app.extensions import db
-from app.services import account_service, audit_service
+from app.services import account_service, attendance_service, audit_service
 from app.services.candidate_service import BusinessError
+from app.utils import allow_camera
 
 bp = Blueprint("portal", __name__, url_prefix="/candidat")
 PUBLIC_ENDPOINTS = {"portal.login", "portal.signup"}
@@ -30,7 +31,7 @@ def login():
     if current_user.is_authenticated:
         return redirect(url_for("dashboard.index"))
     if request.method == "POST" and login_attempt(request.form.get("email", ""), request.form.get("password", "")):
-        return redirect(url_for("dashboard.index"))
+        return redirect(_safe_next(request.args.get("next")))  # e.g. back to a scanned check-in QR code
     return render_template("portal/login.html")
 
 
@@ -58,7 +59,10 @@ def signup():
 @bp.get("/")
 @login_required
 def home():
-    return render_template("portal/home.html", c=current_user.candidate)
+    candidate = current_user.candidate
+    marks = attendance_service.marks_by_session(candidate)
+    pending = [s for s in attendance_service.sessions_for(candidate) if s.is_open and s.id not in marks]
+    return render_template("portal/home.html", c=candidate, pending=pending)
 
 
 @bp.route("/profil", methods=["GET", "POST"])
@@ -80,6 +84,25 @@ def profile():
 @login_required
 def photo():
     return account_service.photo_response(current_user.candidate)  # own photo only: no id in the url
+
+
+@bp.route("/presence", methods=["GET", "POST"])
+@login_required
+def attendance():
+    """Check-in: scan the QR code shown by the admin (in-page scanner, or the phone camera opening ?code=...)."""
+    candidate = current_user.candidate
+    if request.method == "POST":
+        try:
+            session, new = attendance_service.self_mark(candidate, request.form.get("token", ""), current_user)
+            flash(f"Présence enregistrée : {session.label}." if new else "Votre présence était déjà enregistrée.",
+                  "success")
+        except BusinessError as exc:
+            flash(str(exc), "danger")
+        return redirect(url_for("portal.attendance"))
+    sessions = attendance_service.sessions_for(candidate)
+    return allow_camera(make_response(render_template(
+        "portal/attendance.html", c=candidate, sessions=sessions, code=request.args.get("code", "")[:200],
+        marks=attendance_service.marks_by_session(candidate))))
 
 
 @bp.route("/mot-de-passe", methods=["GET", "POST"])

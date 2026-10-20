@@ -16,12 +16,13 @@ from werkzeug.utils import secure_filename
 
 from app.auth import _safe_next
 from app.extensions import db
-from app.models import AuditLog, Candidate, KoboSubmission, Room, Sas, TechnicalTestSession, User, Workstation
+from app.models import AttendanceSession, AuditLog, Candidate, KoboSubmission, Room, Sas, TechnicalTestSession, User, Workstation
+from app.models.attendance import METHOD_LABELS
 from app.models.candidate import FILE_MISSING, FILE_NOT_FOUND, FILE_STATUSES
 from app.models.user import ROLE_ADMIN, ROLE_CANDIDATE, ROLES
-from app.services import audit_service, candidate_service, import_service, sas_service, settings_service
+from app.services import attendance_service, audit_service, candidate_service, import_service, sas_service, settings_service
 from app.services.audit_service import ACTION_LABELS
-from app.utils import roles_required
+from app.utils import allow_camera, roles_required
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
 MIN_PASSWORD = 8
@@ -155,8 +156,7 @@ def scan():
         except candidate_service.BusinessError as exc:
             error = str(exc)
     response = make_response(render_template("admin/scan.html", c=candidate, matricule=matricule, error=error))
-    # The only page allowed to use the camera (blocked everywhere else by security_headers).
-    response.headers["Permissions-Policy"] = "camera=(self), microphone=(), geolocation=(), payment=()"
+    allow_camera(response)
     return response
 
 
@@ -414,6 +414,73 @@ def sas_member(sas_id: int, candidate_id: int):
     db.session.commit()
     return redirect(_safe_next(request.form.get("next")) if request.form.get("next")
                     else url_for("admin.sas_detail", sas_id=sas_id))  # back to the same filters
+
+
+
+# ------------------------------------------------------------------ SAS check-in (pointage)
+
+@bp.post("/sas/<int:sas_id>/attendance")
+def attendance_open(sas_id: int):
+    sas = db.get_or_404(Sas, sas_id)
+    try:
+        session = attendance_service.open_session(sas, request.form.get("class_name", ""), request.form.get("label", ""),
+                                                  request.form.get("minutes", 0, type=int) or 0, current_user)
+    except candidate_service.BusinessError as exc:
+        flash(str(exc), "danger")
+        return redirect(url_for("admin.sas_detail", sas_id=sas.id))
+    return redirect(url_for("admin.attendance", session_id=session.id))
+
+
+@bp.get("/attendance/<int:session_id>")
+def attendance(session_id: int):
+    session = db.get_or_404(AttendanceSession, session_id)
+    if request.args.get("partial"):
+        return _attendance_live(session)
+    return allow_camera(make_response(render_template(
+        "admin/attendance.html", s=session, **_attendance_context(session))))
+
+
+def _attendance_context(session: AttendanceSession) -> dict:
+    students = attendance_service.roster(session)
+    marks = {m.candidate_id: m for m in session.marks}
+    return {"students": students, "marks": marks, "present": sum(1 for c in students if c.id in marks),
+            "method_labels": METHOD_LABELS, "qr": attendance_service.qr_svg(session) if session.is_open else None}
+
+
+def _attendance_live(session: AttendanceSession):
+    return render_template("admin/_attendance_live.html", s=session, **_attendance_context(session))
+
+
+@bp.post("/attendance/<int:session_id>/scan")
+def attendance_scan(session_id: int):
+    """The admin scans the student's matricule QR code (works open or closed)."""
+    session = db.get_or_404(AttendanceSession, session_id)
+    try:
+        candidate, new = attendance_service.admin_scan(session, request.form.get("token", ""), current_user)
+        flash(f"{candidate.full_name} : présent(e)." if new else f"{candidate.full_name} était déjà marqué(e) présent(e).",
+              "success" if new else "info")
+    except candidate_service.BusinessError as exc:
+        flash(str(exc), "danger")
+    return redirect(url_for("admin.attendance", session_id=session.id))
+
+
+@bp.post("/attendance/<int:session_id>/mark/<int:candidate_id>")
+def attendance_mark(session_id: int, candidate_id: int):
+    session = db.get_or_404(AttendanceSession, session_id)
+    try:
+        attendance_service.admin_set(session, db.get_or_404(Candidate, candidate_id),
+                                     request.form.get("present") == "1", current_user)
+    except candidate_service.BusinessError as exc:
+        flash(str(exc), "danger")
+    return redirect(url_for("admin.attendance", session_id=session.id))
+
+
+@bp.post("/attendance/<int:session_id>/close")
+def attendance_close(session_id: int):
+    session = db.get_or_404(AttendanceSession, session_id)
+    attendance_service.close_session(session)
+    flash("Pointage clôturé : les étudiants ne peuvent plus marquer leur présence.", "success")
+    return redirect(url_for("admin.attendance", session_id=session.id))
 
 
 # ------------------------------------------------------------------ imports

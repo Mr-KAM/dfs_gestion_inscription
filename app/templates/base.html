@@ -43,6 +43,7 @@
     <div class="nav flex-column gap-1">
       {% if role == 'candidate' %}
         {{ nav('portal.home', 'house', 'Mon espace') }}
+        {{ nav('portal.attendance', 'qr-code-scan', 'Ma présence') }}
         {{ nav('portal.profile', 'person-circle', 'Mon profil') }}
         {{ nav('portal.password', 'key', 'Mot de passe') }}
       {% else %}
@@ -89,6 +90,7 @@
 <nav class="bottom-nav d-lg-none" aria-label="Navigation principale">
   {% if role == 'candidate' %}
     {{ bnav('portal.home', 'house', 'Mon espace') }}
+    {{ bnav('portal.attendance', 'qr-code-scan', 'Présence') }}
     {{ bnav('portal.profile', 'person-circle', 'Profil') }}
     {{ bnav('portal.password', 'key', 'Mot de passe') }}
   {% elif role == 'technical_tester' %}

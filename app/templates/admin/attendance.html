@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, scanner %}
+{% block title %}Pointage — {{ s.label }}{% endblock %}
+{% block content %}
+<a class="small text-muted text-decoration-none" href="{{ url_for('admin.sas_detail', sas_id=s.sas_id) }}"><i class="bi bi-arrow-left"></i> {{ s.sas.name }}</a>
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mt-1 mb-3">
+  <div>
+    <h1 class="page-title">{{ s.label }}</h1>
+    <div class="text-muted">{{ s.class_name or 'Tout le SAS' }} · ouvert le {{ s.opened_at | dt }} ·
+      {% if s.is_open %}marquage jusqu'à <strong>{{ s.closes_at | dt('%H:%M') }}</strong>{% else %}clôturé à {{ s.closes_at | dt('%H:%M') }}{% endif %}</div>
+  </div>
+  {% if s.is_open %}
+  <form method="post" action="{{ url_for('admin.attendance_close', session_id=s.id) }}"
+        data-confirm="Clôturer maintenant ? Les étudiants ne pourront plus marquer leur présence.">
+    {{ csrf() }}<button class="btn btn-outline-danger"><i class="bi bi-stop-circle"></i> Clôturer</button></form>
+  {% endif %}
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div data-poll="{{ url_for('admin.attendance', session_id=s.id, partial=1) }}" data-poll-interval="10000">
+      {% include "admin/_attendance_live.html" %}
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card"><div class="card-header"><i class="bi bi-qr-code-scan"></i> Scanner le QR code d'un étudiant</div>
+      <div class="card-body">
+        <p class="small text-muted">L'étudiant présente le QR code de son espace : il est marqué présent, même après la clôture.</p>
+        {{ scanner(url_for('admin.attendance_scan', session_id=s.id), '<i class="bi bi-person-check"></i> Marquer présent' | safe) }}
+      </div></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/jsQR.js') }}"></script>
+<script src="{{ url_for('static', filename='js/scan.js') }}"></script>
+{% endblock %}

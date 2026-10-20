@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, scanner, qr_card, status %}
+{% block title %}Ma présence{% endblock %}
+{% block content %}
+<div class="mb-3">
+  <div class="eyebrow mb-1">Espace candidat</div>
+  <h1 class="page-title">Marquer ma présence</h1>
+</div>
+{% if not c.sas %}
+<p class="text-muted">Les pointages de présence concernent les étudiants admis au SAS.</p>
+{% else %}
+<div class="row g-3">
+  <div class="col-lg-6">
+    {% if code %}
+    <form class="card card-body mb-3 text-center" method="post" action="{{ url_for('portal.attendance') }}">
+      {{ csrf() }}<input type="hidden" name="token" value="{{ code }}">
+      <p class="mb-2">QR code de pointage lu.</p>
+      <button class="btn btn-success btn-lg"><i class="bi bi-check2-circle"></i> Confirmer ma présence</button>
+    </form>
+    {% endif %}
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-qr-code-scan"></i> Scanner le QR code du pointage</div>
+      <div class="card-body">
+        <p class="small text-muted">Scannez le QR code affiché par l'administrateur, ici ou avec l'appareil photo de votre téléphone.</p>
+        {{ scanner(url_for('portal.attendance'), '<i class="bi bi-check2"></i> Valider' | safe, 'Rempli automatiquement') }}
+      </div></div>
+    {{ qr_card(c, "Ou présentez votre QR code à l'administrateur") }}
+  </div>
+  <div class="col-lg-6">
+    <div class="card"><div class="card-header"><i class="bi bi-calendar-check"></i> Mes pointages</div>
+      <ul class="list-group list-group-flush">
+      {% for s in sessions %}{% set m = marks.get(s.id) %}
+        <li class="list-group-item d-flex justify-content-between align-items-center gap-2 flex-wrap">
+          <div><strong>{{ s.label }}</strong>
+            <div class="small text-muted">{{ s.class_name or c.sas.name }} · {{ s.opened_at | dt }}</div></div>
+          {% if m %}{{ status(('success', 'Présent · ' ~ (m.marked_at | dt('%H:%M')))) }}
+          {% elif s.is_open %}{{ status(('warning', 'À marquer avant ' ~ (s.closes_at | dt('%H:%M')))) }}
+          {% else %}{{ status(('danger', 'Absent')) }}{% endif %}
+        </li>
+      {% else %}<li class="list-group-item text-muted">Aucun pointage pour le moment.</li>{% endfor %}
+      </ul></div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/jsQR.js') }}"></script>
+<script src="{{ url_for('static', filename='js/scan.js') }}"></script>
+{% endblock %}

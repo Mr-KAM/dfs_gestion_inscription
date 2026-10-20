@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import csrf, passed_checkbox %}
+{% from "_macros.html" import csrf, passed_checkbox, status %}
 {% block title %}{{ sas.name }}{% endblock %}
 {% block content %}
 <a class="small text-muted text-decoration-none" href="{{ url_for('admin.sas_list') }}"><i class="bi bi-arrow-left"></i> SAS</a>
@@ -35,6 +35,34 @@
       <span class="small text-muted">Motivation et technique cochés « Validé », pas encore dans un SAS.</span>
     </form>
   </div></div>
+
+<div class="card mb-3"><div class="card-header"><i class="bi bi-calendar-check"></i> Pointages de présence</div>
+  <div class="card-body">
+    <form class="row g-2 align-items-end" method="post" action="{{ url_for('admin.attendance_open', sas_id=sas.id) }}">
+      {{ csrf() }}
+      <div class="col-md-4"><label class="form-label" for="att-label">Intitulé</label>
+        <input class="form-control" id="att-label" name="label" maxlength="100" placeholder="Cours du matin"></div>
+      <div class="col-md-3"><label class="form-label" for="att-class">Classe</label>
+        <select class="form-select" id="att-class" name="class_name"><option value="">Tout le SAS</option>
+          {% for name in classes %}<option>{{ name }}</option>{% endfor %}</select></div>
+      <div class="col-6 col-md-2"><label class="form-label" for="att-minutes">Durée (min)</label>
+        <input class="form-control" id="att-minutes" name="minutes" type="number" min="1" max="720" value="15" required></div>
+      <div class="col-6 col-md-3"><button class="btn btn-primary w-100"><i class="bi bi-play-circle"></i> Lancer le pointage</button></div>
+    </form>
+    <div class="form-text">Pendant la durée, les étudiants marquent leur présence en scannant le QR code affiché. Ensuite, seul l'admin peut les marquer.</div>
+  </div>
+  {% if sas.attendance_sessions %}
+  <ul class="list-group list-group-flush">
+  {% for s in sas.attendance_sessions %}
+    <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <a href="{{ url_for('admin.attendance', session_id=s.id) }}"><strong>{{ s.label }}</strong></a>
+      <span class="small text-muted">{{ s.class_name or 'Tout le SAS' }} · {{ s.opened_at | dt }} · {{ s.marks | length }} présent(s)</span>
+      {{ status(('warning', 'En cours') if s.is_open else ('secondary', 'Clôturé')) }}
+    </li>
+  {% endfor %}
+  </ul>
+  {% endif %}
+</div>
 
 <details class="card mb-3">
   <summary class="card-header"><i class="bi bi-magic"></i> Attribuer les classes, chambres et matériel (automatique ou fichier)</summary>

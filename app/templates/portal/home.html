@@ -11,6 +11,12 @@
   </div>
 </div>
 
+{% for s in pending %}
+<div class="alert alert-warning d-flex justify-content-between align-items-center flex-wrap gap-2" role="status">
+  <span><i class="bi bi-alarm"></i> Pointage en cours : <strong>{{ s.label }}</strong>, jusqu'à {{ s.closes_at | dt('%H:%M') }}.</span>
+  <a class="btn btn-sm btn-warning" href="{{ url_for('portal.attendance') }}"><i class="bi bi-qr-code-scan"></i> Marquer ma présence</a>
+</div>
+{% endfor %}
 {% if c.sas %}
 <div class="alert alert-success d-flex gap-3 align-items-start mb-4" role="status">
   <i class="bi bi-trophy fs-2" aria-hidden="true"></i>

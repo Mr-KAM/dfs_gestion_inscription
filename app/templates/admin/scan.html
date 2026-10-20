@@ -1,25 +1,11 @@
 {% extends "base.html" %}
-{% from "_macros.html" import csrf, status, motivation_badge %}
+{% from "_macros.html" import csrf, status, motivation_badge, scanner %}
 {% block title %}Scanner QR{% endblock %}
 {% block content %}
 <h1 class="page-title mb-3">Scanner un QR code candidat</h1>
 <div class="row g-3">
   <div class="col-lg-6">
-    <form class="card card-body" id="scan-form" method="post" action="{{ url_for('admin.scan') }}">
-      {{ csrf() }}
-      <div class="d-flex gap-2 flex-wrap mb-3">
-        <button type="button" class="btn btn-primary" id="scan-camera"><i class="bi bi-camera-video"></i> Scanner avec la caméra</button>
-        <label class="btn btn-outline-primary mb-0"><i class="bi bi-image"></i> Photo du QR code
-          <input type="file" id="scan-file" accept="image/*" capture="environment" hidden></label>
-      </div>
-      <video id="scan-video" class="w-100 rounded border mb-3" playsinline muted hidden></video>
-      <div id="scan-status" class="small text-muted mb-3" role="status" aria-live="polite"></div>
-      <label class="form-label" for="token">Contenu du QR code</label>
-      <input class="form-control font-monospace" id="token" name="token" autocomplete="off" autofocus
-             placeholder="Rempli automatiquement (ou par une douchette)">
-      <div class="form-text">La caméra demande HTTPS (ou localhost). En HTTP sur le réseau local, utilisez « Photo du QR code ».</div>
-      <div><button class="btn btn-outline-secondary mt-3"><i class="bi bi-unlock"></i> Décoder</button></div>
-    </form>
+    <div class="card card-body">{{ scanner(url_for('admin.scan'), '<i class="bi bi-unlock"></i> Décoder' | safe) }}</div>
   </div>
   <div class="col-lg-6">
     {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}

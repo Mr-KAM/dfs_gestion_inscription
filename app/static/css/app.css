@@ -199,3 +199,6 @@ a.stat-card:hover { border-color: var(--dfs-blue); }
 /* Candidate profile photo */
 .avatar { border-radius: 50%; object-fit: cover; flex-shrink: 0; }
 .avatar-empty { display: inline-flex; align-items: center; justify-content: center; background: var(--dfs-blue-light); color: var(--dfs-muted); }
+
+/* Check-in QR code, projected to the room */
+.qr-code.qr-lg svg { width: 360px; }

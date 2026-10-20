@@ -33,6 +33,24 @@
   {%- else %}<span class="avatar avatar-empty" style="width:{{ size }}px;height:{{ size }}px;font-size:{{ size // 2 }}px" aria-hidden="true"><i class="bi bi-person"></i></span>{% endif %}
 {%- endmacro %}
 
+{# QR scanner form (static/js/scan.js + vendor/jsQR.js): camera, photo or handheld scanner -> POST `token`. #}
+{% macro scanner(action, button='Décoder', placeholder='Rempli automatiquement (ou par une douchette)') -%}
+  <form id="scan-form" method="post" action="{{ action }}">
+    {{ csrf() }}
+    <div class="d-flex gap-2 flex-wrap mb-3">
+      <button type="button" class="btn btn-primary" id="scan-camera"><i class="bi bi-camera-video"></i> Scanner avec la caméra</button>
+      <label class="btn btn-outline-primary mb-0"><i class="bi bi-image"></i> Photo du QR code
+        <input type="file" id="scan-file" accept="image/*" capture="environment" hidden></label>
+    </div>
+    <video id="scan-video" class="w-100 rounded border mb-3" playsinline muted hidden></video>
+    <div id="scan-status" class="small text-muted mb-3" role="status" aria-live="polite"></div>
+    <label class="form-label" for="token">Contenu du QR code</label>
+    <input class="form-control font-monospace" id="token" name="token" autocomplete="off" placeholder="{{ placeholder }}">
+    <div class="form-text">La caméra demande HTTPS (ou localhost). Sinon, utilisez « Photo du QR code ».</div>
+    <div><button class="btn btn-outline-secondary mt-3">{{ button }}</button></div>
+  </form>
+{%- endmacro %}
+
 {% macro csrf() -%}
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 {%- endmacro %}
