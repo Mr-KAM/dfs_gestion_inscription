@@ -42,6 +42,9 @@ class Candidate(db.Model):
     phone = db.Column(db.String(30), index=True)
     city = db.Column(db.String(120))
     cni = db.Column(db.String(50), index=True)
+    # Profile photo uploaded by the candidate (JPEG / PNG / WebP); deferred: never loaded with lists.
+    photo = db.deferred(db.Column(db.LargeBinary))
+    photo_type = db.Column(db.String(20))  # mimetype, None = no photo
 
     physical_file_status = db.Column(db.String(20), index=True)
 

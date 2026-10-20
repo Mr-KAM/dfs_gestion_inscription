@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, avatar %}
+{% block title %}Mon profil{% endblock %}
+{% block content %}
+<div class="mb-3">
+  <div class="eyebrow mb-1">Espace candidat</div>
+  <h1 class="page-title">Mon profil</h1>
+</div>
+<form class="card card-body" method="post" enctype="multipart/form-data" style="max-width: 640px">
+  {{ csrf() }}
+  <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
+    {{ avatar(c, url_for('portal.photo'), 96) }}
+    <div class="flex-grow-1">
+      <label class="form-label" for="photo">Photo de profil</label>
+      <input class="form-control" id="photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp">
+      <div class="form-text">JPEG, PNG ou WebP, 2 Mo maximum. Photo d'identité de face, visage bien visible.</div>
+      {% if c.photo_type %}
+      <div class="form-check mt-1"><input class="form-check-input" type="checkbox" id="remove_photo" name="remove_photo" value="1">
+        <label class="form-check-label" for="remove_photo">Supprimer ma photo</label></div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-md-6">
+      <label class="form-label" for="phone">Téléphone <span class="text-danger">*</span></label>
+      <input class="form-control" id="phone" name="phone" type="tel" value="{{ request.form.get('phone', c.phone or '') }}" autocomplete="tel" required>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label" for="city">Ville</label>
+      <input class="form-control" id="city" name="city" maxlength="120" value="{{ request.form.get('city', c.city or '') }}" autocomplete="address-level2">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label" for="birth_date">Date de naissance</label>
+      <input class="form-control" id="birth_date" name="birth_date" type="date" value="{{ request.form.get('birth_date', c.birth_date.isoformat() if c.birth_date else '') }}" autocomplete="bday">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label" for="gender">Sexe</label>
+      {% set gender = request.form.get('gender', c.gender or '') %}
+      <select class="form-select" id="gender" name="gender">
+        <option value="">—</option>
+        {% for g in ['M', 'F'] %}<option {{ 'selected' if gender == g }}>{{ g }}</option>{% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <dl class="kv row mt-4 mb-0 small">
+    <dt class="col-5">Nom et prénoms</dt><dd class="col-7">{{ c.full_name }}</dd>
+    <dt class="col-5">Email (identifiant)</dt><dd class="col-7 text-break">{{ c.email or '—' }}</dd>
+    <dt class="col-5">CNI</dt><dd class="col-7">{{ c.cni or '—' }}</dd>
+  </dl>
+  <p class="small text-muted mb-3">Ces informations servent à vérifier votre identité : pour les corriger, adressez-vous à l'équipe DFS.</p>
+
+  <div class="d-flex gap-2">
+    <button class="btn btn-primary"><i class="bi bi-check2"></i> Enregistrer</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('portal.home') }}">Annuler</a>
+  </div>
+</form>
+{% endblock %}

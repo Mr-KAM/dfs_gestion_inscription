@@ -1,8 +1,9 @@
 """Candidate accounts: bulk creation with the default password, self sign-up, password change."""
+import io
 import re
 from datetime import date
 
-from flask import current_app
+from flask import abort, current_app, send_file
 from sqlalchemy import exists, func, or_, select
 from werkzeug.security import generate_password_hash
 
@@ -15,6 +16,7 @@ from app.utils import norm_email, norm_phone
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 MIN_PASSWORD = 8
+PHOTO_MAX_BYTES = 2 * 1024 * 1024
 
 
 def _new_account(candidate: Candidate, email: str, password_hash: str, must_change: bool) -> User:
@@ -130,6 +132,52 @@ def register(form) -> User:
     audit_service.log("candidate_signup", candidate, {"email": email}, user=account)
     db.session.commit()
     return account
+
+
+def _photo_type(data: bytes) -> str | None:
+    """Real content type from the first bytes (never trust the file name). No SVG: it can carry scripts."""
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
+def update_profile(candidate: Candidate, form, photo=None) -> None:
+    """The candidate edits contact details and photo. Name, CNI and email (login, file matching) stay with the DFS.
+    On BusinessError the caller rolls back."""
+    data = None
+    if photo is not None and photo.filename and not form.get("remove_photo"):
+        data = photo.read(PHOTO_MAX_BYTES + 1)
+        if len(data) > PHOTO_MAX_BYTES:
+            raise BusinessError("Photo trop lourde : 2 Mo maximum.")
+        if _photo_type(data) is None:
+            raise BusinessError("Photo invalide : formats JPEG, PNG ou WebP uniquement.")
+    phone = norm_phone(form.get("phone"))
+    if not phone:
+        raise BusinessError("Le numéro de téléphone est obligatoire.")
+    if db.session.scalar(select(Candidate.id).where(Candidate.phone == phone, Candidate.id != candidate.id).limit(1)):
+        raise BusinessError("Ce numéro de téléphone est déjà utilisé par un autre dossier.")
+    candidate.phone = phone
+    candidate.birth_date = _parse_birth_date(form.get("birth_date", ""))
+    candidate.gender = form.get("gender") if form.get("gender") in ("M", "F") else None
+    candidate.city = form.get("city", "").strip()[:120] or None
+    if form.get("remove_photo"):
+        candidate.photo = candidate.photo_type = None
+    elif data:
+        candidate.photo, candidate.photo_type = data, _photo_type(data)
+    audit_service.log("profile_update", candidate, {"photo": "removed" if form.get("remove_photo") else bool(data)})
+    db.session.commit()
+
+
+def photo_response(candidate: Candidate):
+    if not candidate.photo_type:
+        abort(404)
+    response = send_file(io.BytesIO(candidate.photo), mimetype=candidate.photo_type, max_age=0)
+    response.headers["Cache-Control"] = "private, no-cache"  # personal data: never in shared caches
+    return response
 
 
 def change_password(account: User, current: str, new: str, confirm: str) -> None:

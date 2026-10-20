@@ -1,3 +1,4 @@
+import csv
 import io
 import os
 import re
@@ -18,7 +19,7 @@ from app.extensions import db
 from app.models import AuditLog, Candidate, KoboSubmission, Room, Sas, TechnicalTestSession, User, Workstation
 from app.models.candidate import FILE_MISSING, FILE_NOT_FOUND, FILE_STATUSES
 from app.models.user import ROLE_ADMIN, ROLE_CANDIDATE, ROLES
-from app.services import audit_service, candidate_service, import_service, settings_service
+from app.services import audit_service, candidate_service, import_service, sas_service, settings_service
 from app.services.audit_service import ACTION_LABELS
 from app.utils import roles_required
 
@@ -167,6 +168,25 @@ def rooms():
     return render_template("admin/rooms.html", rooms=db.session.scalars(stmt).all())
 
 
+def _apply_upload(apply, *args):
+    """Save the uploaded .csv/.xlsx/.xls, run apply(path, *args), always delete the file. None (+ flash) on error."""
+    upload = request.files.get("file")
+    filename = secure_filename(upload.filename or "") if upload else ""
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if ext not in current_app.config["ALLOWED_IMPORT_EXTENSIONS"]:
+        flash("Format non supporté : utilisez .csv, .xlsx ou .xls.", "danger")
+        return None
+    path = os.path.join(current_app.config["UPLOAD_FOLDER"], f"{uuid.uuid4().hex}.{ext}")
+    upload.save(path)
+    try:
+        return apply(path, *args)
+    except import_service.ImportFileError as exc:
+        flash(str(exc), "danger")
+        return None
+    finally:
+        os.remove(path)
+
+
 @bp.get("/rooms/template")
 def rooms_template():
     return _csv_template(import_service.ROOM_COLUMNS, import_service.ROOM_EXAMPLE, "modele_salles.csv")
@@ -175,21 +195,9 @@ def rooms_template():
 @bp.post("/rooms/import")
 def rooms_import():
     """Rooms + workstations from Excel/CSV: additive, applied directly (nothing is ever deleted)."""
-    upload = request.files.get("file")
-    filename = secure_filename(upload.filename or "") if upload else ""
-    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-    if ext not in current_app.config["ALLOWED_IMPORT_EXTENSIONS"]:
-        flash("Format non supporté : utilisez .csv, .xlsx ou .xls.", "danger")
+    report = _apply_upload(import_service.apply_rooms)
+    if report is None:
         return redirect(url_for("admin.rooms"))
-    path = os.path.join(current_app.config["UPLOAD_FOLDER"], f"{uuid.uuid4().hex}.{ext}")
-    upload.save(path)
-    try:
-        report = import_service.apply_rooms(path)
-    except import_service.ImportFileError as exc:
-        flash(str(exc), "danger")
-        return redirect(url_for("admin.rooms"))
-    finally:
-        os.remove(path)
     flash(f"Import des salles : {report['rooms']} salle(s) et {report['workstations']} ordinateur(s) créés, "
           f"{report['updated']} mise(s) à jour, {len(report['errors'])} ligne(s) en erreur.",
           "warning" if report["errors"] else "success")
@@ -314,7 +322,50 @@ def sas_delete(sas_id: int):
 def sas_detail(sas_id: int):
     sas = db.get_or_404(Sas, sas_id)
     ready = db.session.scalar(select(func.count()).select_from(_sas_ready().subquery()))
-    return render_template("admin/sas.html", sas=sas, ready=ready)
+    filters = {k: request.args.get(k, "") for k in ("q", "gender", *sas_service.FIELDS)}
+    classes = sorted({c.sas_class for c in sas.members if c.sas_class})
+    return render_template("admin/sas.html", sas=sas, ready=ready, filters=filters, classes=classes,
+                           members=sas_service.filter_members(sas.members, request.args))
+
+
+@bp.get("/sas/<int:sas_id>/template")
+def sas_template(sas_id: int):
+    sas = db.get_or_404(Sas, sas_id)
+    rows = [[_neutralize(v) for v in row] for row in sas_service.csv_rows(sas.members)]
+    return _csv_template(sas_service.CSV_COLUMNS, rows, f"attributions_sas_{sas.id}.csv")
+
+
+@bp.post("/sas/<int:sas_id>/import")
+def sas_import(sas_id: int):
+    sas = db.get_or_404(Sas, sas_id)
+    report = _apply_upload(sas_service.apply_csv, sas)
+    if report is not None:
+        errors = report["errors"]
+        flash(f"Import des attributions : {report['updated']} candidat(s) mis à jour, {report['unchanged']} inchangé(s), "
+              f"{len(errors)} ligne(s) en erreur.", "warning" if errors else "success")
+        if errors:  # redirect (not render): the row forms post back to a GET url
+            flash("Lignes ignorées : " + " · ".join(f"ligne {line} : {msg}" for line, msg in errors[:20])
+                  + (" …" if len(errors) > 20 else ""), "warning")
+    return redirect(url_for("admin.sas_detail", sas_id=sas.id))
+
+
+@bp.post("/sas/<int:sas_id>/auto-assign")
+def sas_auto_assign(sas_id: int):
+    """Fill the empty classes / bedrooms / equipment of the members (nothing already given is changed)."""
+    sas = db.get_or_404(Sas, sas_id)
+    form = request.form
+    classes = list(dict.fromkeys(n.strip()[:50] for n in form.get("classes", "").split(",") if n.strip()))
+    bedrooms = sas_service.bedroom_names(form.get("bedroom_prefix", "").strip()[:40],
+                                         form.get("bedroom_start", 1, type=int) or 0,
+                                         form.get("bedroom_count", 0, type=int) or 0)
+    stats = sas_service.auto_assign(sas, classes, bedrooms, form.get("capacity", 0, type=int) or 0,
+                                    form.get("equipment", "").strip()[:200], form.get("equipment_start", 1, type=int) or 0)
+    flash(f"Attribution automatique : {stats['class']} classe(s), {stats['bedroom']} chambre(s), "
+          f"{stats['equipment']} matériel(s) attribués.", "success")
+    if stats["no_bedroom"]:
+        flash(f"{stats['no_bedroom']} candidat(s) sans chambre : plus de place libre (chambres non mixtes). "
+              "Ajoutez des chambres ou augmentez le nombre de places.", "warning")
+    return redirect(url_for("admin.sas_detail", sas_id=sas.id))
 
 
 @bp.post("/sas/<int:sas_id>/members")
@@ -361,7 +412,8 @@ def sas_member(sas_id: int, candidate_id: int):
         audit_service.log("sas_assign", c, {"class": c.sas_class, "bedroom": c.sas_bedroom, "equipment": c.sas_equipment})
         flash(f"Classe, chambre et matériel de {c.full_name} enregistrés.", "success")
     db.session.commit()
-    return redirect(url_for("admin.sas_detail", sas_id=sas_id))
+    return redirect(_safe_next(request.form.get("next")) if request.form.get("next")
+                    else url_for("admin.sas_detail", sas_id=sas_id))  # back to the same filters
 
 
 # ------------------------------------------------------------------ imports
@@ -443,8 +495,9 @@ def import_confirm():
 
 
 def _csv_template(columns: list[str], rows: list[list[str]], name: str):
-    lines = [";".join(columns)] + [";".join(row) for row in rows]
-    buffer = io.BytesIO(("\r\n".join(lines) + "\r\n").encode("utf-8-sig"))  # ';' + BOM: Excel FR friendly
+    text = io.StringIO()
+    csv.writer(text, delimiter=";", lineterminator="\r\n").writerows([columns, *rows])  # quotes cells holding ';'
+    buffer = io.BytesIO(text.getvalue().encode("utf-8-sig"))  # ';' + BOM: Excel FR friendly
     return send_file(buffer, mimetype="text/csv", as_attachment=True, download_name=name)
 
 

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import status, motivation_badge, csrf, copy_button, qr_card %}
+{% from "_macros.html" import status, motivation_badge, csrf, copy_button, qr_card, avatar %}
 {% block title %}{{ c.full_name }}{% endblock %}
 {% block content %}
 {% set sub = c.latest_submission %}
@@ -26,7 +26,9 @@
 <div class="row g-3">
   <div class="col-lg-5">
     <div class="card mb-3"><div class="card-header"><i class="bi bi-person"></i> Identité</div>
-      <div class="card-body"><dl class="kv row mb-0">
+      <div class="card-body">
+      {% if c.photo_type %}<div class="text-center mb-3">{{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 120) }}</div>{% endif %}
+      <dl class="kv row mb-0">
         <dt class="col-5">Matricule</dt><dd class="col-7"><code>{{ c.matricule }}</code></dd>
         {% if c.sas %}<dt class="col-5">SAS</dt><dd class="col-7">{% if current_user.role == 'admin' %}<a href="{{ url_for('admin.sas_detail', sas_id=c.sas_id) }}">{{ c.sas.name }}</a>{% else %}{{ c.sas.name }}{% endif %}
           <div class="small text-muted">Classe {{ c.sas_class or '—' }} · Chambre {{ c.sas_bedroom or '—' }} · Matériel {{ c.sas_equipment or '—' }}</div></dd>{% endif %}

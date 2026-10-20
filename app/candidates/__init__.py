@@ -144,6 +144,12 @@ def delete(candidate_id: int):
     return redirect(_safe_next(request.form["next"]) if request.form.get("next") else url_for("candidates.index"))
 
 
+@bp.get("/<int:candidate_id>/photo")
+@roles_required(*ALL_ROLES)
+def photo(candidate_id: int):
+    return account_service.photo_response(get_visible_candidate(candidate_id))
+
+
 @bp.post("/<int:candidate_id>/passed/<test>")
 @roles_required(*ALL_ROLES)
 def set_passed(candidate_id: int, test: str):

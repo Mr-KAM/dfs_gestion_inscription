@@ -61,6 +61,27 @@ def home():
     return render_template("portal/home.html", c=current_user.candidate)
 
 
+@bp.route("/profil", methods=["GET", "POST"])
+@login_required
+def profile():
+    candidate = current_user.candidate
+    if request.method == "POST":
+        try:
+            account_service.update_profile(candidate, request.form, request.files.get("photo"))
+            flash("Profil mis à jour.", "success")
+            return redirect(url_for("portal.home"))
+        except BusinessError as exc:
+            db.session.rollback()
+            flash(str(exc), "danger")
+    return render_template("portal/profile.html", c=candidate)
+
+
+@bp.get("/photo")
+@login_required
+def photo():
+    return account_service.photo_response(current_user.candidate)  # own photo only: no id in the url
+
+
 @bp.route("/mot-de-passe", methods=["GET", "POST"])
 @login_required
 def password():

@@ -36,14 +36,80 @@
     </form>
   </div></div>
 
-<div class="card"><div class="card-header"><i class="bi bi-house-door"></i> Admis : classe, chambre et matériel</div>
+<details class="card mb-3">
+  <summary class="card-header"><i class="bi bi-magic"></i> Attribuer les classes, chambres et matériel (automatique ou fichier)</summary>
+  <div class="card-body">
+    <form method="post" action="{{ url_for('admin.sas_auto_assign', sas_id=sas.id) }}"
+          data-confirm="Compléter automatiquement les classes, chambres et matériel vides ?">
+      {{ csrf() }}
+      <h2 class="h6">Attribution automatique</h2>
+      <div class="row g-2 align-items-end">
+        <div class="col-md-12"><label class="form-label" for="classes">Classes (séparées par des virgules)</label>
+          <input class="form-control" id="classes" name="classes" placeholder="Classe A, Classe B, Classe C"></div>
+        <div class="col-6 col-md-3"><label class="form-label" for="bedroom_prefix">Préfixe chambre</label>
+          <input class="form-control" id="bedroom_prefix" name="bedroom_prefix" value="CH-" maxlength="40"></div>
+        <div class="col-6 col-md-2"><label class="form-label" for="bedroom_start">À partir de</label>
+          <input class="form-control" id="bedroom_start" name="bedroom_start" type="number" min="0" value="1"></div>
+        <div class="col-6 col-md-2"><label class="form-label" for="bedroom_count">Nb de chambres</label>
+          <input class="form-control" id="bedroom_count" name="bedroom_count" type="number" min="0" max="500" value="0"></div>
+        <div class="col-6 col-md-2"><label class="form-label" for="capacity">Places / chambre</label>
+          <input class="form-control" id="capacity" name="capacity" type="number" min="1" max="50" value="2"></div>
+        <div class="col-8 col-md-9"><label class="form-label" for="equipment">Matériel (<code>{n}</code> = numéro)</label>
+          <input class="form-control" id="equipment" name="equipment" placeholder="Laptop n°{n}" maxlength="200"></div>
+        <div class="col-4 col-md-3"><label class="form-label" for="equipment_start">N° de départ</label>
+          <input class="form-control" id="equipment_start" name="equipment_start" type="number" min="0" value="1"></div>
+      </div>
+      <div class="form-text">Seuls les champs vides sont remplis : rien de déjà attribué n'est modifié. Laissez une partie vide (ou 0 chambre) pour l'ignorer.
+        Classes : effectifs et sexes équilibrés. Chambres : non mixtes, dans la limite des places. Matériel : numéros déjà utilisés sautés, numérotation par classe.</div>
+      <button class="btn btn-primary mt-2"><i class="bi bi-magic"></i> Attribuer automatiquement</button>
+    </form>
+    <hr>
+    <form method="post" action="{{ url_for('admin.sas_import', sas_id=sas.id) }}" enctype="multipart/form-data">
+      {{ csrf() }}
+      <h2 class="h6">Import par fichier</h2>
+      <div class="row g-2 align-items-end">
+        <div class="col-md-6"><label class="form-label" for="sas-file">Fichier .csv, .xlsx ou .xls</label>
+          <input class="form-control" id="sas-file" type="file" name="file" accept=".csv,.xlsx,.xls" required></div>
+        <div class="col-md-6 d-flex gap-2 flex-wrap">
+          <button class="btn btn-primary"><i class="bi bi-upload"></i> Importer</button>
+          <a class="btn btn-outline-secondary" href="{{ url_for('admin.sas_template', sas_id=sas.id) }}"><i class="bi bi-download"></i> Modèle CSV (admis actuels)</a>
+        </div>
+      </div>
+      <div class="form-text">Colonnes <code>matricule, email, nom, classe, chambre, materiel</code>. Le modèle contient les admis de ce SAS :
+        complétez-le puis réimportez-le. Candidat reconnu par matricule (sinon email) ; une cellule vide ne change rien.</div>
+    </form>
+  </div>
+</details>
+
+{% macro filter_select(key, label, all_label, values=()) -%}
+  <select class="form-select form-select-sm" name="{{ key }}" aria-label="{{ label }}" data-autosubmit>
+    <option value="">{{ all_label }}</option>
+    <option value="none" {{ 'selected' if filters[key] == 'none' }}>Sans {{ label | lower }}</option>
+    <option value="set" {{ 'selected' if filters[key] == 'set' }}>Avec {{ label | lower }}</option>
+    {% for v in values %}<option value="{{ v }}" {{ 'selected' if filters[key] == v }}>{{ v }}</option>{% endfor %}
+  </select>
+{%- endmacro %}
+<div class="card"><div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <span><i class="bi bi-house-door"></i> Admis : classe, chambre et matériel</span>
+  <span class="small text-muted">{{ members | length }} / {{ sas.members | length }} affiché(s)</span></div>
+<form class="card-body border-bottom row g-2 align-items-center mx-0" method="get">
+  <div class="col-12 col-md-4"><input class="form-control form-control-sm" type="search" name="q" value="{{ filters.q }}" placeholder="Nom, matricule, email, code…" aria-label="Rechercher"></div>
+  <div class="col-6 col-md-2"><select class="form-select form-select-sm" name="gender" aria-label="Sexe" data-autosubmit>
+    <option value="">Tous les sexes</option>{% for g in ('F', 'M') %}<option value="{{ g }}" {{ 'selected' if filters.gender == g }}>{{ g }}</option>{% endfor %}</select></div>
+  <div class="col-6 col-md-2">{{ filter_select('class', 'Classe', 'Toutes les classes', classes) }}</div>
+  <div class="col-6 col-md-2">{{ filter_select('bedroom', 'Chambre', 'Toutes les chambres') }}</div>
+  <div class="col-6 col-md-2">{{ filter_select('equipment', 'Matériel', 'Tout le matériel') }}</div>
+  <div class="col-12 d-flex gap-2"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-funnel"></i> Filtrer</button>
+    {% if filters.values() | select | list %}<a class="btn btn-sm btn-link" href="{{ url_for('admin.sas_detail', sas_id=sas.id) }}">Réinitialiser</a>{% endif %}</div>
+</form>
 <div class="table-responsive"><table class="table table-sm align-middle mb-0">
-  <thead><tr><th>Matricule</th><th>Candidat</th><th>Motivation validée</th><th>Technique validé</th><th>Admis le</th><th>Classe</th><th>Chambre</th><th>Matériel</th><th></th></tr></thead>
+  <thead><tr><th>Matricule</th><th>Candidat</th><th>Sexe</th><th>Motivation validée</th><th>Technique validé</th><th>Admis le</th><th>Classe</th><th>Chambre</th><th>Matériel</th><th></th></tr></thead>
   <tbody>
-  {% for c in sas.members %}
+  {% for c in members %}
     <tr>
       <td><code>{{ c.matricule }}</code></td>
       <td><a href="{{ url_for('candidates.detail', candidate_id=c.id) }}">{{ c.full_name }}</a><div class="small text-muted">{{ c.email or '' }}</div></td>
+      <td>{{ c.gender or '—' }}</td>
       <td>{{ passed_checkbox(c, 'motivation', True) }}</td>
       <td>{{ passed_checkbox(c, 'technical', True) }}</td>
       <td class="small">{{ c.sas_admitted_at | dt }}</td>
@@ -51,10 +117,11 @@
       <td><input class="form-control form-control-sm" form="m{{ c.id }}" name="bedroom" value="{{ c.sas_bedroom or '' }}" maxlength="50" placeholder="Ex. B-12" aria-label="Chambre de {{ c.full_name }}" style="min-width:90px"></td>
       <td><input class="form-control form-control-sm" form="m{{ c.id }}" name="equipment" value="{{ c.sas_equipment or '' }}" maxlength="255" placeholder="Ex. Laptop n°12, casque" aria-label="Matériel de {{ c.full_name }}" style="min-width:200px"></td>
       <td class="text-nowrap"><form id="m{{ c.id }}" method="post" action="{{ url_for('admin.sas_member', sas_id=sas.id, candidate_id=c.id) }}" class="d-flex gap-1">
-        {{ csrf() }}<button class="btn btn-sm btn-primary" title="Enregistrer"><i class="bi bi-save"></i></button>
+        {{ csrf() }}<input type="hidden" name="next" value="{{ request.full_path }}">
+        <button class="btn btn-sm btn-primary" title="Enregistrer"><i class="bi bi-save"></i></button>
         <button class="btn btn-sm btn-outline-danger" name="remove" value="1" title="Retirer du SAS" data-confirm="Retirer {{ c.full_name }} du SAS ?"><i class="bi bi-person-dash"></i></button></form></td>
     </tr>
-  {% else %}<tr><td colspan="9" class="text-muted">Aucun candidat admis.</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="10" class="text-muted">{{ 'Aucun candidat ne correspond aux filtres.' if sas.members else 'Aucun candidat admis.' }}</td></tr>{% endfor %}
   </tbody>
 </table></div></div>
 {% endblock %}

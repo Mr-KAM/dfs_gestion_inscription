@@ -195,3 +195,7 @@ a.stat-card:hover { border-color: var(--dfs-blue); }
 
 /* Matricule QR code: keep dark-on-white in both themes so scanners read it. */
 .qr-code svg { display: block; width: 264px; height: auto; max-width: 100%; shape-rendering: crispEdges; }
+
+/* Candidate profile photo */
+.avatar { border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.avatar-empty { display: inline-flex; align-items: center; justify-content: center; background: var(--dfs-blue-light); color: var(--dfs-muted); }

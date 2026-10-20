@@ -1,11 +1,14 @@
 {% extends "base.html" %}
-{% from "_macros.html" import status, qr_card %}
+{% from "_macros.html" import status, qr_card, avatar %}
 {% block title %}Mon espace{% endblock %}
 {% block content %}
-<div class="mb-4">
-  <div class="eyebrow mb-1">Espace candidat</div>
-  <h1 class="page-title">Bonjour, {{ c.full_name }}</h1>
-  <div class="text-muted">Matricule : <code class="fs-5">{{ c.matricule }}</code></div>
+<div class="mb-4 d-flex align-items-center gap-3">
+  <a href="{{ url_for('portal.profile') }}" title="Modifier ma photo">{{ avatar(c, url_for('portal.photo'), 80) }}</a>
+  <div>
+    <div class="eyebrow mb-1">Espace candidat</div>
+    <h1 class="page-title">Bonjour, {{ c.full_name }}</h1>
+    <div class="text-muted">Matricule : <code class="fs-5">{{ c.matricule }}</code></div>
+  </div>
 </div>
 
 {% if c.sas %}
@@ -66,7 +69,8 @@
           <dt class="col-5">Ville</dt><dd class="col-7">{{ c.city or '—' }}</dd>
           <dt class="col-5">CNI</dt><dd class="col-7">{{ c.cni or '—' }}</dd>
         </dl>
-        <p class="small text-muted mt-3 mb-0">Une information est erronée ? Signalez-le à l'équipe DFS lors de votre passage.</p>
+        <a class="btn btn-primary btn-sm mt-3" href="{{ url_for('portal.profile') }}"><i class="bi bi-pencil"></i> Modifier mes informations</a>
+        <p class="small text-muted mt-3 mb-0">Nom, email ou CNI erroné ? Signalez-le à l'équipe DFS lors de votre passage.</p>
       </div></div>
     <a class="btn btn-outline-primary" href="{{ url_for('portal.password') }}"><i class="bi bi-key"></i> Changer mon mot de passe</a>
   </div>

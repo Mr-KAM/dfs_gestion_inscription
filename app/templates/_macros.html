@@ -27,6 +27,12 @@
     </div></div>
 {%- endmacro %}
 
+{# Profile photo, or a neutral placeholder. `src` = the photo url (portal or staff route). #}
+{% macro avatar(c, src, size=96) -%}
+  {% if c.photo_type %}<img class="avatar" src="{{ src }}?v={{ c.updated_at.timestamp() | int }}" width="{{ size }}" height="{{ size }}" alt="Photo de {{ c.full_name }}">
+  {%- else %}<span class="avatar avatar-empty" style="width:{{ size }}px;height:{{ size }}px;font-size:{{ size // 2 }}px" aria-hidden="true"><i class="bi bi-person"></i></span>{% endif %}
+{%- endmacro %}
+
 {% macro csrf() -%}
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 {%- endmacro %}
