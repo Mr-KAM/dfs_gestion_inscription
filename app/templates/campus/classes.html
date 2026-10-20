@@ -3,7 +3,7 @@
 {% block title %}Classes{% endblock %}
 {% block content %}
 <h1 class="page-title mb-3">{{ 'Mes classes' if current_user.role == 'coach' else 'Classes' }}</h1>
-{% if can_create %}
+{% if sas_list %}
 <form class="card card-body mb-3" method="post" style="max-width: 760px">
   {{ csrf() }}
   <div class="row g-2 align-items-end">

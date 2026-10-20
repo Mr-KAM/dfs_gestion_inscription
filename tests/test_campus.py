@@ -93,15 +93,38 @@ def test_reception_visits_and_problems(app, db, client):
     sas, a, b, coach = _campus(db)
     reception = make_user("reception", "rec@test.ci")
     login(client, reception)
-    client.post("/campus/visits", data={"visitor_name": "Mme KOUAME", "student": f"{a.matricule} — ALPHA", "reason": "Colis"})
+    person = {"visitor_name": "Mme KOUAME", "origin": "Yamoussoukro", "id_type": "CNI", "id_number": "ci0012345"}
+    post = lambda **form: client.post("/campus/visits", data={**person, **form},  # noqa: E731
+                                      follow_redirects=True).get_data(as_text=True)
+    post(kind="visit", student=f"{a.matricule} — ALPHA", reason="Colis")
     v = Visit.query.one()
-    assert v.candidate_id == a.id and v.left_at is None
+    assert (v.kind, v.candidate_id, v.origin, v.id_number, v.left_at) == ("visit", a.id, "Yamoussoukro", "CI0012345", None)
     client.post(f"/campus/visits/{v.id}/leave")
     db.session.expire_all()
     assert v.left_at is not None
-    html = client.post("/campus/visits", data={"visitor_name": "X", "student": "26CAND999999"},
+    recruit = make_candidate(email="r@test.ci", cni="R", phone="0404040404", full_name="RECRUE")  # not in a SAS
+    post(kind="visit", student=recruit.matricule)
+    assert Visit.query.filter_by(candidate_id=recruit.id).count() == 1  # candidates can be visited too
+    post(kind="activity", activity_category="Livraison", activity="Ordinateurs", student=a.matricule)
+    act = Visit.query.filter_by(kind="activity").one()
+    assert (act.activity_category, act.activity, act.candidate_id) == ("Livraison", "Ordinateurs", None)
+    page = client.get("/campus/visits").get_data(as_text=True)
+    assert "Yamoussoukro" in page and "CI0012345" in page and "Livraison — Ordinateurs" in page
+
+    assert "précisez le candidat" in post(kind="visit")
+    assert "précisez la catégorie" in post(kind="activity", activity_category="Livraison")
+    assert "Aucun candidat ou étudiant" in post(kind="visit", student="26CAND999999")
+    html = client.post("/campus/visits", data={"kind": "visit", "visitor_name": "X", "student": a.matricule},
                        follow_redirects=True).get_data(as_text=True)
-    assert "Aucun étudiant du SAS" in html
+    assert "provenance, type de pièce, numéro de pièce" in html
+    assert Visit.query.count() == 3
+
+    # classes belong to the admin and the coaches
+    assert client.get("/campus/classes").status_code == 403
+    assert client.post("/campus/classes", data={"sas_id": sas.id, "name": "X"}).status_code == 403
+    k = campus_service.get_class(sas.id, "Classe A")
+    assert client.get(f"/campus/classes/{k.id}").status_code == 403
+    assert "/campus/classes" not in client.get("/campus/").get_data(as_text=True)
     client.post("/campus/incidents", data={"student": a.matricule, "category": "health", "description": "Fièvre"})
     i = Incident.query.one()
     client.post(f"/campus/incidents/{i.id}/resolve", data={"resolution": "Vu par l'infirmière"})

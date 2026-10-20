@@ -59,13 +59,13 @@
       {% if role in ('coach', 'reception', 'residence') %}
         {{ nav('campus.index', 'house-door', 'Vie du SAS') }}
         {% if role == 'residence' %}{{ nav('admin.sas_list', 'door-open', 'Chambres & matériel', 'admin.sas') }}{% endif %}
-        {% if role in ('coach', 'reception') %}{{ nav('campus.classes', 'people', 'Classes', 'campus.class') }}{% endif %}
+        {% if role == 'coach' %}{{ nav('campus.classes', 'people', 'Classes', 'campus.class') }}{% endif %}
         {% if role == 'coach' %}
           {{ nav('campus.notifications', 'megaphone', 'Notifications') }}
           {{ nav('campus.exercises', 'journal-code', 'Exercices', 'campus.exercise') }}
         {% endif %}
         {% if role == 'reception' %}
-          {{ nav('campus.visits', 'person-badge', 'Visites') }}
+          {{ nav('campus.visits', 'person-badge', 'Registre des passages') }}
           {{ nav('campus.notifications', 'megaphone', 'Notifications') }}
         {% endif %}
         {{ nav('campus.incidents', 'exclamation-triangle', 'Problèmes étudiants') }}
@@ -123,7 +123,7 @@
   {% elif role in ('coach', 'reception', 'residence') %}
     {{ bnav('campus.index', 'house-door', 'SAS') }}
     {% if role == 'coach' %}{{ bnav('campus.exercises', 'journal-code', 'Exercices', 'campus.exercise') }}{{ bnav('campus.notifications', 'megaphone', 'Notifs') }}{% endif %}
-    {% if role == 'reception' %}{{ bnav('campus.visits', 'person-badge', 'Visites') }}{% endif %}
+    {% if role == 'reception' %}{{ bnav('campus.visits', 'person-badge', 'Passages') }}{% endif %}
     {% if role == 'residence' %}{{ bnav('admin.sas_list', 'door-open', 'Chambres', 'admin.sas') }}{% endif %}
     {{ bnav('campus.incidents', 'exclamation-triangle', 'Problèmes') }}
   {% elif role == 'technical_tester' %}

@@ -202,3 +202,7 @@ a.stat-card:hover { border-color: var(--dfs-blue); }
 
 /* Check-in QR code, projected to the room */
 .qr-code.qr-lg svg { width: 360px; }
+
+/* Site register: show only the fields of the chosen reason (no script: CSP). Without :has(), both stay visible. */
+.passage-form:has(#kind-visit:checked) .only-activity,
+.passage-form:has(#kind-activity:checked) .only-visit { display: none; }

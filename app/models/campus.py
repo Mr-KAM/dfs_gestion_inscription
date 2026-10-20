@@ -77,20 +77,38 @@ class ExerciseSubmission(db.Model):
         return SUBMISSION_BADGES.get(self.status, ("secondary", self.status))
 
 
+KIND_VISIT, KIND_ACTIVITY = "visit", "activity"
+VISIT_KINDS = {KIND_VISIT: "Visite", KIND_ACTIVITY: "Autre activité"}
+ID_TYPES = ["CNI", "Passeport", "Attestation d'identité", "Permis de conduire", "Carte consulaire",
+            "Carte professionnelle", "Autre"]
+ACTIVITY_CATEGORIES = ["Formation", "Réunion", "Livraison", "Maintenance / travaux", "Prestataire",
+                       "Visite officielle", "Partenaire", "Autre"]
+
+
 class Visit(db.Model):
-    """Reception log: who came, for which student, when they left."""
+    """Site register (reception): every person entering the site, for a visit to a student or another activity."""
     __tablename__ = "visits"
 
     id = db.Column(db.Integer, primary_key=True)
+    kind = db.Column(db.String(20), nullable=False, default=KIND_VISIT, server_default=KIND_VISIT)
     visitor_name = db.Column(db.String(150), nullable=False)
     visitor_phone = db.Column(db.String(30), default="")
-    candidate_id = db.Column(db.Integer, db.ForeignKey("candidates.id", ondelete="SET NULL"), index=True)
-    reason = db.Column(db.String(255), default="")
+    origin = db.Column(db.String(120), default="")  # where the person comes from
+    id_type = db.Column(db.String(40), default="")
+    id_number = db.Column(db.String(50), default="")
+    candidate_id = db.Column(db.Integer, db.ForeignKey("candidates.id", ondelete="SET NULL"), index=True)  # visit
+    activity_category = db.Column(db.String(40), default="")  # other activity
+    activity = db.Column(db.String(255), default="")
+    reason = db.Column(db.String(255), default="")  # visit: optional purpose
     arrived_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
     left_at = db.Column(db.DateTime(timezone=True))
     created_by = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
 
     candidate = db.relationship("Candidate")
+
+    @property
+    def kind_label(self) -> str:
+        return VISIT_KINDS.get(self.kind, self.kind)
 
 
 class Incident(db.Model):

@@ -10,14 +10,15 @@ from sqlalchemy import select
 from app.extensions import db
 from app.models import AttendanceSession, Candidate, Exercise, Incident, Notification, Sas, SasClass, Visit
 from app.models.attendance import METHOD_LABELS
-from app.models.campus import INCIDENT_CATEGORIES, REJECTED, VALIDATED
+from app.models.campus import ACTIVITY_CATEGORIES, ID_TYPES, INCIDENT_CATEGORIES, REJECTED, VALIDATED, VISIT_KINDS
 from app.models.user import CAMPUS_ROLES, ROLE_ADMIN, ROLE_COACH, ROLE_RECEPTION
 from app.services import attendance_service, audit_service, campus_service
 from app.services.candidate_service import BusinessError
 from app.utils import allow_camera, roles_required, utcnow
 
 bp = Blueprint("campus", __name__, url_prefix="/campus")
-DESK_ROLES = (ROLE_ADMIN, ROLE_RECEPTION)  # visits, every incident
+DESK_ROLES = (ROLE_ADMIN, ROLE_RECEPTION)  # site register, every incident
+CLASS_ROLES = (ROLE_ADMIN, ROLE_COACH)  # create classes, join QR codes, invitations
 
 
 @bp.before_request
@@ -33,6 +34,11 @@ def _require_class(sas_id: int, class_name: str) -> None:
 
 def _require_desk() -> None:
     if current_user.role not in DESK_ROLES:
+        abort(403)
+
+
+def _require_class_role() -> None:
+    if current_user.role not in CLASS_ROLES:
         abort(403)
 
 
@@ -186,7 +192,8 @@ def visits():
             flash(str(exc), "danger")
     stmt = select(Visit).order_by(Visit.left_at.is_not(None), Visit.arrived_at.desc()).limit(200)  # still here first
     items = db.session.scalars(stmt).all()
-    return render_template("campus/visits.html", visits=items, students=campus_service.sas_students())
+    return render_template("campus/visits.html", visits=items, students=campus_service.sas_students(sas_only=False),
+                           kinds=VISIT_KINDS, id_types=ID_TYPES, categories=ACTIVITY_CATEGORIES)
 
 
 @bp.post("/visits/<int:visit_id>/leave")
@@ -238,6 +245,7 @@ def incident_resolve(incident_id: int):
 
 @bp.route("/classes", methods=["GET", "POST"])
 def classes():
+    _require_class_role()
     if request.method == "POST":
         try:
             klass = campus_service.create_class(current_user, request.form.get("sas_id", 0, type=int),
@@ -249,13 +257,13 @@ def classes():
     mine = [c for c in campus_service.class_choices()
             if campus_service.can_manage(current_user, c["sas"].id, c["class_name"])]
     sas_list = db.session.scalars(select(Sas).order_by(Sas.created_at.desc())).all()
-    return render_template("campus/classes.html", classes=mine, sas_list=sas_list,
-                           can_create=current_user.role in (ROLE_ADMIN, ROLE_RECEPTION, ROLE_COACH))
+    return render_template("campus/classes.html", classes=mine, sas_list=sas_list)
 
 
 @bp.get("/classes/open")
 def class_open():
     """From the class list: classes assigned by import get their row (join code) on first opening."""
+    _require_class_role()
     sas_id, _, name = request.args.get("key", "").partition(":")
     if not sas_id.isdigit() or not name:
         abort(404)
@@ -265,6 +273,7 @@ def class_open():
 
 
 def _klass(class_id: int) -> SasClass:
+    _require_class_role()
     klass = db.get_or_404(SasClass, class_id)
     _require_class(klass.sas_id, klass.name)
     return klass

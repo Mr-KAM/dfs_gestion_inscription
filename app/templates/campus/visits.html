@@ -1,36 +1,72 @@
 {% extends "base.html" %}
-{% from "_macros.html" import csrf, status %}
-{% block title %}Visites{% endblock %}
+{% from "_macros.html" import csrf %}
+{% block title %}Registre des passages{% endblock %}
 {% block content %}
-<h1 class="page-title mb-3">Accueil — visites</h1>
-<form class="card card-body mb-3" method="post">
+{% set f = request.form %}
+{% set kind = f.get('kind', 'visit') %}
+<h1 class="page-title mb-3">Registre des passages sur le site</h1>
+<form class="card card-body mb-3 passage-form" method="post">
   {{ csrf() }}
-  <div class="row g-2 align-items-end">
-    <div class="col-md-3"><label class="form-label" for="visitor_name">Visiteur</label>
-      <input class="form-control" id="visitor_name" name="visitor_name" maxlength="150" required value="{{ request.form.get('visitor_name', '') }}"></div>
-    <div class="col-md-2"><label class="form-label" for="visitor_phone">Téléphone</label>
-      <input class="form-control" id="visitor_phone" name="visitor_phone" type="tel" maxlength="30" value="{{ request.form.get('visitor_phone', '') }}"></div>
-    <div class="col-md-3">{% with field_label='Étudiant visité (facultatif)', required=False %}{% include "campus/_student_input.html" %}{% endwith %}</div>
-    <div class="col-md-3"><label class="form-label" for="reason">Motif</label>
-      <input class="form-control" id="reason" name="reason" maxlength="255" value="{{ request.form.get('reason', '') }}"></div>
-    <div class="col-md-1"><button class="btn btn-primary w-100" title="Enregistrer l'arrivée"><i class="bi bi-box-arrow-in-right"></i></button></div>
+  <fieldset class="mb-3">
+    <legend class="form-label">Motif du passage</legend>
+    {% for key, label in kinds.items() %}
+    <div class="form-check form-check-inline">
+      <input class="form-check-input" type="radio" name="kind" id="kind-{{ key }}" value="{{ key }}" {{ 'checked' if kind == key }}>
+      <label class="form-check-label" for="kind-{{ key }}">{{ label }}</label></div>
+    {% endfor %}
+  </fieldset>
+
+  <div class="row g-2">
+    <div class="col-md-4"><label class="form-label" for="visitor_name">Nom et prénoms <span class="text-danger">*</span></label>
+      <input class="form-control" id="visitor_name" name="visitor_name" maxlength="150" required value="{{ f.get('visitor_name', '') }}"></div>
+    <div class="col-md-4"><label class="form-label" for="origin">Lieu de provenance <span class="text-danger">*</span></label>
+      <input class="form-control" id="origin" name="origin" maxlength="120" required placeholder="Ville, structure…" value="{{ f.get('origin', '') }}"></div>
+    <div class="col-md-4"><label class="form-label" for="visitor_phone">Téléphone</label>
+      <input class="form-control" id="visitor_phone" name="visitor_phone" type="tel" maxlength="30" value="{{ f.get('visitor_phone', '') }}"></div>
+    <div class="col-md-4"><label class="form-label" for="id_type">Type de pièce <span class="text-danger">*</span></label>
+      <select class="form-select" id="id_type" name="id_type" required>
+        <option value="">—</option>
+        {% for t in id_types %}<option {{ 'selected' if f.get('id_type') == t }}>{{ t }}</option>{% endfor %}</select></div>
+    <div class="col-md-4"><label class="form-label" for="id_number">Numéro de pièce <span class="text-danger">*</span></label>
+      <input class="form-control" id="id_number" name="id_number" maxlength="50" required value="{{ f.get('id_number', '') }}"></div>
   </div>
+
+  <div class="row g-2 mt-1 only-visit">
+    <div class="col-md-6">{% with field_label='Candidat ou étudiant visité *', required=False %}{% include "campus/_student_input.html" %}{% endwith %}</div>
+    <div class="col-md-6"><label class="form-label" for="reason">Objet de la visite</label>
+      <input class="form-control" id="reason" name="reason" maxlength="255" value="{{ f.get('reason', '') }}"></div>
+  </div>
+  <div class="row g-2 mt-1 only-activity">
+    <div class="col-md-4"><label class="form-label" for="activity_category">Catégorie d'activité *</label>
+      <select class="form-select" id="activity_category" name="activity_category">
+        <option value="">—</option>
+        {% for c in categories %}<option {{ 'selected' if f.get('activity_category') == c }}>{{ c }}</option>{% endfor %}</select></div>
+    <div class="col-md-8"><label class="form-label" for="activity">Activité *</label>
+      <input class="form-control" id="activity" name="activity" maxlength="255" placeholder="Ex. livraison du matériel informatique" value="{{ f.get('activity', '') }}"></div>
+  </div>
+  <div class="form-text">Visite : précisez le candidat ou l'étudiant visité. Autre activité : précisez la catégorie et l'activité.</div>
+  <div><button class="btn btn-primary mt-2"><i class="bi bi-box-arrow-in-right"></i> Enregistrer l'arrivée</button></div>
 </form>
 
 <div class="card"><div class="table-responsive"><table class="table table-sm align-middle mb-0">
-  <thead><tr><th>Visiteur</th><th>Téléphone</th><th>Étudiant</th><th>Motif</th><th>Arrivée</th><th>Départ</th></tr></thead>
+  <thead><tr><th>Arrivée</th><th>Personne</th><th>Provenance</th><th>Pièce</th><th>Motif</th><th>Départ</th></tr></thead>
   <tbody>
   {% for v in visits %}
     <tr>
-      <td>{{ v.visitor_name }}</td><td>{{ v.visitor_phone or '—' }}</td>
-      <td>{% if v.candidate %}{{ v.candidate.full_name }} <code class="small">{{ v.candidate.matricule }}</code>{% else %}—{% endif %}</td>
-      <td class="text-wrap">{{ v.reason or '—' }}</td>
       <td>{{ v.arrived_at | dt }}</td>
+      <td>{{ v.visitor_name }}{% if v.visitor_phone %}<div class="small text-muted">{{ v.visitor_phone }}</div>{% endif %}</td>
+      <td>{{ v.origin or '—' }}</td>
+      <td>{% if v.id_type %}{{ v.id_type }}<div class="small"><code>{{ v.id_number }}</code></div>{% else %}—{% endif %}</td>
+      <td class="text-wrap"><span class="status status-{{ 'info' if v.kind == 'visit' else 'secondary' }}">{{ v.kind_label }}</span>
+        {% if v.kind == 'visit' %}
+          {% if v.candidate %}{{ v.candidate.full_name }} <code class="small">{{ v.candidate.matricule }}</code>{% endif %}
+          {% if v.reason %}<div class="small text-muted">{{ v.reason }}</div>{% endif %}
+        {% else %}{{ v.activity_category }} — {{ v.activity }}{% endif %}</td>
       <td>{% if v.left_at %}{{ v.left_at | dt('%H:%M') }}{% else %}
         <form method="post" action="{{ url_for('campus.visit_leave', visit_id=v.id) }}">{{ csrf() }}
           <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-box-arrow-right"></i> Départ</button></form>{% endif %}</td>
     </tr>
-  {% else %}<tr><td colspan="6" class="text-muted">Aucune visite.</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="6" class="text-muted">Aucun passage enregistré.</td></tr>{% endfor %}
   </tbody>
 </table></div></div>
 {% endblock %}

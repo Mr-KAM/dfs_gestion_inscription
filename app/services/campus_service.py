@@ -10,8 +10,8 @@ from sqlalchemy import func, or_, select
 from app.extensions import db
 from app.models import (Candidate, ClassInvitation, Exercise, ExerciseSubmission, Incident, Notification, Sas,
                         SasClass, Visit)
-from app.models.campus import (INCIDENT_CATEGORIES, INVITE_ACCEPTED, INVITE_DECLINED, INVITE_PENDING, REJECTED,
-                               SUBMITTED, VALIDATED)
+from app.models.campus import (INCIDENT_CATEGORIES, INVITE_ACCEPTED, INVITE_DECLINED, INVITE_PENDING, KIND_VISIT,
+                               REJECTED, SUBMITTED, VALIDATED, VISIT_KINDS)
 from app.models.user import ROLE_ADMIN, ROLE_COACH, ROLE_RECEPTION
 from app.services import audit_service, settings_service
 from app.services.candidate_service import BusinessError
@@ -189,34 +189,48 @@ def review(exercise: Exercise, candidate: Candidate, user, status: str, score: s
 
 # ---- reception
 
-def find_student(text: str) -> Candidate | None:
-    """'26CAND000012 — NOM' (datalist), a matricule or an email; only SAS students."""
+def find_student(text: str, sas_only: bool = True) -> Candidate | None:
+    """'26CAND000012 — NOM' (datalist), a matricule or an email; SAS students only unless sas_only=False."""
     key = (text or "").strip().split(" ")[0]
     if not key:
         return None
-    candidate = db.session.scalar(select(Candidate).where(
-        Candidate.sas_id.is_not(None),
-        or_(Candidate.matricule == key.upper(), func.lower(Candidate.email) == key.lower())))
+    stmt = select(Candidate).where(or_(Candidate.matricule == key.upper(), func.lower(Candidate.email) == key.lower()))
+    candidate = db.session.scalar(stmt.where(Candidate.sas_id.is_not(None)) if sas_only else stmt)
     if candidate is None:
-        raise BusinessError(f"Aucun étudiant du SAS ne correspond à « {key} ».")
+        who = "étudiant du SAS" if sas_only else "candidat ou étudiant"
+        raise BusinessError(f"Aucun {who} ne correspond à « {key} ».")
     return candidate
 
 
-def sas_students() -> list[Candidate]:
-    return db.session.scalars(select(Candidate).where(Candidate.sas_id.is_not(None))
-                              .order_by(Candidate.full_name)).all()
+def sas_students(sas_only: bool = True) -> list[Candidate]:
+    stmt = select(Candidate).order_by(Candidate.full_name)
+    return db.session.scalars(stmt.where(Candidate.sas_id.is_not(None)) if sas_only else stmt).all()
 
 
 def add_visit(user, form) -> Visit:
-    name = form.get("visitor_name", "").strip()[:150]
-    if not name:
-        raise BusinessError("Le nom du visiteur est obligatoire.")
-    visit = Visit(visitor_name=name, visitor_phone=form.get("visitor_phone", "").strip()[:30],
-                  candidate=find_student(form.get("student", "")), reason=form.get("reason", "").strip()[:255],
+    """Site register entry. Everyone: name, origin, ID type + number. Visit: the student visited.
+    Other activity: its category and the activity."""
+    value = lambda key, size: " ".join(form.get(key, "").split())[:size]  # noqa: E731
+    kind = form.get("kind") if form.get("kind") in VISIT_KINDS else KIND_VISIT
+    visit = Visit(kind=kind, visitor_name=value("visitor_name", 150), visitor_phone=value("visitor_phone", 30),
+                  origin=value("origin", 120), id_type=value("id_type", 40), id_number=value("id_number", 50).upper(),
                   created_by=user.id)
+    missing = [label for label, v in (("nom", visit.visitor_name), ("provenance", visit.origin),
+                                      ("type de pièce", visit.id_type), ("numéro de pièce", visit.id_number)) if not v]
+    if missing:
+        raise BusinessError("Champs obligatoires : " + ", ".join(missing) + ".")
+    if kind == KIND_VISIT:
+        visit.candidate = find_student(form.get("student", ""), sas_only=False)
+        if visit.candidate is None:
+            raise BusinessError("Visite : précisez le candidat ou l'étudiant visité.")
+        visit.reason = value("reason", 255)
+    else:
+        visit.activity_category, visit.activity = value("activity_category", 40), value("activity", 255)
+        if not (visit.activity_category and visit.activity):
+            raise BusinessError("Autre activité : précisez la catégorie et l'activité.")
     db.session.add(visit)
     db.session.flush()
-    audit_service.log("visit_add", visit, {"visitor": name})
+    audit_service.log("visit_add", visit, {"kind": kind, "visitor": visit.visitor_name})
     db.session.commit()
     return visit
 
@@ -264,10 +278,11 @@ def create_class(user, sas_id: int, name: str) -> SasClass:
     sas = db.session.get(Sas, sas_id or 0)
     if sas is None or not name:
         raise BusinessError("Choisissez un SAS et un nom de classe.")
-    if user.role not in (ROLE_ADMIN, ROLE_RECEPTION, ROLE_COACH):  # a coach's new class becomes one of his classes
+    if user.role not in (ROLE_ADMIN, ROLE_COACH):  # a coach's new class becomes one of his classes
         raise BusinessError("Création de classe non autorisée.")
     taken = db.session.scalar(select(SasClass.id).where(SasClass.sas_id == sas.id, SasClass.name == name))
-    used = db.session.scalar(select(Candidate.id).where(Candidate.sas_id == sas.id, Candidate.sas_class == name).limit(1))
+    used = db.session.scalar(select(Candidate.id).limit(1)
+                             .where(Candidate.sas_id == sas.id, Candidate.sas_class == name))
     if taken or used:
         raise BusinessError(f"La classe « {name} » existe déjà dans {sas.name}.")
     klass = SasClass(sas=sas, name=name, join_code=_new_join_code(), created_by=user.id)
