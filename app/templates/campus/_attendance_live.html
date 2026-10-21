@@ -12,19 +12,20 @@
   <span><i class="bi bi-people"></i> Étudiants</span>
   <span class="status status-{{ 'success' if present == students | length and students else 'info' }}">{{ present }} / {{ students | length }} présent(s)</span></div>
 <div class="table-responsive"><table class="table table-sm align-middle mb-0">
-  <thead><tr><th>Matricule</th><th>Étudiant</th><th>Classe</th><th>Statut</th><th>Pointé</th><th></th></tr></thead>
+  <thead><tr><th>Matricule</th><th>Étudiant</th><th>Classe</th><th>Statut</th><th>Présence marquée à</th><th>Absence</th><th></th></tr></thead>
   <tbody>
   {% for c in students %}{% set m = marks.get(c.id) %}
     <tr>
       <td><code>{{ c.matricule }}</code></td>
       <td>{{ c.full_name }}</td>
       <td>{{ c.sas_class or '—' }}</td>
-      <td>{{ status(('success', 'Présent') if m else (('warning', 'En attente') if s.is_open else ('danger', 'Absent'))) }}</td>
-      <td class="small">{% if m %}{{ m.marked_at | dt('%H:%M') }} · {{ method_labels[m.method] }}{% endif %}</td>
+      <td>{{ status(('success', 'Présent') if m else (('danger', 'Absent') if s.is_closed else ('warning', 'En attente'))) }}</td>
+      <td class="small">{% if m %}{{ m.marked_at | dt('%d/%m/%Y %H:%M:%S') }} · {{ method_labels[m.method] }}{% endif %}</td>
+      <td>{% if not m and s.is_closed %}<strong class="text-danger">{{ s.hours }} h</strong>{% endif %}</td>
       <td class="text-end"><form method="post" action="{{ url_for('campus.attendance_mark', session_id=s.id, candidate_id=c.id) }}">
         {{ csrf() }}<input type="hidden" name="present" value="{{ '0' if m else '1' }}">
         <button class="btn btn-sm {{ 'btn-outline-danger' if m else 'btn-outline-success' }}">{{ 'Marquer absent' if m else 'Marquer présent' }}</button></form></td>
     </tr>
-  {% else %}<tr><td colspan="6" class="text-muted">Aucun étudiant dans cette classe.</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="7" class="text-muted">Aucun étudiant dans cette classe.</td></tr>{% endfor %}
   </tbody>
 </table></div></div>

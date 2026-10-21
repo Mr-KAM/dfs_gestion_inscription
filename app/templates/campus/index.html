@@ -28,18 +28,8 @@
 </div>
 
 {% if targets %}
-<div class="card mb-3"><div class="card-header"><i class="bi bi-calendar-check"></i> Lancer un appel (pointage)</div>
-  <form class="card-body row g-2 align-items-end" method="post" action="{{ url_for('campus.attendance_open') }}">
-    {{ csrf() }}
-    <div class="col-md-4"><label class="form-label" for="att-label">Intitulé</label>
-      <input class="form-control" id="att-label" name="label" maxlength="100" placeholder="Cours du matin"></div>
-    <div class="col-md-4"><label class="form-label" for="att-target">Classe</label>
-      <select class="form-select" id="att-target" name="target" required>
-        {% for t in targets %}<option value="{{ t.key }}">{{ t.label }}</option>{% endfor %}</select></div>
-    <div class="col-6 col-md-2"><label class="form-label" for="att-minutes">Durée (min)</label>
-      <input class="form-control" id="att-minutes" name="minutes" type="number" min="1" max="720" value="15" required></div>
-    <div class="col-6 col-md-2"><button class="btn btn-primary w-100"><i class="bi bi-play-circle"></i> Lancer</button></div>
-  </form></div>
+<div class="card mb-3"><div class="card-header"><i class="bi bi-calendar-check"></i> Programmer un appel (pointage)</div>
+  <div class="card-body">{% include "campus/_attendance_form.html" %}</div></div>
 {% elif role == 'coach' %}
 <div class="alert alert-info">Aucune classe ne vous est encore attribuée : demandez à l'administrateur de vous associer à vos classes.</div>
 {% endif %}
@@ -63,8 +53,8 @@
       {% for s in sessions %}
         <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
           <a href="{{ url_for('campus.attendance', session_id=s.id) }}"><strong>{{ s.label }}</strong></a>
-          <span class="small text-muted">{{ s.sas.name }} · {{ s.class_name or 'tout le SAS' }} · {{ s.opened_at | dt }} · {{ s.marks | length }} présent(s)</span>
-          {{ status(('warning', 'En cours') if s.is_open else ('secondary', 'Clôturé')) }}
+          <span class="small text-muted">{{ s.sas.name }} · {{ s.class_name or 'tout le SAS' }} · {{ s.opened_at | dt }} · {{ s.hours }} h · {{ s.marks | length }} présent(s)</span>
+          {{ status(s.state_badge) }}
         </li>
       {% endfor %}
       </ul></div>

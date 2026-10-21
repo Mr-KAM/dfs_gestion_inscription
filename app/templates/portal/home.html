@@ -69,6 +69,10 @@
           <dt class="col-5">Entretien de motivation</dt>
           <dd class="col-7">{{ status(('success', 'Terminé') if c.motivation_completed else ('secondary', 'En attente')) }}</dd>
           <dt class="col-5">Test technique</dt><dd class="col-7">{{ status(c.technical_badge) }}</dd>
+          {% if c.sas %}
+          <dt class="col-5">Heures d'absence</dt>
+          <dd class="col-7"><a class="{{ 'text-danger fw-semibold' if absence_hours else '' }}" href="{{ url_for('portal.attendance') }}">{{ absence_hours }} h</a></dd>
+          {% endif %}
           {% if c.motivation_completed %}
           <dt class="col-5">Numéro de pièce</dt><dd class="col-7 fs-5">{{ c.piece_number or '—' }}</dd>
           {% endif %}

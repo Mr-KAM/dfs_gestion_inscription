@@ -5,6 +5,7 @@
 <div class="mb-3">
   <div class="eyebrow mb-1">Espace candidat</div>
   <h1 class="page-title">Marquer ma présence</h1>
+  {% if c.sas %}<div class="mt-1">Heures d'absence : <strong class="fs-5 {{ 'text-danger' if absence_hours }}">{{ absence_hours }} h</strong></div>{% endif %}
 </div>
 {% if not c.sas %}
 <p class="text-muted">Les pointages de présence concernent les étudiants admis au SAS.</p>
@@ -31,10 +32,11 @@
       {% for s in sessions %}{% set m = marks.get(s.id) %}
         <li class="list-group-item d-flex justify-content-between align-items-center gap-2 flex-wrap">
           <div><strong>{{ s.label }}</strong>
-            <div class="small text-muted">{{ s.class_name or c.sas.name }} · {{ s.opened_at | dt }}</div></div>
-          {% if m %}{{ status(('success', 'Présent · ' ~ (m.marked_at | dt('%H:%M')))) }}
+            <div class="small text-muted">{{ s.class_name or c.sas.name }} · {{ s.opened_at | dt }} · {{ s.hours }} h</div></div>
+          {% if m %}{{ status(('success', 'Présent · marqué à ' ~ (m.marked_at | dt('%H:%M')))) }}
+          {% elif s.is_closed %}{{ status(('danger', 'Absent · ' ~ s.hours ~ ' h')) }}
           {% elif s.is_open %}{{ status(('warning', 'À marquer avant ' ~ (s.closes_at | dt('%H:%M')))) }}
-          {% else %}{{ status(('danger', 'Absent')) }}{% endif %}
+          {% else %}{{ status(('info', 'Prévu le ' ~ (s.opened_at | dt))) }}{% endif %}
         </li>
       {% else %}<li class="list-group-item text-muted">Aucun pointage pour le moment.</li>{% endfor %}
       </ul></div>

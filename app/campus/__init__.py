@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 from app.extensions import db
 from app.models import AttendanceSession, Candidate, Exercise, Incident, Notification, Sas, SasClass, Visit
-from app.models.attendance import METHOD_LABELS
+from app.models.attendance import HOURS_CHOICES, METHOD_LABELS
 from app.models.campus import ACTIVITY_CATEGORIES, ID_TYPES, INCIDENT_CATEGORIES, REJECTED, VALIDATED, VISIT_KINDS
 from app.models.user import CAMPUS_ROLES, ROLE_ADMIN, ROLE_COACH, ROLE_RECEPTION
 from app.services import attendance_service, audit_service, campus_service
@@ -49,7 +49,12 @@ def index():
     recent = db.session.scalars(select(AttendanceSession).order_by(AttendanceSession.opened_at.desc()).limit(100))
     sessions = [s for s in recent if campus_service.can_manage(current_user, s.sas_id, s.class_name)]
     return render_template("campus/index.html", classes=classes, sessions=sessions[:30],
-                           targets=campus_service.targets(current_user))
+                           targets=campus_service.targets(current_user), **attendance_form_context())
+
+
+def attendance_form_context() -> dict:
+    """Defaults of the shared roll-call form (campus/_attendance_form.html)."""
+    return {"now_input": campus_service.local_now_input(), "hours_choices": HOURS_CHOICES}
 
 
 # ------------------------------------------------------------------ roll call (pointage)
@@ -58,8 +63,10 @@ def index():
 def attendance_open():
     try:
         sas, class_name = campus_service.parse_target(current_user, request.form.get("target", ""))
-        session = attendance_service.open_session(sas, class_name, request.form.get("label", ""),
-                                                  request.form.get("minutes", 0, type=int) or 0, current_user)
+        session = attendance_service.open_session(
+            sas, class_name, request.form.get("label", ""), request.form.get("minutes", 0, type=int) or 0,
+            current_user, starts_at=campus_service.local_datetime(request.form.get("starts_at", "")),
+            hours=request.form.get("hours", 1, type=int))
     except BusinessError as exc:
         flash(str(exc), "danger")
         return redirect(request.referrer or url_for("campus.index"))

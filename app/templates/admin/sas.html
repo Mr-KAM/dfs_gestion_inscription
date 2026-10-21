@@ -40,28 +40,22 @@
     </form>
   </div></div>
 
-<div class="card mb-3"><div class="card-header"><i class="bi bi-calendar-check"></i> Pointages de présence</div>
+<div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <span><i class="bi bi-calendar-check"></i> Pointages de présence</span>
+  {% if sas.attendance_sessions %}<span class="d-flex gap-2">
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('admin.sas_attendance_export', sas_id=sas.id, format='xlsx') }}"><i class="bi bi-file-earmark-excel"></i> Export Excel</a>
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('admin.sas_attendance_export', sas_id=sas.id, format='csv') }}"><i class="bi bi-filetype-csv"></i> CSV</a>
+  </span>{% endif %}</div>
   <div class="card-body">
-    <form class="row g-2 align-items-end" method="post" action="{{ url_for('campus.attendance_open') }}">
-      {{ csrf() }}
-      <div class="col-md-4"><label class="form-label" for="att-label">Intitulé</label>
-        <input class="form-control" id="att-label" name="label" maxlength="100" placeholder="Cours du matin"></div>
-      <div class="col-md-3"><label class="form-label" for="att-class">Classe</label>
-        <select class="form-select" id="att-class" name="target"><option value="{{ sas.id }}:">Tout le SAS</option>
-          {% for name in classes %}<option value="{{ sas.id }}:{{ name }}">{{ name }}</option>{% endfor %}</select></div>
-      <div class="col-6 col-md-2"><label class="form-label" for="att-minutes">Durée (min)</label>
-        <input class="form-control" id="att-minutes" name="minutes" type="number" min="1" max="720" value="15" required></div>
-      <div class="col-6 col-md-3"><button class="btn btn-primary w-100"><i class="bi bi-play-circle"></i> Lancer le pointage</button></div>
-    </form>
-    <div class="form-text">Pendant la durée, les étudiants marquent leur présence en scannant le QR code affiché. Ensuite, seul l'admin peut les marquer.</div>
+    {% include "campus/_attendance_form.html" %}
   </div>
   {% if sas.attendance_sessions %}
   <ul class="list-group list-group-flush">
   {% for s in sas.attendance_sessions %}
     <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
       <a href="{{ url_for('campus.attendance', session_id=s.id) }}"><strong>{{ s.label }}</strong></a>
-      <span class="small text-muted">{{ s.class_name or 'Tout le SAS' }} · {{ s.opened_at | dt }} · {{ s.marks | length }} présent(s)</span>
-      {{ status(('warning', 'En cours') if s.is_open else ('secondary', 'Clôturé')) }}
+      <span class="small text-muted">{{ s.class_name or 'Tout le SAS' }} · {{ s.opened_at | dt }} · {{ s.hours }} h · {{ s.marks | length }} présent(s)</span>
+      {{ status(s.state_badge) }}
     </li>
   {% endfor %}
   </ul>
@@ -136,7 +130,7 @@
     {% if filters.values() | select | list %}<a class="btn btn-sm btn-link" href="{{ url_for('admin.sas_detail', sas_id=sas.id) }}">Réinitialiser</a>{% endif %}</div>
 </form>
 <div class="table-responsive"><table class="table table-sm align-middle mb-0">
-  <thead><tr><th>Matricule</th><th>Candidat</th><th>Sexe</th><th>Motivation validée</th><th>Technique validé</th><th>Admis le</th><th>Classe</th><th>Chambre</th><th>Matériel</th><th></th></tr></thead>
+  <thead><tr><th>Matricule</th><th>Candidat</th><th>Sexe</th><th>Motivation validée</th><th>Technique validé</th><th>Admis le</th><th>Absences</th><th>Classe</th><th>Chambre</th><th>Matériel</th><th></th></tr></thead>
   <tbody>
   {% for c in members %}
     <tr>
@@ -146,6 +140,8 @@
       <td>{{ passed_checkbox(c, 'motivation', is_admin) }}</td>
       <td>{{ passed_checkbox(c, 'technical', is_admin) }}</td>
       <td class="small">{{ c.sas_admitted_at | dt }}</td>
+      {% set h = absence_hours.get(c.id, 0) %}
+      <td>{% if h %}<strong class="text-danger">{{ h }} h</strong>{% else %}<span class="text-muted">0 h</span>{% endif %}</td>
       <td><input class="form-control form-control-sm" form="m{{ c.id }}" name="class" value="{{ c.sas_class or '' }}" maxlength="50" placeholder="Ex. Classe A" aria-label="Classe de {{ c.full_name }}" style="min-width:110px"></td>
       <td><input class="form-control form-control-sm" form="m{{ c.id }}" name="bedroom" value="{{ c.sas_bedroom or '' }}" maxlength="50" placeholder="Ex. B-12" aria-label="Chambre de {{ c.full_name }}" style="min-width:90px"></td>
       <td><input class="form-control form-control-sm" form="m{{ c.id }}" name="equipment" value="{{ c.sas_equipment or '' }}" maxlength="255" placeholder="Ex. Laptop n°12, casque" aria-label="Matériel de {{ c.full_name }}" style="min-width:200px"></td>
@@ -154,7 +150,7 @@
         <button class="btn btn-sm btn-primary" title="Enregistrer"><i class="bi bi-save"></i></button>
         {% if is_admin %}<button class="btn btn-sm btn-outline-danger" name="remove" value="1" title="Retirer du SAS" data-confirm="Retirer {{ c.full_name }} du SAS ?"><i class="bi bi-person-dash"></i></button>{% endif %}</form></td>
     </tr>
-  {% else %}<tr><td colspan="10" class="text-muted">{{ 'Aucun candidat ne correspond aux filtres.' if sas.members else 'Aucun candidat admis.' }}</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="11" class="text-muted">{{ 'Aucun candidat ne correspond aux filtres.' if sas.members else 'Aucun candidat admis.' }}</td></tr>{% endfor %}
   </tbody>
 </table></div></div>
 {% endblock %}

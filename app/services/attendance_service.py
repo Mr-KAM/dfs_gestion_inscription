@@ -3,6 +3,7 @@ rotating QR code shown by the admin, or the admin scans their matricule QR. Afte
 import hashlib
 import hmac
 from datetime import timedelta
+from zoneinfo import ZoneInfo
 from urllib.parse import parse_qs, urlsplit
 
 import segno
@@ -12,8 +13,8 @@ from sqlalchemy import or_, select
 
 from app.extensions import db
 from app.models import Attendance, AttendanceSession, Candidate
-from app.models.attendance import METHOD_ADMIN, METHOD_SCAN, METHOD_SELF
-from app.services import audit_service, candidate_service
+from app.models.attendance import HOURS_CHOICES, METHOD_ADMIN, METHOD_LABELS, METHOD_SCAN, METHOD_SELF
+from app.services import audit_service, candidate_service, settings_service
 from app.services.candidate_service import BusinessError
 from app.utils import as_utc, utcnow
 
@@ -21,21 +22,28 @@ CODE_WINDOW = 60  # seconds: the QR code shown by the admin changes every minute
 MAX_DURATION_MINUTES = 12 * 60
 
 
-def open_session(sas, class_name: str, label: str, minutes: int, user) -> AttendanceSession:
+def open_session(sas, class_name: str, label: str, minutes: int, user, starts_at=None, hours: int = 1,
+                 ) -> AttendanceSession:
+    """Roll call starting at `starts_at` (now by default; may be scheduled), marking open for `minutes`,
+    counting `hours` hours of absence for whoever has not marked by then."""
     if not 1 <= minutes <= MAX_DURATION_MINUTES:
         raise BusinessError(f"Durée invalide : entre 1 et {MAX_DURATION_MINUTES} minutes.")
-    now = utcnow()
+    if hours not in HOURS_CHOICES:
+        raise BusinessError("Nombre d'heures invalide : " + ", ".join(map(str, HOURS_CHOICES)) + ".")
+    start = starts_at or utcnow()
     session = AttendanceSession(sas=sas, class_name=class_name[:50], label=(label.strip() or "Pointage")[:100],
-                                opened_at=now, closes_at=now + timedelta(minutes=minutes), created_by=user.id)
+                                opened_at=start, closes_at=start + timedelta(minutes=minutes), hours=hours,
+                                created_by=user.id)
     db.session.add(session)
     db.session.flush()
-    audit_service.log("attendance_open", session, {"class": session.class_name, "minutes": minutes})
+    audit_service.log("attendance_open", session, {"class": session.class_name, "minutes": minutes, "hours": hours,
+                                                   "starts_at": start.isoformat()})
     db.session.commit()
     return session
 
 
 def close_session(session: AttendanceSession) -> None:
-    session.closes_at = min(as_utc(session.closes_at), utcnow())
+    session.closes_at = max(as_utc(session.opened_at), min(as_utc(session.closes_at), utcnow()))
     audit_service.log("attendance_close", session)
     db.session.commit()
 
@@ -59,6 +67,14 @@ def sessions_for(candidate: Candidate) -> list[AttendanceSession]:
         AttendanceSession.sas_id == candidate.sas_id,
         or_(AttendanceSession.class_name == "", AttendanceSession.class_name == (candidate.sas_class or "")),
     ).order_by(AttendanceSession.opened_at.desc())).all()
+
+
+def absence_hours(candidate: Candidate, sessions: list[AttendanceSession] | None = None,
+                  marks: dict | None = None) -> int:
+    """Hours of every closed roll call of his class / SAS that he did not mark."""
+    sessions = sessions if sessions is not None else sessions_for(candidate)
+    marks = marks if marks is not None else marks_by_session(candidate)
+    return sum(s.hours for s in sessions if s.is_closed and s.id not in marks)
 
 
 def marks_by_session(candidate: Candidate) -> dict[int, Attendance]:
@@ -118,8 +134,10 @@ def self_mark(candidate: Candidate, code: str, user) -> tuple[AttendanceSession,
     session = session_from_code(code)
     if not in_session(candidate, session):
         raise BusinessError("Ce pointage ne concerne pas votre classe.")
-    if not session.is_open:
+    if session.is_closed:
         raise BusinessError("Le temps de pointage est terminé : seul l'administrateur peut encore marquer votre présence.")
+    if not session.is_open:
+        raise BusinessError("Ce pointage n'a pas encore commencé.")
     return session, _mark(session, candidate, METHOD_SELF, user)
 
 
@@ -142,3 +160,43 @@ def admin_set(session: AttendanceSession, candidate: Candidate, present: bool, u
         session.marks.remove(mark)
         audit_service.log("attendance_mark", session, {"matricule": candidate.matricule, "method": "absent"})
     db.session.commit()
+
+
+# ---- reports: absence hours per SAS member, export
+
+def _local(value) -> str:
+    tz = ZoneInfo(settings_service.get("timezone") or "UTC")
+    return as_utc(value).astimezone(tz).strftime("%d/%m/%Y %H:%M:%S") if value else ""
+
+
+def _status(session: AttendanceSession, mark) -> str:
+    if mark:
+        return "Présent"
+    if session.is_closed:
+        return "Absent"
+    return "En attente" if session.is_open else "Prévu"
+
+
+def sas_report(sas) -> tuple[dict[int, int], list[dict], list[dict]]:
+    """(absence hours by candidate id, one summary row per member, one row per member x roll call).
+    Two queries for the whole SAS, whatever its size."""
+    marks = {(m.session_id, m.candidate_id): m for m in db.session.scalars(
+        select(Attendance).join(AttendanceSession).where(AttendanceSession.sas_id == sas.id))}
+    sessions = sorted(sas.attendance_sessions, key=lambda s: as_utc(s.opened_at))
+    hours_by_id, summary, detail = {}, [], []
+    for c in sorted(sas.members, key=lambda c: (c.sas_class or "", c.full_name)):
+        present = absent = hours = 0
+        for s in (s for s in sessions if s.class_name in ("", c.sas_class or "")):
+            mark = marks.get((s.id, c.id))
+            status = _status(s, mark)
+            lost = s.hours if status == "Absent" else 0
+            present, absent, hours = present + (status == "Présent"), absent + (status == "Absent"), hours + lost
+            detail.append({"Matricule": c.matricule, "Nom et prénoms": c.full_name, "Classe": c.sas_class or "",
+                           "Appel": s.label, "Date de l'appel": _local(s.opened_at), "Heures pointées": s.hours,
+                           "Statut": status, "Présence marquée à": _local(mark.marked_at) if mark else "",
+                           "Méthode": METHOD_LABELS.get(mark.method, mark.method) if mark else "",
+                           "Heures d'absence": lost})
+        hours_by_id[c.id] = hours
+        summary.append({"Matricule": c.matricule, "Nom et prénoms": c.full_name, "Classe": c.sas_class or "",
+                        "Présences": present, "Absences": absent, "Heures d'absence": hours})
+    return hours_by_id, summary, detail

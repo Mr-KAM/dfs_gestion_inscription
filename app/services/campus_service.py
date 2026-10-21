@@ -78,6 +78,11 @@ def visible_query(model, user):
     return stmt
 
 
+def local_now_input() -> str:
+    """Now, in the school's time zone, formatted for <input type="datetime-local">."""
+    return utcnow().astimezone(ZoneInfo(settings_service.get("timezone") or "UTC")).strftime("%Y-%m-%dT%H:%M")
+
+
 def local_datetime(value: str) -> datetime | None:
     """<input type="datetime-local"> is in the school's time zone; stored in UTC."""
     if not value:

@@ -1,15 +1,17 @@
 {% extends "base.html" %}
-{% from "_macros.html" import csrf, scanner %}
+{% from "_macros.html" import csrf, scanner, status %}
 {% block title %}Pointage — {{ s.label }}{% endblock %}
 {% block content %}
 <a class="small text-muted text-decoration-none" href="{{ url_for('campus.index') }}"><i class="bi bi-arrow-left"></i> Vie du SAS</a>
 <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mt-1 mb-3">
   <div>
     <h1 class="page-title">{{ s.label }}</h1>
-    <div class="text-muted">{{ s.class_name or 'Tout le SAS' }} · ouvert le {{ s.opened_at | dt }} ·
-      {% if s.is_open %}marquage jusqu'à <strong>{{ s.closes_at | dt('%H:%M') }}</strong>{% else %}clôturé à {{ s.closes_at | dt('%H:%M') }}{% endif %}</div>
+    <div class="text-muted">{{ s.class_name or 'Tout le SAS' }} · appel du {{ s.opened_at | dt }} · <strong>{{ s.hours }} h</strong> ·
+      {% if s.is_closed %}clôturé à {{ s.closes_at | dt('%H:%M') }}
+      {% elif s.is_open %}marquage jusqu'à <strong>{{ s.closes_at | dt('%H:%M') }}</strong>
+      {% else %}marquage de {{ s.opened_at | dt('%H:%M') }} à {{ s.closes_at | dt('%H:%M') }}{% endif %} {{ status(s.state_badge) }}</div>
   </div>
-  {% if s.is_open %}
+  {% if not s.is_closed %}
   <form method="post" action="{{ url_for('campus.attendance_close', session_id=s.id) }}"
         data-confirm="Clôturer maintenant ? Les étudiants ne pourront plus marquer leur présence.">
     {{ csrf() }}<button class="btn btn-outline-danger"><i class="bi bi-stop-circle"></i> Clôturer</button></form>

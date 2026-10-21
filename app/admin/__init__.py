@@ -15,11 +15,13 @@ from sqlalchemy.orm import selectinload
 from werkzeug.utils import secure_filename
 
 from app.auth import _safe_next
+from app.campus import attendance_form_context
 from app.extensions import db
 from app.models import AuditLog, Candidate, KoboSubmission, Room, Sas, TechnicalTestSession, User, Workstation
 from app.models.candidate import FILE_MISSING, FILE_NOT_FOUND, FILE_STATUSES
 from app.models.user import ROLE_ADMIN, ROLE_CANDIDATE, ROLE_COACH, ROLE_RESIDENCE, ROLES
-from app.services import audit_service, campus_service, candidate_service, import_service, sas_service, settings_service
+from app.services import (attendance_service, audit_service, campus_service, candidate_service,
+                          import_service, sas_service, settings_service)
 from app.services.audit_service import ACTION_LABELS
 from app.utils import allow_camera
 
@@ -332,8 +334,34 @@ def sas_detail(sas_id: int):
     ready = db.session.scalar(select(func.count()).select_from(_sas_ready().subquery()))
     filters = {k: request.args.get(k, "") for k in ("q", "gender", *sas_service.FIELDS)}
     classes = sorted({c.sas_class for c in sas.members if c.sas_class})
+    targets = [{"key": f"{sas.id}:", "label": "Tout le SAS"}] + [{"key": f"{sas.id}:{c}", "label": c} for c in classes]
+    absence_hours, _summary, _detail = attendance_service.sas_report(sas)
     return render_template("admin/sas.html", sas=sas, ready=ready, filters=filters, classes=classes,
-                           members=sas_service.filter_members(sas.members, request.args))
+                           members=sas_service.filter_members(sas.members, request.args), targets=targets,
+                           absence_hours=absence_hours, **attendance_form_context())
+
+
+@bp.get("/sas/<int:sas_id>/attendance-export")
+def sas_attendance_export(sas_id: int):
+    """Excel: 'Synthèse' (one line per student) + 'Détail' (one line per student x roll call). CSV: the detail."""
+    sas = db.get_or_404(Sas, sas_id)
+    _hours, summary, detail = attendance_service.sas_report(sas)
+    clean = lambda rows: [{k: _neutralize(v) for k, v in row.items()} for row in rows]  # noqa: E731
+    fmt = "xlsx" if request.args.get("format") == "xlsx" else "csv"
+    audit_service.log("export", sas, {"kind": "attendance", "format": fmt, "rows": len(detail)})
+    db.session.commit()
+    buffer = io.BytesIO()
+    name = f"presences_{secure_filename(sas.name) or sas.id}.{fmt}"
+    if fmt == "xlsx":
+        with pd.ExcelWriter(buffer) as writer:
+            pd.DataFrame(clean(summary)).to_excel(writer, index=False, sheet_name="Synthèse")
+            pd.DataFrame(clean(detail)).to_excel(writer, index=False, sheet_name="Détail")
+        mimetype = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    else:
+        buffer.write(pd.DataFrame(clean(detail)).to_csv(index=False, sep=";").encode("utf-8-sig"))
+        mimetype = "text/csv"
+    buffer.seek(0)
+    return send_file(buffer, mimetype=mimetype, as_attachment=True, download_name=name)
 
 
 @bp.get("/sas/<int:sas_id>/template")

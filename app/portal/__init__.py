@@ -62,8 +62,10 @@ def signup():
 def home():
     candidate = current_user.candidate
     marks = attendance_service.marks_by_session(candidate)
-    pending = [s for s in attendance_service.sessions_for(candidate) if s.is_open and s.id not in marks]
+    sessions = attendance_service.sessions_for(candidate)
+    pending = [s for s in sessions if s.is_open and s.id not in marks]
     return render_template("portal/home.html", c=candidate, pending=pending,
+                           absence_hours=attendance_service.absence_hours(candidate, sessions, marks),
                            notifications=campus_service.notifications_for(candidate, limit=3),
                            invitations=campus_service.pending_invitations(candidate))
 
@@ -130,9 +132,10 @@ def attendance():
             flash(str(exc), "danger")
         return redirect(url_for("portal.attendance"))
     sessions = attendance_service.sessions_for(candidate)
+    marks = attendance_service.marks_by_session(candidate)
     return allow_camera(make_response(render_template(
-        "portal/attendance.html", c=candidate, sessions=sessions, code=request.args.get("code", "")[:200],
-        marks=attendance_service.marks_by_session(candidate))))
+        "portal/attendance.html", c=candidate, sessions=sessions, code=request.args.get("code", "")[:200], marks=marks,
+        absence_hours=attendance_service.absence_hours(candidate, sessions, marks))))
 
 
 @bp.route("/classe", methods=["GET", "POST"])

@@ -1,0 +1,19 @@
+{# Roll-call form, shared by the campus home and the SAS page. Needs `targets`, `now_input`, `hours_choices`. #}
+<form class="row g-2 align-items-end" method="post" action="{{ url_for('campus.attendance_open') }}">
+  {{ csrf() }}
+  <div class="col-md-4"><label class="form-label" for="att-label">Intitulé</label>
+    <input class="form-control" id="att-label" name="label" maxlength="100" placeholder="Cours du matin"></div>
+  <div class="col-md-4"><label class="form-label" for="att-target">Classe</label>
+    <select class="form-select" id="att-target" name="target" required>
+      {% for t in targets %}<option value="{{ t.key }}">{{ t.label }}</option>{% endfor %}</select></div>
+  <div class="col-md-4"><label class="form-label" for="att-start">Date et heure de l'appel</label>
+    <input class="form-control" id="att-start" name="starts_at" type="datetime-local" value="{{ now_input }}" required></div>
+  <div class="col-6 col-md-3"><label class="form-label" for="att-hours">Heures pointées</label>
+    <select class="form-select" id="att-hours" name="hours">
+      {% for h in hours_choices %}<option value="{{ h }}">{{ h }} heure{{ 's' if h > 1 }}</option>{% endfor %}</select></div>
+  <div class="col-6 col-md-3"><label class="form-label" for="att-minutes">Temps pour marquer (min)</label>
+    <input class="form-control" id="att-minutes" name="minutes" type="number" min="1" max="720" value="15" required></div>
+  <div class="col-md-3"><button class="btn btn-primary w-100"><i class="bi bi-play-circle"></i> Programmer l'appel</button></div>
+  <div class="col-12 form-text mt-0">À partir de la date choisie, les étudiants ont le temps indiqué pour marquer leur présence.
+    Ceux qui ne l'ont pas fait comptent les heures pointées en heures d'absence.</div>
+</form>
