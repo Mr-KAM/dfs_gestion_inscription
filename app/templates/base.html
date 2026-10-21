@@ -58,13 +58,19 @@
       {% else %}
       {% if role in ('coach', 'reception', 'residence') %}
         {{ nav('campus.index', 'house-door', 'Vie du SAS') }}
-        {% if role == 'residence' %}{{ nav('admin.sas_list', 'door-open', 'Chambres & matériel', 'admin.sas') }}{% endif %}
+        {% if role == 'residence' %}
+          {{ nav('infra.index', 'building', 'Infrastructures', 'infra.index') }}
+          {{ nav('infra.equipment_list', 'pc-display', 'Matériel', 'infra.equipment') }}
+          {{ nav('infra.consumables', 'box-seam', 'Consommables', 'infra.consumable') }}
+          {{ nav('admin.sas_list', 'door-open', 'Chambres SAS', 'admin.sas') }}
+        {% endif %}
         {% if role == 'coach' %}{{ nav('campus.classes', 'people', 'Classes', 'campus.class') }}{% endif %}
         {% if role == 'coach' %}
           {{ nav('campus.notifications', 'megaphone', 'Notifications') }}
           {{ nav('campus.exercises', 'journal-code', 'Exercices', 'campus.exercise') }}
         {% endif %}
         {% if role == 'reception' %}
+          {{ nav('campus.students', 'mortarboard', 'Étudiants SAS', 'campus.student') }}
           {{ nav('campus.visits', 'person-badge', 'Registre des passages') }}
           {{ nav('campus.notifications', 'megaphone', 'Notifications') }}
         {% endif %}
@@ -89,6 +95,7 @@
         {{ nav('kobo.index', 'cloud-arrow-down', 'KoboToolbox', 'kobo.') }}
         {{ nav('admin.sas_list', 'door-open', 'SAS', 'admin.sas') }}
         {{ nav('campus.index', 'house-door', 'Vie du SAS', 'campus.') }}
+        {{ nav('infra.index', 'building', 'Infrastructures', 'infra.') }}
         {{ nav('admin.users', 'person-gear', 'Utilisateurs', 'admin.user') }}
         {{ nav('admin.scan', 'qr-code-scan', 'Scanner QR') }}
         {{ nav('admin.imports', 'upload', 'Imports', 'admin.import') }}
@@ -123,8 +130,8 @@
   {% elif role in ('coach', 'reception', 'residence') %}
     {{ bnav('campus.index', 'house-door', 'SAS') }}
     {% if role == 'coach' %}{{ bnav('campus.exercises', 'journal-code', 'Exercices', 'campus.exercise') }}{{ bnav('campus.notifications', 'megaphone', 'Notifs') }}{% endif %}
-    {% if role == 'reception' %}{{ bnav('campus.visits', 'person-badge', 'Passages') }}{% endif %}
-    {% if role == 'residence' %}{{ bnav('admin.sas_list', 'door-open', 'Chambres', 'admin.sas') }}{% endif %}
+    {% if role == 'reception' %}{{ bnav('campus.students', 'mortarboard', 'Étudiants', 'campus.student') }}{{ bnav('campus.visits', 'person-badge', 'Passages') }}{% endif %}
+    {% if role == 'residence' %}{{ bnav('infra.index', 'building', 'Infra', 'infra.index') }}{{ bnav('infra.equipment_list', 'pc-display', 'Matériel', 'infra.equipment') }}{{ bnav('infra.consumables', 'box-seam', 'Stock', 'infra.consumable') }}{% endif %}
     {{ bnav('campus.incidents', 'exclamation-triangle', 'Problèmes') }}
   {% elif role == 'technical_tester' %}
     {{ bnav('dashboard.index', 'speedometer2', 'Accueil') }}

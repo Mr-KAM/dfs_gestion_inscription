@@ -5,7 +5,7 @@ import segno
 from flask import Blueprint, abort, flash, make_response, redirect, render_template, request, url_for
 from flask_login import current_user
 from markupsafe import Markup
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from app.extensions import db
 from app.models import AttendanceSession, Candidate, Exercise, Incident, Notification, Sas, SasClass, Visit
@@ -310,3 +310,45 @@ def class_renew(class_id: int):
     campus_service.renew_join_code(_klass(class_id))
     flash("Nouveau code : l'ancien QR code et l'ancienne adresse ne fonctionnent plus.", "success")
     return redirect(url_for("campus.class_page", class_id=class_id))
+
+
+# ------------------------------------------------------------------ reception: SAS students (read only)
+
+@bp.get("/students")
+def students():
+    """Admitted SAS students: search + filters, read only."""
+    _require_desk()
+    args = {k: request.args.get(k, "").strip() for k in ("q", "sas", "class", "gender")}
+    stmt = select(Candidate).where(Candidate.sas_id.is_not(None)).order_by(Candidate.full_name)
+    if args["q"]:
+        like = f"%{args['q']}%"
+        stmt = stmt.where(or_(Candidate.full_name.ilike(like), Candidate.matricule.ilike(like),
+                              Candidate.email.ilike(like), Candidate.phone.ilike(like)))
+    if args["sas"].isdigit():
+        stmt = stmt.where(Candidate.sas_id == int(args["sas"]))
+    if args["class"] == "none":
+        stmt = stmt.where(or_(Candidate.sas_class.is_(None), Candidate.sas_class == ""))
+    elif args["class"]:
+        stmt = stmt.where(Candidate.sas_class == args["class"])
+    if args["gender"] in ("M", "F"):
+        stmt = stmt.where(Candidate.gender == args["gender"])
+    page = db.paginate(stmt, page=request.args.get("page", 1, type=int), per_page=50, error_out=False)
+    classes = sorted({c["class_name"] for c in campus_service.class_choices()})
+    return render_template("campus/students.html", page=page, args=args, classes=classes,
+                           sas_list=db.session.scalars(select(Sas).order_by(Sas.name)).all())
+
+
+@bp.get("/students/<int:candidate_id>")
+def student(candidate_id: int):
+    _require_desk()
+    c = db.get_or_404(Candidate, candidate_id)
+    if not c.sas_id:
+        abort(404)  # recruitment candidates stay on the recruitment pages
+    sessions = attendance_service.sessions_for(c)
+    marks = attendance_service.marks_by_session(c)
+    visits = db.session.scalars(select(Visit).where(Visit.candidate_id == c.id).order_by(Visit.arrived_at.desc())
+                                .limit(50)).all()
+    incidents = db.session.scalars(select(Incident).where(Incident.candidate_id == c.id)
+                                   .order_by(Incident.created_at.desc())).all()
+    return render_template("campus/student.html", c=c, sessions=sessions[:30], marks=marks, visits=visits,
+                           incidents=incidents, absence_hours=attendance_service.absence_hours(c, sessions, marks))

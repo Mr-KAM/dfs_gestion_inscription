@@ -1,0 +1,32 @@
+{# Equipment fields, for creation (item = None, optional preset_space) and edition. #}
+{% set f = request.form %}
+<div class="row g-2">
+  <div class="col-md-5"><label class="form-label" for="eq-name">Désignation <span class="text-danger">*</span></label>
+    <input class="form-control" id="eq-name" name="name" maxlength="150" required value="{{ f.get('name', item.name if item else '') }}" placeholder="Ordinateur portable"></div>
+  <div class="col-md-3"><label class="form-label" for="eq-code">N° d'inventaire</label>
+    <input class="form-control" id="eq-code" name="code" maxlength="30" value="{{ f.get('code', item.code if item else '') }}" placeholder="Auto : INV-00001"></div>
+  <div class="col-md-4"><label class="form-label" for="eq-category">Catégorie</label>
+    <select class="form-select" id="eq-category" name="category">
+      {% for c in categories %}<option {{ 'selected' if f.get('category', item.category if item else '') == c }}>{{ c }}</option>{% endfor %}</select></div>
+  <div class="col-md-4"><label class="form-label" for="eq-brand">Marque / modèle</label>
+    <input class="form-control" id="eq-brand" name="brand" maxlength="100" value="{{ f.get('brand', item.brand if item else '') }}"></div>
+  <div class="col-md-4"><label class="form-label" for="eq-serial">N° de série</label>
+    <input class="form-control" id="eq-serial" name="serial_number" maxlength="100" value="{{ f.get('serial_number', item.serial_number if item else '') }}"></div>
+  <div class="col-md-4"><label class="form-label" for="eq-status">État</label>
+    <select class="form-select" id="eq-status" name="status">
+      {% for key, badge in statuses.items() %}<option value="{{ key }}" {{ 'selected' if f.get('status', item.status if item else 'in_service') == key }}>{{ badge[1] }}</option>{% endfor %}</select></div>
+  <div class="col-md-5"><label class="form-label" for="eq-space">Emplacement</label>
+    {% set current_space = f.get('space_id', (item.space_id if item else preset_space) | string) %}
+    <select class="form-select" id="eq-space" name="space_id">
+      <option value="">— Non localisé —</option>
+      {% for id, label in spaces %}<option value="{{ id }}" {{ 'selected' if current_space == id | string }}>{{ label }}</option>{% endfor %}</select></div>
+  <div class="col-md-4"><label class="form-label" for="eq-holder">Attribué à (personnel)</label>
+    {% set current_holder = f.get('assigned_to', (item.assigned_to if item else '') | string) %}
+    <select class="form-select" id="eq-holder" name="assigned_to">
+      <option value="">— Personne —</option>
+      {% for u in staff %}<option value="{{ u.id }}" {{ 'selected' if current_holder == u.id | string }}>{{ u.display_name }} ({{ u.role_label }})</option>{% endfor %}</select></div>
+  <div class="col-md-3"><label class="form-label" for="eq-acquired">Acquis le</label>
+    <input class="form-control" id="eq-acquired" name="acquired_on" type="date" value="{{ f.get('acquired_on', item.acquired_on.isoformat() if item and item.acquired_on else '') }}"></div>
+  <div class="col-12"><label class="form-label" for="eq-notes">Notes</label>
+    <textarea class="form-control" id="eq-notes" name="notes" rows="2">{{ f.get('notes', item.notes if item else '') }}</textarea></div>
+</div>

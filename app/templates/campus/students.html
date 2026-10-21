@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% from "_macros.html" import avatar, pagination %}
+{% block title %}Étudiants du SAS{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Étudiants admis au SAS</h1>
+<form class="card card-body mb-3 row g-2 align-items-center mx-0" method="get">
+  <div class="col-12 col-md-4"><input class="form-control form-control-sm" type="search" name="q" value="{{ args.q }}"
+    placeholder="Nom, matricule, email, téléphone…" aria-label="Rechercher"></div>
+  <div class="col-6 col-md-3"><select class="form-select form-select-sm" name="sas" aria-label="SAS" data-autosubmit>
+    <option value="">Tous les SAS</option>
+    {% for s in sas_list %}<option value="{{ s.id }}" {{ 'selected' if args.sas == s.id | string }}>{{ s.name }}</option>{% endfor %}</select></div>
+  <div class="col-6 col-md-2"><select class="form-select form-select-sm" name="class" aria-label="Classe" data-autosubmit>
+    <option value="">Toutes les classes</option><option value="none" {{ 'selected' if args['class'] == 'none' }}>Sans classe</option>
+    {% for name in classes %}<option {{ 'selected' if args['class'] == name }}>{{ name }}</option>{% endfor %}</select></div>
+  <div class="col-6 col-md-2"><select class="form-select form-select-sm" name="gender" aria-label="Sexe" data-autosubmit>
+    <option value="">Tous les sexes</option>{% for g in ('F', 'M') %}<option {{ 'selected' if args.gender == g }}>{{ g }}</option>{% endfor %}</select></div>
+  <div class="col-6 col-md-1"><button class="btn btn-sm btn-outline-primary w-100" title="Rechercher"><i class="bi bi-search"></i></button></div>
+</form>
+
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
+  <thead><tr><th></th><th>Matricule</th><th>Nom et prénoms</th><th>SAS · classe</th><th>Téléphone</th><th>Chambre</th></tr></thead>
+  <tbody>
+  {% for c in page.items %}
+    <tr>
+      <td>{{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 32) }}</td>
+      <td><code>{{ c.matricule }}</code></td>
+      <td><a href="{{ url_for('campus.student', candidate_id=c.id) }}">{{ c.full_name }}</a>{% if c.email %}<div class="small text-muted">{{ c.email }}</div>{% endif %}</td>
+      <td>{{ c.sas.name }} · {{ c.sas_class or '—' }}</td>
+      <td>{{ c.phone or '—' }}</td>
+      <td>{{ c.sas_bedroom or '—' }}</td>
+    </tr>
+  {% else %}<tr><td colspan="6" class="text-muted">Aucun étudiant ne correspond.</td></tr>{% endfor %}
+  </tbody>
+</table></div></div>
+{{ pagination(page, args) }}
+{% endblock %}

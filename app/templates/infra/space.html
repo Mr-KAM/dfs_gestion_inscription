@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, status %}
+{% block title %}{{ space.name }}{% endblock %}
+{% block content %}
+<a class="small text-muted text-decoration-none" href="{{ url_for('infra.index') }}#b{{ space.level.building_id }}"><i class="bi bi-arrow-left"></i> Infrastructures</a>
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mt-1 mb-3">
+  <div>
+    <h1 class="page-title">{{ space.name }} <span class="status status-info align-middle">{{ space.usage }}</span></h1>
+    <div class="text-muted">{{ space.level.building.name }} · {{ space.level.label }}{% if space.capacity %} · {{ space.capacity }} place(s){% endif %}</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('infra.equipment_export', space=space.id, format='xlsx') }}"><i class="bi bi-file-earmark-excel"></i> Inventaire Excel</a>
+    <form method="post" action="{{ url_for('infra.delete', kind='spaces', entity_id=space.id) }}" data-confirm="Supprimer la salle {{ space.name }} ?">
+      {{ csrf() }}<button class="btn btn-outline-danger" title="Supprimer (salle vide)"><i class="bi bi-trash"></i></button></form>
+  </div>
+</div>
+
+<form class="card card-body mb-3" method="post">
+  {{ csrf() }}
+  <div class="row g-2 align-items-end">
+    <div class="col-md-3"><label class="form-label" for="sp-name">Nom</label>
+      <input class="form-control" id="sp-name" name="name" maxlength="100" required value="{{ space.name }}"></div>
+    <div class="col-md-3"><label class="form-label" for="sp-usage">Usage</label>
+      <select class="form-select" id="sp-usage" name="usage">{% for u in usages %}<option {{ 'selected' if space.usage == u }}>{{ u }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><label class="form-label" for="sp-cap">Places</label>
+      <input class="form-control" id="sp-cap" name="capacity" type="number" min="0" value="{{ space.capacity if space.capacity is not none else '' }}"></div>
+    <div class="col-md-3"><label class="form-label" for="sp-desc">Description</label>
+      <input class="form-control" id="sp-desc" name="description" maxlength="255" value="{{ space.description or '' }}"></div>
+    <div class="col-md-1"><button class="btn btn-outline-primary w-100">OK</button></div>
+  </div>
+</form>
+
+<div class="card mb-3"><div class="card-header"><i class="bi bi-clipboard-check"></i> Inventaire du matériel ({{ space.equipment | length }})</div>
+<div class="table-responsive"><table class="table table-sm align-middle mb-0">
+  <thead><tr><th>N° inventaire</th><th>Désignation</th><th>Catégorie</th><th>État</th><th>Attribué à</th></tr></thead>
+  <tbody>
+  {% for e in space.equipment %}
+    <tr><td><a href="{{ url_for('infra.equipment', item_id=e.id) }}"><code>{{ e.code }}</code></a></td><td>{{ e.name }}{% if e.brand %} <span class="small text-muted">{{ e.brand }}</span>{% endif %}</td>
+      <td>{{ e.category }}</td><td>{{ status(e.status_badge) }}</td><td>{{ e.holder.display_name if e.holder else '—' }}</td></tr>
+  {% else %}<tr><td colspan="5" class="text-muted">Aucun matériel dans cette salle.</td></tr>{% endfor %}
+  </tbody>
+</table></div></div>
+
+{% if consumables %}
+<div class="card mb-3"><div class="card-header"><i class="bi bi-box-seam"></i> Consommables stockés ici</div>
+  <ul class="list-group list-group-flush">
+  {% for c in consumables %}<li class="list-group-item d-flex justify-content-between"><a href="{{ url_for('infra.consumable', item_id=c.id) }}">{{ c.name }}</a>
+    <span class="{{ 'text-danger fw-semibold' if c.is_low }}">{{ c.quantity }} {{ c.unit }}</span></li>{% endfor %}
+  </ul></div>
+{% endif %}
+
+<details class="card">
+  <summary class="card-header"><i class="bi bi-plus-lg"></i> Ajouter du matériel dans cette salle</summary>
+  <form class="card-body" method="post" action="{{ url_for('infra.equipment_list') }}">
+    {{ csrf() }}<input type="hidden" name="back" value="{{ url_for('infra.space', space_id=space.id) }}">
+    {% with item=None, preset_space=space.id %}{% include "infra/_equipment_fields.html" %}{% endwith %}
+    <button class="btn btn-primary mt-2"><i class="bi bi-plus-lg"></i> Ajouter</button>
+  </form>
+</details>
+{% endblock %}

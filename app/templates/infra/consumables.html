@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}Consommables{% endblock %}
+{% block content %}
+<a class="small text-muted text-decoration-none" href="{{ url_for('infra.index') }}"><i class="bi bi-arrow-left"></i> Infrastructures</a>
+<h1 class="page-title mt-1 mb-3">Consommables</h1>
+
+<details class="card mb-3">
+  <summary class="card-header"><i class="bi bi-plus-lg"></i> Nouveau consommable</summary>
+  <form class="card-body row g-2 align-items-end" method="post">
+    {{ csrf() }}
+    <div class="col-md-4"><label class="form-label" for="c-name">Nom</label>
+      <input class="form-control" id="c-name" name="name" maxlength="150" required placeholder="Rame de papier A4"></div>
+    <div class="col-md-3"><label class="form-label" for="c-cat">Catégorie</label>
+      <select class="form-select" id="c-cat" name="category">{% for c in categories %}<option>{{ c }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><label class="form-label" for="c-unit">Unité</label>
+      <select class="form-select" id="c-unit" name="unit">{% for u in units %}<option>{{ u }}</option>{% endfor %}</select></div>
+    <div class="col-6 col-md-1"><label class="form-label" for="c-qty">Stock</label>
+      <input class="form-control" id="c-qty" name="quantity" type="number" min="0" value="0"></div>
+    <div class="col-6 col-md-2"><label class="form-label" for="c-min">Alerte si ≤</label>
+      <input class="form-control" id="c-min" name="min_quantity" type="number" min="0" value="0"></div>
+    <div class="col-md-6"><label class="form-label" for="c-space">Lieu de stockage</label>
+      <select class="form-select" id="c-space" name="space_id"><option value="">—</option>
+        {% for id, label in spaces %}<option value="{{ id }}">{{ label }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><button class="btn btn-primary w-100"><i class="bi bi-plus-lg"></i> Ajouter</button></div>
+  </form>
+</details>
+
+<div class="d-flex gap-2 flex-wrap mb-2">
+  <a class="btn btn-sm {{ 'btn-primary' if not category else 'btn-outline-primary' }}" href="{{ url_for('infra.consumables') }}">Tous</a>
+  {% for c in categories %}<a class="btn btn-sm {{ 'btn-primary' if category == c else 'btn-outline-primary' }}" href="{{ url_for('infra.consumables', category=c) }}">{{ c }}</a>{% endfor %}
+</div>
+<div class="card"><div class="table-responsive"><table class="table table-sm align-middle mb-0">
+  <thead><tr><th>Consommable</th><th>Catégorie</th><th>Stock</th><th>Lieu</th><th>Entrée / sortie</th></tr></thead>
+  <tbody>
+  {% for c in items %}
+    <tr>
+      <td><a href="{{ url_for('infra.consumable', item_id=c.id) }}">{{ c.name }}</a></td>
+      <td>{{ c.category }}</td>
+      <td class="{{ 'text-danger fw-semibold' if c.is_low }}">{{ c.quantity }} {{ c.unit }}{% if c.is_low %} <i class="bi bi-exclamation-triangle" title="Stock bas (alerte à {{ c.min_quantity }})"></i>{% endif %}</td>
+      <td class="small">{{ c.space.full_label if c.space else '—' }}</td>
+      <td><form class="d-flex gap-1" method="post" action="{{ url_for('infra.consumable_move', item_id=c.id) }}">
+        {{ csrf() }}<input type="hidden" name="back" value="{{ request.full_path }}">
+        <input class="form-control form-control-sm" name="quantity" type="number" min="1" required style="width:80px" aria-label="Quantité">
+        <input class="form-control form-control-sm" name="note" maxlength="255" placeholder="Fournisseur / destinataire" aria-label="Note" style="min-width:160px">
+        <button class="btn btn-sm btn-outline-success" name="direction" value="in" title="Entrée"><i class="bi bi-plus-lg"></i></button>
+        <button class="btn btn-sm btn-outline-danger" name="direction" value="out" title="Sortie"><i class="bi bi-dash-lg"></i></button>
+      </form></td>
+    </tr>
+  {% else %}<tr><td colspan="5" class="text-muted">Aucun consommable.</td></tr>{% endfor %}
+  </tbody>
+</table></div></div>
+{% endblock %}

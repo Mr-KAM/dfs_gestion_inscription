@@ -148,7 +148,7 @@ def test_residence_manages_bedrooms_only(app, db, client):
     sas, a, b, coach = _campus(db)
     residence = make_user("residence", "cite@test.ci")
     login(client, residence)
-    assert client.get("/").headers["Location"].endswith("/campus/")
+    assert client.get("/").headers["Location"].endswith("/infrastructures/")
     html = client.get(f"/admin/sas/{sas.id}").get_data(as_text=True)
     assert "Chambre" in html and "Admettre des candidats" not in html and "Supprimer" not in html
     client.post(f"/admin/sas/{sas.id}/members/{a.id}", data={"class": "Classe A", "bedroom": "CH-01", "equipment": "Laptop"})
@@ -158,3 +158,28 @@ def test_residence_manages_bedrooms_only(app, db, client):
     for url in ("/admin/users", "/admin/rooms", f"/admin/sas/{sas.id}/delete", "/campus/visits", "/candidates/"):
         resp = client.post(url) if url.endswith("delete") else client.get(url)
         assert resp.status_code == 403, url
+
+
+def test_reception_browses_sas_students(app, db, client):
+    sas, a, b, coach = _campus(db)
+    recruit = make_candidate(email="r@test.ci", cni="R", phone="0404040404", full_name="RECRUE")  # not in a SAS
+    a.gender, a.sas_bedroom = "F", "CH-07"
+    db.session.add(Incident(candidate=a, category="health", description="Allergie"))
+    db.session.commit()
+    login(client, make_user("reception", "rec@test.ci"))
+    names = lambda qs: {n for n in ("ALPHA", "BETA", "RECRUE")  # noqa: E731
+                        if n in client.get(f"/campus/students?{qs}").get_data(as_text=True)}
+    assert names("") == {"ALPHA", "BETA"}  # SAS students only
+    assert names("q=alp") == names(f"q={a.matricule}") == names("q=0101") == {"ALPHA"}
+    assert names("class=Classe+B") == {"BETA"} and names("gender=F") == {"ALPHA"}
+    html = client.get(f"/campus/students/{a.id}").get_data(as_text=True)
+    assert all(t in html for t in ("ALPHA", a.matricule, "CH-07", "Classe A", "Allergie", "Heures d'absence"))
+    assert "<form" not in html.split("<main", 1)[1].split("</main>")[0]  # read only
+    assert client.get(f"/campus/students/{recruit.id}").status_code == 404
+
+
+def test_students_pages_are_for_reception_and_admin(app, db, client):
+    sas, a, b, coach = _campus(db)
+    login(client, coach)
+    assert client.get("/campus/students").status_code == 403
+    assert client.get(f"/campus/students/{a.id}").status_code == 403

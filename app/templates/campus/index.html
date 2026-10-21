@@ -19,11 +19,15 @@
   <a class="btn btn-outline-primary" href="{{ url_for('campus.exercises') }}"><i class="bi bi-journal-code"></i> Exercices</a>
   {% endif %}
   {% if role in ('admin', 'reception') %}
+  <a class="btn btn-outline-primary" href="{{ url_for('campus.students') }}"><i class="bi bi-mortarboard"></i> Étudiants SAS</a>
   <a class="btn btn-outline-primary" href="{{ url_for('campus.visits') }}"><i class="bi bi-person-badge"></i> Registre des passages</a>
   {% endif %}
   <a class="btn btn-outline-primary" href="{{ url_for('campus.incidents') }}"><i class="bi bi-exclamation-triangle"></i> Problèmes étudiants</a>
   {% if role in ('admin', 'residence') %}
-  <a class="btn btn-outline-primary" href="{{ url_for('admin.sas_list') }}"><i class="bi bi-door-open"></i> Chambres & matériel</a>
+  <a class="btn btn-outline-primary" href="{{ url_for('infra.index') }}"><i class="bi bi-building"></i> Infrastructures</a>
+  <a class="btn btn-outline-primary" href="{{ url_for('infra.equipment_list') }}"><i class="bi bi-pc-display"></i> Matériel</a>
+  <a class="btn btn-outline-primary" href="{{ url_for('infra.consumables') }}"><i class="bi bi-box-seam"></i> Consommables</a>
+  <a class="btn btn-outline-primary" href="{{ url_for('admin.sas_list') }}"><i class="bi bi-door-open"></i> Chambres SAS</a>
   {% endif %}
 </div>
 

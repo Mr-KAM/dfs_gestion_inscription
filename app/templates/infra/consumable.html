@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}{{ item.name }}{% endblock %}
+{% block content %}
+<a class="small text-muted text-decoration-none" href="{{ url_for('infra.consumables') }}"><i class="bi bi-arrow-left"></i> Consommables</a>
+<h1 class="page-title mt-1">{{ item.name }}</h1>
+<div class="mb-3">Stock : <strong class="fs-4 {{ 'text-danger' if item.is_low }}">{{ item.quantity }} {{ item.unit }}</strong>
+  <span class="text-muted">(alerte à {{ item.min_quantity }})</span></div>
+<div class="row g-3">
+  <div class="col-lg-5">
+    <form class="card card-body mb-3" method="post" action="{{ url_for('infra.consumable_move', item_id=item.id) }}">
+      {{ csrf() }}<input type="hidden" name="back" value="{{ url_for('infra.consumable', item_id=item.id) }}">
+      <h2 class="h6">Entrée / sortie de stock</h2>
+      <div class="row g-2">
+        <div class="col-4"><input class="form-control" name="quantity" type="number" min="1" required placeholder="Qté" aria-label="Quantité"></div>
+        <div class="col-8"><input class="form-control" name="note" maxlength="255" placeholder="Fournisseur, destinataire, motif" aria-label="Note"></div>
+      </div>
+      <div class="d-flex gap-2 mt-2">
+        <button class="btn btn-success" name="direction" value="in"><i class="bi bi-plus-lg"></i> Entrée</button>
+        <button class="btn btn-outline-danger" name="direction" value="out"><i class="bi bi-dash-lg"></i> Sortie</button>
+      </div>
+    </form>
+    <form class="card card-body" method="post">
+      {{ csrf() }}
+      <h2 class="h6">Fiche</h2>
+      <div class="mb-2"><label class="form-label" for="c-name">Nom</label>
+        <input class="form-control" id="c-name" name="name" maxlength="150" required value="{{ item.name }}"></div>
+      <div class="row g-2">
+        <div class="col-6"><label class="form-label" for="c-cat">Catégorie</label>
+          <select class="form-select" id="c-cat" name="category">{% for c in categories %}<option {{ 'selected' if item.category == c }}>{{ c }}</option>{% endfor %}</select></div>
+        <div class="col-3"><label class="form-label" for="c-unit">Unité</label>
+          <select class="form-select" id="c-unit" name="unit">{% for u in units %}<option {{ 'selected' if item.unit == u }}>{{ u }}</option>{% endfor %}</select></div>
+        <div class="col-3"><label class="form-label" for="c-min">Alerte ≤</label>
+          <input class="form-control" id="c-min" name="min_quantity" type="number" min="0" value="{{ item.min_quantity }}"></div>
+        <div class="col-12"><label class="form-label" for="c-space">Lieu de stockage</label>
+          <select class="form-select" id="c-space" name="space_id"><option value="">—</option>
+            {% for id, label in spaces %}<option value="{{ id }}" {{ 'selected' if item.space_id == id }}>{{ label }}</option>{% endfor %}</select></div>
+      </div>
+      <div class="form-text">Le stock ne se modifie que par des entrées / sorties (historisées).</div>
+      <div><button class="btn btn-outline-primary mt-2">Enregistrer</button></div>
+    </form>
+  </div>
+  <div class="col-lg-7">
+    <div class="card"><div class="card-header"><i class="bi bi-clock-history"></i> Mouvements</div>
+    <div class="table-responsive"><table class="table table-sm mb-0">
+      <thead><tr><th>Date</th><th>Mouvement</th><th>Stock après</th><th>Note</th><th>Par</th></tr></thead>
+      <tbody>
+      {% for m in item.movements %}
+        <tr><td class="small">{{ m.created_at | dt }}</td>
+          <td class="{{ 'text-success' if m.delta > 0 else 'text-danger' }} fw-semibold">{{ '+' if m.delta > 0 }}{{ m.delta }}</td>
+          <td>{{ m.balance }}</td><td class="text-wrap small">{{ m.note or '' }}</td><td class="small">{{ m.author.display_name if m.author else '—' }}</td></tr>
+      {% else %}<tr><td colspan="5" class="text-muted">Aucun mouvement.</td></tr>{% endfor %}
+      </tbody>
+    </table></div></div>
+  </div>
+</div>
+{% endblock %}

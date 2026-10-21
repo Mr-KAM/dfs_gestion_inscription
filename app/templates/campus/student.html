@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% from "_macros.html" import avatar, status %}
+{% block title %}{{ c.full_name }}{% endblock %}
+{% block content %}
+<a class="small text-muted text-decoration-none" href="{{ url_for('campus.students') }}"><i class="bi bi-arrow-left"></i> Étudiants du SAS</a>
+<div class="d-flex align-items-center gap-3 mt-1 mb-3 flex-wrap">
+  {{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 96) }}
+  <div>
+    <h1 class="page-title">{{ c.full_name }}</h1>
+    <div class="text-muted"><code>{{ c.matricule }}</code> · {{ c.sas.name }} · {{ c.sas_class or 'sans classe' }}</div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-person"></i> Identité et contact</div>
+      <div class="card-body"><dl class="kv row mb-0">
+        <dt class="col-5">Sexe</dt><dd class="col-7">{{ c.gender or '—' }}</dd>
+        <dt class="col-5">Date de naissance</dt><dd class="col-7">{{ c.birth_date | d or '—' }}</dd>
+        <dt class="col-5">Ville</dt><dd class="col-7">{{ c.city or '—' }}</dd>
+        <dt class="col-5">CNI</dt><dd class="col-7">{{ c.cni or '—' }}</dd>
+        <dt class="col-5">Téléphone</dt><dd class="col-7">{% if c.phone %}<a href="tel:{{ c.phone }}">{{ c.phone }}</a>{% else %}—{% endif %}</dd>
+        <dt class="col-5">Email</dt><dd class="col-7 text-break">{% if c.email %}<a href="mailto:{{ c.email }}">{{ c.email }}</a>{% else %}—{% endif %}</dd>
+      </dl></div></div>
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-house-door"></i> SAS</div>
+      <div class="card-body"><dl class="kv row mb-0">
+        <dt class="col-5">SAS</dt><dd class="col-7">{{ c.sas.name }}</dd>
+        <dt class="col-5">Admis le</dt><dd class="col-7">{{ c.sas_admitted_at | dt or '—' }}</dd>
+        <dt class="col-5">Classe</dt><dd class="col-7">{{ c.sas_class or '—' }}</dd>
+        <dt class="col-5">Chambre</dt><dd class="col-7">{{ c.sas_bedroom or '—' }}</dd>
+        <dt class="col-5">Matériel</dt><dd class="col-7">{{ c.sas_equipment or '—' }}</dd>
+        <dt class="col-5">Heures d'absence</dt><dd class="col-7"><strong class="{{ 'text-danger' if absence_hours }}">{{ absence_hours }} h</strong></dd>
+      </dl></div></div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-calendar-check"></i> Présences</div>
+      <ul class="list-group list-group-flush">
+      {% for s in sessions %}{% set m = marks.get(s.id) %}
+        <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <span>{{ s.label }} <span class="small text-muted">· {{ s.opened_at | dt }} · {{ s.hours }} h</span></span>
+          {% if m %}{{ status(('success', 'Présent · ' ~ (m.marked_at | dt('%H:%M')))) }}
+          {% elif s.is_closed %}{{ status(('danger', 'Absent · ' ~ s.hours ~ ' h')) }}
+          {% else %}{{ status(s.state_badge) }}{% endif %}
+        </li>
+      {% else %}<li class="list-group-item text-muted">Aucun appel.</li>{% endfor %}
+      </ul></div>
+
+    <div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center">
+      <span><i class="bi bi-exclamation-triangle"></i> Problèmes signalés</span>
+      <a class="small" href="{{ url_for('campus.incidents') }}">Signaler</a></div>
+      <ul class="list-group list-group-flush">
+      {% for i in incidents %}
+        <li class="list-group-item small">
+          <div class="d-flex justify-content-between flex-wrap gap-2"><span class="status status-secondary">{{ i.category_label }}</span>
+            <span class="text-muted">{{ i.created_at | dt }}</span></div>
+          <div class="mt-1" style="white-space: pre-line">{{ i.description }}</div>
+          {% if i.resolved_at %}<div class="text-success">Résolu : {{ i.resolution or '—' }}</div>{% endif %}
+        </li>
+      {% else %}<li class="list-group-item text-muted">Aucun problème signalé.</li>{% endfor %}
+      </ul></div>
+
+    <div class="card"><div class="card-header"><i class="bi bi-person-badge"></i> Visites reçues</div>
+      <ul class="list-group list-group-flush">
+      {% for v in visits %}
+        <li class="list-group-item small d-flex justify-content-between flex-wrap gap-2">
+          <span>{{ v.visitor_name }} <span class="text-muted">· {{ v.origin or '—' }}{% if v.reason %} · {{ v.reason }}{% endif %}</span></span>
+          <span class="text-muted">{{ v.arrived_at | dt }}{% if v.left_at %} → {{ v.left_at | dt('%H:%M') }}{% endif %}</span>
+        </li>
+      {% else %}<li class="list-group-item text-muted">Aucune visite.</li>{% endfor %}
+      </ul></div>
+  </div>
+</div>
+{% endblock %}
