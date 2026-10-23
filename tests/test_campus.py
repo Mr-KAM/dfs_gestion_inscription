@@ -183,3 +183,29 @@ def test_students_pages_are_for_reception_and_admin(app, db, client):
     login(client, coach)
     assert client.get("/campus/students").status_code == 403
     assert client.get(f"/campus/students/{a.id}").status_code == 403
+
+
+def test_admin_home_shows_sas_figures(app, db, client, admin):
+    from datetime import timedelta
+
+    from app.services import attendance_service, sas_service
+    from app.utils import utcnow
+
+    sas, a, b, coach = _campus(db)
+    a.sas_bedroom = "C-101"
+    db.session.commit()
+    e = campus_service.create_exercise(coach, {"target": f"{sas.id}:Classe A", "title": "Boucles"})
+    campus_service.submit_answer(e, a, "ma réponse")
+    past = utcnow() - timedelta(hours=2)
+    whole = attendance_service.open_session(sas, "", "Matin", 15, admin, starts_at=past, hours=2)  # ALPHA + BETA
+    attendance_service.admin_set(whole, a, True, admin)
+    attendance_service.open_session(sas, "Classe B", "Soir", 15, admin, starts_at=past, hours=3)  # BETA absent
+    campus_service.add_incident(admin, {"student": a.matricule, "description": "Retard"})
+
+    row = sas_service.dashboard_stats()["rows"][0]
+    assert (row["students"], row["classes"], row["with_bedroom"], row["to_review"], row["calls"]) == (2, 2, 1, 1, 2)
+    assert (row["absent_hours"], row["attendance_rate"], row["open_incidents"]) == (5, 33, 1)  # 1 present of 3
+    login(client, admin)
+    html = client.get("/").get_data(as_text=True)
+    assert "Résumé par SAS" in html and "SAS 2026" in html and "5 h" in html and "33 %" in html
+    assert "Résumé par SAS" not in client.get("/?partial=1").get_data(as_text=True)  # not polled

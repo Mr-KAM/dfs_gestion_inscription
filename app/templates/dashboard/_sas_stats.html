@@ -1,0 +1,45 @@
+{% from "_macros.html" import stat %}
+{% set t = sas_stats.totals %}
+<div class="d-flex justify-content-between align-items-end mt-4 mb-2 flex-wrap gap-2">
+  <div><div class="eyebrow mb-1">Étape suivante</div><h2 class="h5 mb-0">SAS</h2></div>
+  <a class="small" href="{{ url_for('admin.sas_list') }}">Gérer les SAS <i class="bi bi-arrow-right"></i></a>
+</div>
+<div class="row g-3 mb-3">
+  {{ stat('Étudiants admis au SAS', t.students, 'mortarboard', url_for('admin.sas_list')) }}
+  {{ stat('Classes', t.classes, 'people', url_for('campus.classes')) }}
+  {{ stat('Exercices à corriger', t.to_review, 'journal-check', url_for('campus.exercises')) }}
+  {{ stat("Heures d'absence", t.absent_hours ~ ' h', 'calendar-x') }}
+  {{ stat('Incidents ouverts', t.open_incidents, 'exclamation-octagon', url_for('campus.incidents')) }}
+</div>
+<div class="card">
+  <div class="card-header">Résumé par SAS</div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead><tr><th>SAS</th><th class="text-end">Étudiants</th><th class="text-end">Classes</th>
+        <th class="text-end">Avec classe</th><th class="text-end">Avec chambre</th><th class="text-end">Avec matériel</th>
+        <th class="text-end">Exercices</th><th class="text-end">À corriger</th><th class="text-end">Validés</th>
+        <th class="text-end">Appels</th><th class="text-end">Présence</th><th class="text-end">Heures d'absence</th>
+        <th class="text-end">Incidents</th></tr></thead>
+      <tbody>
+      {% for r in sas_stats.rows %}{% set n = r.students or 1 %}
+        <tr>
+          <td class="fw-semibold"><a href="{{ url_for('admin.sas_detail', sas_id=r.sas.id) }}">{{ r.sas.name }}</a></td>
+          <td class="text-end">{{ r.students }}</td><td class="text-end">{{ r.classes }}</td>
+          {% for k in ('with_class', 'with_bedroom', 'with_equipment') %}
+          <td class="text-end">{{ r[k] }} <span class="small text-muted">({{ (100 * r[k] / n) | round | int }} %)</span></td>
+          {% endfor %}
+          <td class="text-end">{{ r.exercises }}</td>
+          <td class="text-end">{% if r.to_review %}<strong class="text-warning">{{ r.to_review }}</strong>{% else %}0{% endif %}</td>
+          <td class="text-end">{{ r.validated }}</td>
+          <td class="text-end">{{ r.calls }}{% if r.open_calls %} <span class="status status-warning">{{ r.open_calls }} en cours</span>{% endif %}</td>
+          <td class="text-end">{{ (r.attendance_rate ~ ' %') if r.attendance_rate is not none else '—' }}</td>
+          <td class="text-end">{{ r.absent_hours }} h</td>
+          <td class="text-end">{% if r.open_incidents %}<strong class="text-danger">{{ r.open_incidents }}</strong>{% else %}0{% endif %}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="13" class="text-center text-muted py-4">Aucun SAS. <a href="{{ url_for('admin.sas_list') }}">Créer un SAS</a></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>

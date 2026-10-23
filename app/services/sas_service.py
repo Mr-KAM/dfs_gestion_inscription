@@ -1,7 +1,11 @@
-"""SAS members: filters, class / bedroom / equipment from CSV, automatic assignment."""
+"""SAS members: filters, class / bedroom / equipment from CSV, automatic assignment, admin home figures."""
 from collections import Counter, defaultdict
 
+from sqlalchemy import func, select
+
 from app.extensions import db
+from app.models import Attendance, AttendanceSession, Exercise, ExerciseSubmission, Incident, Sas
+from app.models.campus import REJECTED, SUBMITTED, VALIDATED
 from app.services import audit_service
 from app.services.import_service import ImportFileError, _clean, read_file
 from app.utils import norm_key
@@ -113,3 +117,43 @@ def auto_assign(sas, classes: list[str], bedrooms: list[str], capacity: int, equ
     audit_service.log("sas_assign", sas, {"auto": True, **stats})
     db.session.commit()
     return stats
+
+
+def dashboard_stats() -> dict:
+    """Admin home: per SAS figures (students, assignments, exercises, roll calls, incidents) and their totals.
+    ponytail: loads members / sessions in memory, fine for a few hundred students; group in SQL if it grows."""
+    marks = dict(db.session.execute(select(Attendance.session_id, func.count(Attendance.id))
+                                    .group_by(Attendance.session_id)).all())
+    rows = []
+    for sas in db.session.scalars(select(Sas).order_by(Sas.created_at.desc())):
+        members = sas.members
+        ids = [c.id for c in members]
+        per_class = Counter(c.sas_class or "" for c in members)
+        sessions = db.session.scalars(select(AttendanceSession).where(AttendanceSession.sas_id == sas.id)).all()
+        # closed roll call -> (students expected, students present)
+        closed = []
+        for s in sessions:
+            if s.is_closed:
+                expected = per_class.get(s.class_name, 0) if s.class_name else len(members)
+                closed.append((s, expected, min(marks.get(s.id, 0), expected)))
+        expected_total = sum(e for _, e, _ in closed)
+        subs = Counter(db.session.scalars(select(ExerciseSubmission.status).join(Exercise)
+                                          .where(Exercise.sas_id == sas.id)))
+        rows.append({
+            "sas": sas, "students": len(members),
+            "classes": len([n for n in per_class if n]),
+            "with_class": sum(1 for c in members if c.sas_class),
+            "with_bedroom": sum(1 for c in members if c.sas_bedroom),
+            "with_equipment": sum(1 for c in members if c.sas_equipment),
+            "exercises": db.session.scalar(select(func.count(Exercise.id)).where(Exercise.sas_id == sas.id)) or 0,
+            "to_review": subs[SUBMITTED], "validated": subs[VALIDATED], "rejected": subs[REJECTED],
+            "calls": len(sessions), "open_calls": sum(1 for s in sessions if s.is_open),
+            "absent_hours": sum(s.hours * (e - p) for s, e, p in closed),
+            "attendance_rate": round(100 * sum(p for _, _, p in closed) / expected_total) if expected_total else None,
+            "open_incidents": (db.session.scalar(select(func.count(Incident.id)).where(
+                Incident.candidate_id.in_(ids), Incident.resolved_at.is_(None))) or 0) if ids else 0,
+        })
+    totals = {k: sum(r[k] for r in rows) for k in ("students", "classes", "with_bedroom", "exercises", "to_review",
+                                                   "validated", "calls", "open_calls", "absent_hours",
+                                                   "open_incidents")}
+    return {"rows": rows, "totals": totals}

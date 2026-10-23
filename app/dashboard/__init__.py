@@ -2,7 +2,7 @@ from flask import Blueprint, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from app.models.user import CAMPUS_ROLES, ROLE_ADMIN, ROLE_MOTIVATION, ROLE_RESIDENCE, ROLE_SUPERVISOR
-from app.services import candidate_service, timer_service
+from app.services import candidate_service, sas_service, timer_service
 
 bp = Blueprint("dashboard", __name__)
 
@@ -20,6 +20,8 @@ def index():
     partial = request.args.get("partial")
     if current_user.role == ROLE_ADMIN:
         ctx = {"stats": candidate_service.admin_stats(), "groups": candidate_service.group_summary()}
+        if not partial:  # SAS figures stay out of the 10 s polling
+            ctx["sas_stats"] = sas_service.dashboard_stats()
         return render_template("dashboard/_admin_stats.html" if partial else "dashboard/admin.html", **ctx)
     if current_user.role == ROLE_SUPERVISOR:
         day = candidate_service.today()
