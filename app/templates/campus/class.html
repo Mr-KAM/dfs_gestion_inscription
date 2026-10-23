@@ -59,7 +59,7 @@
   <tbody>
   {% for r in roster %}{% set i = r.invitation %}
     <tr>
-      <td>{{ r.candidate.full_name }}</td><td><code class="small">{{ r.candidate.matricule }}</code></td>
+      <td>{% if r.member %}<a href="{{ url_for('campus.student', candidate_id=r.candidate.id) }}">{{ r.candidate.full_name }}</a>{% else %}{{ r.candidate.full_name }}{% endif %}</td><td><code class="small">{{ r.candidate.matricule }}</code></td>
       <td>{{ i.created_at | dt if i else '—' }}</td>
       <td>{% if r.member %}{{ status(('success', 'Acceptée') if i else ('success', 'Rejoint par code')) }}{% else %}{{ status(i.badge) }}{% endif %}</td>
       <td>{{ r.validated }} / {{ exercises | length }}</td>

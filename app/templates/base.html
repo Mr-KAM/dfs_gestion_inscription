@@ -65,8 +65,9 @@
           {{ nav('infra.consumables', 'box-seam', 'Consommables', 'infra.consumable') }}
           {{ nav('admin.sas_list', 'door-open', 'Chambres SAS', 'admin.sas') }}
         {% endif %}
-        {% if role == 'coach' %}{{ nav('campus.classes', 'people', 'Classes', 'campus.class') }}{% endif %}
         {% if role == 'coach' %}
+          {{ nav('campus.classes', 'people', 'Classes', 'campus.class') }}
+          {{ nav('campus.students', 'mortarboard', 'Mes étudiants', 'campus.student') }}
           {{ nav('campus.notifications', 'megaphone', 'Notifications') }}
           {{ nav('campus.exercises', 'journal-code', 'Exercices', 'campus.exercise') }}
         {% endif %}

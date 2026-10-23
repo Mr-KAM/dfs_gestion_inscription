@@ -2,7 +2,7 @@
 {% from "_macros.html" import avatar, status %}
 {% block title %}{{ c.full_name }}{% endblock %}
 {% block content %}
-<a class="small text-muted text-decoration-none" href="{{ url_for('campus.students') }}"><i class="bi bi-arrow-left"></i> Étudiants du SAS</a>
+<a class="small text-muted text-decoration-none" href="{{ url_for('campus.students') }}"><i class="bi bi-arrow-left"></i> {{ 'Mes étudiants' if current_user.role == 'coach' else 'Étudiants du SAS' }}</a>
 <div class="d-flex align-items-center gap-3 mt-1 mb-3 flex-wrap">
   {{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 96) }}
   <div>
@@ -46,6 +46,17 @@
       {% else %}<li class="list-group-item text-muted">Aucun appel.</li>{% endfor %}
       </ul></div>
 
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-journal-code"></i> Exercices</div>
+      <ul class="list-group list-group-flush">
+      {% for s in submissions %}{% set e = s.exercise %}
+        <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <span><a href="{{ url_for('campus.exercise', exercise_id=e.id) }}#s{{ c.id }}">{{ e.title }}</a>
+            <span class="small text-muted">· {{ s.attempts | length }} soumission(s){% if s.submitted_at %} · {{ s.submitted_at | dt }}{% endif %}</span></span>
+          <span>{{ status(s.badge) }}{% if s.score %} <strong>{{ s.score }}</strong>{% endif %}</span>
+        </li>
+      {% else %}<li class="list-group-item text-muted">Aucune réponse à un exercice.</li>{% endfor %}
+      </ul></div>
+
     <div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center">
       <span><i class="bi bi-exclamation-triangle"></i> Problèmes signalés</span>
       <a class="small" href="{{ url_for('campus.incidents') }}">Signaler</a></div>
@@ -60,6 +71,7 @@
       {% else %}<li class="list-group-item text-muted">Aucun problème signalé.</li>{% endfor %}
       </ul></div>
 
+    {% if visits is not none %}
     <div class="card"><div class="card-header"><i class="bi bi-person-badge"></i> Visites reçues</div>
       <ul class="list-group list-group-flush">
       {% for v in visits %}
@@ -69,6 +81,7 @@
         </li>
       {% else %}<li class="list-group-item text-muted">Aucune visite.</li>{% endfor %}
       </ul></div>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

@@ -5,10 +5,10 @@ import segno
 from flask import Blueprint, abort, flash, jsonify, make_response, redirect, render_template, request, url_for
 from flask_login import current_user
 from markupsafe import Markup
-from sqlalchemy import or_, select
+from sqlalchemy import and_, false, or_, select
 
 from app.extensions import db
-from app.models import AttendanceSession, Candidate, Exercise, Incident, Notification, Sas, SasClass, Visit
+from app.models import AttendanceSession, Candidate, Exercise, ExerciseSubmission, Incident, Notification, Sas, SasClass, Visit
 from app.models.attendance import HOURS_CHOICES, METHOD_LABELS
 from app.models.campus import ACTIVITY_CATEGORIES, ID_TYPES, INCIDENT_CATEGORIES, REJECTED, VALIDATED, VISIT_KINDS
 from app.models.user import CAMPUS_ROLES, ROLE_ADMIN, ROLE_COACH, ROLE_RECEPTION
@@ -36,6 +36,18 @@ def _require_class(sas_id: int, class_name: str) -> None:
 def _require_desk() -> None:
     if current_user.role not in DESK_ROLES:
         abort(403)
+
+
+def _require_students_role() -> None:
+    if current_user.role not in DESK_ROLES + (ROLE_COACH,):
+        abort(403)
+
+
+def _coach_students():
+    """SQL condition: students of the current coach's classes ('sas_id:class' keys)."""
+    keys = [k.partition(":") for k in current_user.coach_classes or []]
+    conditions = [and_(Candidate.sas_id == int(s), Candidate.sas_class == n) for s, _, n in keys if s.isdigit() and n]
+    return or_(*conditions) if conditions else false()
 
 
 def _require_class_role() -> None:
@@ -403,10 +415,12 @@ def class_renew(class_id: int):
 
 @bp.get("/students")
 def students():
-    """Admitted SAS students: search + filters, read only."""
-    _require_desk()
+    """Admitted SAS students: search + filters, read only. A coach only sees the students of his classes."""
+    _require_students_role()
     args = {k: request.args.get(k, "").strip() for k in ("q", "sas", "class", "gender")}
     stmt = select(Candidate).where(Candidate.sas_id.is_not(None)).order_by(Candidate.full_name)
+    if current_user.role == ROLE_COACH:
+        stmt = stmt.where(_coach_students())
     if args["q"]:
         like = f"%{args['q']}%"
         stmt = stmt.where(or_(Candidate.full_name.ilike(like), Candidate.matricule.ilike(like),
@@ -420,22 +434,28 @@ def students():
     if args["gender"] in ("M", "F"):
         stmt = stmt.where(Candidate.gender == args["gender"])
     page = db.paginate(stmt, page=request.args.get("page", 1, type=int), per_page=50, error_out=False)
-    classes = sorted({c["class_name"] for c in campus_service.class_choices()})
+    classes = sorted({c["class_name"] for c in campus_service.class_choices()
+                      if campus_service.can_manage(current_user, c["sas"].id, c["class_name"])})
     return render_template("campus/students.html", page=page, args=args, classes=classes,
                            sas_list=db.session.scalars(select(Sas).order_by(Sas.name)).all())
 
 
 @bp.get("/students/<int:candidate_id>")
 def student(candidate_id: int):
-    _require_desk()
+    _require_students_role()
     c = db.get_or_404(Candidate, candidate_id)
     if not c.sas_id:
         abort(404)  # recruitment candidates stay on the recruitment pages
+    _require_class(c.sas_id, c.sas_class or "")  # coach: a student of one of his classes
+    desk = current_user.role in DESK_ROLES
     sessions = attendance_service.sessions_for(c)
     marks = attendance_service.marks_by_session(c)
     visits = db.session.scalars(select(Visit).where(Visit.candidate_id == c.id).order_by(Visit.arrived_at.desc())
-                                .limit(50)).all()
+                                .limit(50)).all() if desk else None  # site register: reception and admin only
+    submissions = db.session.scalars(select(ExerciseSubmission).join(Exercise)
+                                     .where(ExerciseSubmission.candidate_id == c.id)
+                                     .order_by(Exercise.opens_at.desc())).all()
     incidents = db.session.scalars(select(Incident).where(Incident.candidate_id == c.id)
                                    .order_by(Incident.created_at.desc())).all()
     return render_template("campus/student.html", c=c, sessions=sessions[:30], marks=marks, visits=visits,
-                           incidents=incidents, absence_hours=attendance_service.absence_hours(c, sessions, marks))
+                           incidents=incidents, submissions=submissions, absence_hours=attendance_service.absence_hours(c, sessions, marks))

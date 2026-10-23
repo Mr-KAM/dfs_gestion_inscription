@@ -47,7 +47,7 @@
 {% for c in students %}{% set sub = submissions.get(c.id) %}
   <li class="list-group-item" id="s{{ c.id }}">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-      <div><strong>{{ c.full_name }}</strong> <code class="small">{{ c.matricule }}</code> <span class="small text-muted">{{ c.sas_class or '' }}</span></div>
+      <div><a class="fw-semibold" href="{{ url_for('campus.student', candidate_id=c.id) }}">{{ c.full_name }}</a> <code class="small">{{ c.matricule }}</code> <span class="small text-muted">{{ c.sas_class or '' }}</span></div>
       <div>{% if sub %}{{ status(sub.badge) }}{% if sub.score %} <strong>{{ sub.score }}</strong>{% endif %}{% else %}{{ status(('secondary', 'Pas de réponse')) }}{% endif %}</div>
     </div>
     {% if sub and sub.attempts %}

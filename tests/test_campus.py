@@ -178,9 +178,9 @@ def test_reception_browses_sas_students(app, db, client):
     assert client.get(f"/campus/students/{recruit.id}").status_code == 404
 
 
-def test_students_pages_are_for_reception_and_admin(app, db, client):
+def test_students_pages_are_not_for_the_residence_manager(app, db, client):
     sas, a, b, coach = _campus(db)
-    login(client, coach)
+    login(client, make_user("residence", "cite@test.ci"))  # coaches: see test_coach_sees_details_of_his_students_only
     assert client.get("/campus/students").status_code == 403
     assert client.get(f"/campus/students/{a.id}").status_code == 403
 
@@ -209,3 +209,21 @@ def test_admin_home_shows_sas_figures(app, db, client, admin):
     html = client.get("/").get_data(as_text=True)
     assert "Résumé par SAS" in html and "SAS 2026" in html and "5 h" in html and "33 %" in html
     assert "Résumé par SAS" not in client.get("/?partial=1").get_data(as_text=True)  # not polled
+
+
+def test_coach_sees_details_of_his_students_only(app, db, client):
+    from app.models import Visit
+
+    sas, a, b, coach = _campus(db)  # coach of Classe A: ALPHA, not BETA
+    e = campus_service.create_exercise(coach, {"target": f"{sas.id}:Classe A", "title": "Boucles"})
+    campus_service.submit_answer(e, a, "ma réponse")
+    db.session.add(Visit(candidate=a, visitor_name="Tante Awa", id_type="cni", id_number="CI-SECRET"))
+    db.session.commit()
+    login(client, coach)
+    html = client.get("/campus/students").get_data(as_text=True)
+    assert "ALPHA" in html and "BETA" not in html and "Mes étudiants" in html
+    html = client.get(f"/campus/students/{a.id}").get_data(as_text=True)
+    assert a.phone in html and "Boucles" in html and "À corriger" in html
+    assert "Visites reçues" not in html and "Tante Awa" not in html  # site register: reception / admin only
+    assert client.get(f"/campus/students/{b.id}").status_code == 403
+    assert f"/campus/students/{a.id}" in client.get(f"/campus/exercises/{e.id}").get_data(as_text=True)
