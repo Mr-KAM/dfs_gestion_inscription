@@ -122,3 +122,22 @@ def test_media_upload_roles(app, db, client):
     login(client, make_user("residence", "cite@test.ci"))
     resp = client.post("/campus/media", data={"file": (io.BytesIO(PNG), "x.png")}, content_type="multipart/form-data")
     assert resp.status_code == 403 and Media.query.count() == 0
+
+
+def test_results_filters_kept_after_review(app, db, client, admin):
+    sas, a, b, coach = _campus(db)
+    e = campus_service.create_exercise(admin, {"target": f"{sas.id}:", "title": "Tout le SAS"})
+    campus_service.submit_answer(e, a, "ma réponse")
+    login(client, admin)
+    url = f"/campus/exercises/{e.id}"
+
+    def names(**args):
+        html = client.get(url, query_string=args).get_data(as_text=True)
+        return [n for n in ("ALPHA", "BETA") if n in html]
+    assert names() == ["ALPHA", "BETA"] and 'name="class"' in client.get(url).get_data(as_text=True)
+    assert names(q="bet") == ["BETA"] and names(q=a.matricule.lower()) == ["ALPHA"]
+    assert names(status="submitted") == ["ALPHA"] and names(status="none") == ["BETA"]
+    assert names(**{"class": "Classe B"}) == ["BETA"] and names(status="validated") == []
+    resp = client.post(f"{url}/review/{a.id}?status=submitted&q=al", data={"status": "validated"})
+    assert resp.headers["Location"].endswith(f"{url}?q=al&status=submitted#s{a.id}")  # back to the filtered list
+    assert names(status="validated") == ["ALPHA"]

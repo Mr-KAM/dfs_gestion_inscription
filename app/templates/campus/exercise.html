@@ -27,7 +27,22 @@
   </form>
 </details>
 
-<div class="card"><div class="card-header"><i class="bi bi-check2-square"></i> Résultats</div>
+<div class="card" id="resultats"><div class="card-header"><i class="bi bi-check2-square"></i> Résultats
+  <span class="text-muted small">({{ students | length }}{% if students | length != total %} / {{ total }}{% endif %})</span></div>
+<form class="row g-2 p-2 border-bottom" method="get" action="#resultats">
+  <div class="col-12 col-md-5"><input class="form-control form-control-sm" type="search" name="q" value="{{ filters.q }}"
+    placeholder="Rechercher : nom, matricule, email" aria-label="Rechercher un étudiant"></div>
+  <div class="col-6 col-md-3"><select class="form-select form-select-sm" name="status" aria-label="Résultat" data-autosubmit>
+    {% for v, l in (('', 'Tous les résultats'), ('none', 'Pas de réponse'), ('submitted', 'À corriger'), ('validated', 'Validé'), ('rejected', 'À refaire')) %}
+    <option value="{{ v }}" {{ 'selected' if filters.status == v }}>{{ l }}</option>{% endfor %}</select></div>
+  {% if classes | length > 1 %}
+  <div class="col-6 col-md-2"><select class="form-select form-select-sm" name="class" aria-label="Classe" data-autosubmit>
+    <option value="">Toutes les classes</option>
+    {% for n in classes %}<option value="{{ n }}" {{ 'selected' if filters.get('class') == n }}>{{ n }}</option>{% endfor %}</select></div>
+  {% endif %}
+  <div class="col-12 col-md-2 d-flex gap-1"><button class="btn btn-sm btn-primary flex-fill"><i class="bi bi-search"></i> Filtrer</button>
+    {% if filters %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('campus.exercise', exercise_id=e.id) }}#resultats" aria-label="Effacer les filtres"><i class="bi bi-x-lg"></i></a>{% endif %}</div>
+</form>
 <ul class="list-group list-group-flush">
 {% for c in students %}{% set sub = submissions.get(c.id) %}
   <li class="list-group-item" id="s{{ c.id }}">
@@ -52,15 +67,15 @@
     <div class="d-flex align-items-center gap-2 mt-1 flex-wrap">
       {% if sub and sub.resubmit_allowed %}
         <span class="status status-warning">Nouvelle soumission autorisée</span>
-        <form method="post" action="{{ url_for('campus.exercise_resubmit', exercise_id=e.id, candidate_id=c.id) }}">{{ csrf() }}
+        <form method="post" action="{{ url_for('campus.exercise_resubmit', exercise_id=e.id, candidate_id=c.id, **filters) }}">{{ csrf() }}
           <input type="hidden" name="allowed" value="0"><button class="btn btn-sm btn-link p-0">Retirer l'autorisation</button></form>
       {% elif sub and (sub.attempts or sub.status == VALIDATED) %}
-        <form method="post" action="{{ url_for('campus.exercise_resubmit', exercise_id=e.id, candidate_id=c.id) }}">{{ csrf() }}
+        <form method="post" action="{{ url_for('campus.exercise_resubmit', exercise_id=e.id, candidate_id=c.id, **filters) }}">{{ csrf() }}
           <input type="hidden" name="allowed" value="1">
           <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-repeat"></i> Autoriser une nouvelle soumission</button></form>
       {% endif %}
     </div>
-    <form class="row g-2 align-items-end mt-1" method="post" action="{{ url_for('campus.exercise_review', exercise_id=e.id, candidate_id=c.id) }}">
+    <form class="row g-2 align-items-end mt-1" method="post" action="{{ url_for('campus.exercise_review', exercise_id=e.id, candidate_id=c.id, **filters) }}">
       {{ csrf() }}
       <div class="col-4 col-md-2"><input class="form-control form-control-sm" name="score" maxlength="20" placeholder="Note" value="{{ sub.score if sub else '' }}" aria-label="Note de {{ c.full_name }}"></div>
       <div class="col-8 col-md-6"><input class="form-control form-control-sm" name="feedback" maxlength="5000" placeholder="Commentaire" value="{{ sub.feedback if sub else '' }}" aria-label="Commentaire pour {{ c.full_name }}"></div>
@@ -70,7 +85,7 @@
       </div>
     </form>
   </li>
-{% else %}<li class="list-group-item text-muted">Aucun étudiant dans cette classe.</li>{% endfor %}
+{% else %}<li class="list-group-item text-muted">{{ 'Aucun résultat pour ces filtres.' if total else 'Aucun étudiant dans cette classe.' }}</li>{% endfor %}
 </ul></div>
 {% endblock %}
 {% block scripts %}{{ editor_js() }}{% endblock %}

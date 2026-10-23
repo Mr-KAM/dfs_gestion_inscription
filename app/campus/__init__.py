@@ -170,8 +170,30 @@ def _exercise(exercise_id: int) -> Exercise:
 def exercise(exercise_id: int):
     exercise = _exercise(exercise_id)
     submissions = {s.candidate_id: s for s in exercise.submissions}
-    return render_template("campus/exercise.html", e=exercise, students=campus_service.exercise_roster(exercise),
-                           submissions=submissions, VALIDATED=VALIDATED, REJECTED=REJECTED)
+    everyone = campus_service.exercise_roster(exercise)
+    filters = _exercise_filters()
+    students = everyone
+    if filters.get("q"):
+        q = filters["q"].lower()
+        students = [c for c in students if q in " ".join((c.full_name or "", c.matricule or "", c.email or "")).lower()]
+    if filters.get("status"):  # "none" = no answer / no review yet
+        students = [c for c in students
+                    if (submissions[c.id].status if c.id in submissions else "none") == filters["status"]]
+    if filters.get("class"):
+        students = [c for c in students if (c.sas_class or "") == filters["class"]]
+    classes = sorted({c.sas_class for c in everyone if c.sas_class})
+    return render_template("campus/exercise.html", e=exercise, students=students, total=len(everyone),
+                           classes=classes, filters=filters, submissions=submissions,
+                           VALIDATED=VALIDATED, REJECTED=REJECTED)
+
+
+def _exercise_filters() -> dict:
+    """Results filters of an exercise page, kept through the review / resubmission forms."""
+    return {k: v.strip() for k in ("q", "status", "class") if (v := request.args.get(k, "")).strip()}
+
+
+def _back_to_exercise(exercise, candidate_id: int):
+    return redirect(url_for("campus.exercise", exercise_id=exercise.id, **_exercise_filters()) + f"#s{candidate_id}")
 
 
 @bp.post("/exercises/<int:exercise_id>/edit")
@@ -196,7 +218,7 @@ def exercise_resubmit(exercise_id: int, candidate_id: int):
         flash("Nouvelle soumission autorisée." if allowed else "Autorisation retirée.", "success")
     except BusinessError as exc:
         flash(str(exc), "danger")
-    return redirect(url_for("campus.exercise", exercise_id=exercise.id) + f"#s{candidate_id}")
+    return _back_to_exercise(exercise, candidate_id)
 
 
 @bp.post("/media")
@@ -220,7 +242,7 @@ def exercise_review(exercise_id: int, candidate_id: int):
                               form.get("status", ""), form.get("score", ""), form.get("feedback", ""))
     except BusinessError as exc:
         flash(str(exc), "danger")
-    return redirect(url_for("campus.exercise", exercise_id=exercise.id) + f"#s{candidate_id}")
+    return _back_to_exercise(exercise, candidate_id)
 
 
 # ------------------------------------------------------------------ reception: visits, problems
