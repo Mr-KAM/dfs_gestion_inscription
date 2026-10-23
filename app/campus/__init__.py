@@ -338,8 +338,26 @@ def class_page(class_id: int):
     klass = _klass(class_id)
     join_url = url_for("portal.join_class", code=klass.join_code, _external=True)
     qr = Markup(segno.make(join_url, error="m").svg_inline(border=4, dark="#000", light="#fff", omitsize=True))
+    report = campus_service.class_report(klass)
+    # roster filters: search (name / matricule / email), invitation state, validated exercises
+    q, state, done = (request.args.get(k, "").strip() for k in ("q", "state", "done"))
+    total = len(report["exercises"])
+    rows = report["roster"]
+    if q:
+        rows = [r for r in rows if q.lower() in " ".join(
+            (r["candidate"].full_name or "", r["candidate"].matricule or "", r["candidate"].email or "")).lower()]
+    if state:
+        rows = [r for r in rows if r["state"] == state]
+    if done == "none":
+        rows = [r for r in rows if not r["validated"]]
+    elif done == "some":
+        rows = [r for r in rows if 0 < r["validated"] < total]
+    elif done == "all":
+        rows = [r for r in rows if total and r["validated"] == total]
+    report["roster_total"] = len(report["roster"])
+    report["roster"] = rows
     return render_template("campus/class.html", k=klass, join_url=join_url, qr=qr,
-                           **campus_service.class_report(klass))
+                           filters={"q": q, "state": state, "done": done}, **report)
 
 
 @bp.post("/classes/<int:class_id>/invite")

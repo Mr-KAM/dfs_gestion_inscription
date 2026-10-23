@@ -513,9 +513,12 @@ def class_report(klass: SasClass) -> dict:
     invitations = {i.candidate_id: i for i in klass.invitations}
     roster = [{"candidate": c, "invitation": invitations.get(c.id), "member": True} for c in members]
     roster += [{"candidate": i.candidate, "invitation": i, "member": False}
-               for i in sorted(klass.invitations, key=lambda i: i.candidate.full_name or "") if i.candidate_id not in ids]
+               for i in sorted(klass.invitations, key=lambda i: i.candidate.full_name or "")
+               if i.candidate_id not in ids]
     for row in roster:
         row["validated"] = validated.get(row["candidate"].id, 0)
+        row["state"] = (("accepted" if row["invitation"] else "code") if row["member"]
+                        else row["invitation"].status)
     return {"members": members, "roster": roster, "exercises": exercises, "calls": calls, "notifications": notifications,
             "coaches": coaches_by_class().get(klass.key, []), "creator": creator,
             "absent_hours": sum(c["session"].hours * (len(members) - c["present"]) for c in calls

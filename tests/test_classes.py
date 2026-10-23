@@ -126,3 +126,13 @@ def test_admin_sees_classes_of_every_coach_with_exercises(app, db, client, admin
     row = campus_service.class_report(k)["roster"][0]
     assert (row["candidate"].id, row["member"], row["validated"]) == (a.id, True, 1)
     assert "Rejoint par code" in client.get(f"/campus/classes/{k.id}").get_data(as_text=True)
+    b = make_candidate(email="b@test.ci", cni="B", phone="0404040404", full_name="BRAVO", sas=sas)
+    campus_service.invite(k, coach, b.matricule)
+
+    def names(**args):  # students listed once the roster is filtered
+        html = client.get(f"/campus/classes/{k.id}", query_string=args).get_data(as_text=True)
+        return [n for n in ("ALPHA", "BRAVO") if n in html]
+    assert names() == ["ALPHA", "BRAVO"]
+    assert names(q="bra") == ["BRAVO"] and names(q=a.matricule.lower()) == ["ALPHA"]
+    assert names(state="pending") == ["BRAVO"] and names(state="code") == ["ALPHA"]
+    assert names(done="some") == ["ALPHA"] and names(done="none") == ["BRAVO"] and names(done="all") == []  # 1 of 2

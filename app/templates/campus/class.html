@@ -40,7 +40,20 @@
   </div>
 </div>
 
-<div class="card mt-3"><div class="card-header"><i class="bi bi-people"></i> Étudiants et invitations</div>
+<div class="card mt-3" id="etudiants"><div class="card-header"><i class="bi bi-people"></i> Étudiants et invitations
+  <span class="text-muted small">({{ roster | length }}{% if roster | length != roster_total %} / {{ roster_total }}{% endif %})</span></div>
+<form class="row g-2 p-2 border-bottom" method="get" action="#etudiants">
+  <div class="col-12 col-md-5"><input class="form-control form-control-sm" type="search" name="q" value="{{ filters.q }}"
+    placeholder="Rechercher : nom, matricule, email" aria-label="Rechercher un étudiant"></div>
+  <div class="col-6 col-md-3"><select class="form-select form-select-sm" name="state" aria-label="État invitation" data-autosubmit>
+    {% for v, l in (('', 'Tous les états'), ('pending', 'En cours'), ('accepted', 'Acceptée'), ('code', 'Rejoint par code'), ('declined', 'Refusée')) %}
+    <option value="{{ v }}" {{ 'selected' if filters.state == v }}>{{ l }}</option>{% endfor %}</select></div>
+  <div class="col-6 col-md-2"><select class="form-select form-select-sm" name="done" aria-label="Exercices validés" data-autosubmit>
+    {% for v, l in (('', 'Exercices : tous'), ('none', 'Aucun validé'), ('some', 'En partie'), ('all', 'Tous validés')) %}
+    <option value="{{ v }}" {{ 'selected' if filters.done == v }}>{{ l }}</option>{% endfor %}</select></div>
+  <div class="col-12 col-md-2 d-flex gap-1"><button class="btn btn-sm btn-primary flex-fill"><i class="bi bi-search"></i> Filtrer</button>
+    {% if filters.q or filters.state or filters.done %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('campus.class_page', class_id=k.id) }}#etudiants" aria-label="Effacer les filtres"><i class="bi bi-x-lg"></i></a>{% endif %}</div>
+</form>
 <div class="table-responsive"><table class="table table-sm align-middle mb-0">
   <thead><tr><th>Nom et prénoms</th><th>Matricule</th><th>Date heure invitation</th><th>État invitation</th><th>Exercices validés</th></tr></thead>
   <tbody>
@@ -51,7 +64,7 @@
       <td>{% if r.member %}{{ status(('success', 'Acceptée') if i else ('success', 'Rejoint par code')) }}{% else %}{{ status(i.badge) }}{% endif %}</td>
       <td>{{ r.validated }} / {{ exercises | length }}</td>
     </tr>
-  {% else %}<tr><td colspan="5" class="text-muted">Personne pour l'instant.</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="5" class="text-muted">{{ 'Aucun résultat pour ces filtres.' if roster_total else "Personne pour l'instant." }}</td></tr>{% endfor %}
   </tbody>
 </table></div></div>
 
