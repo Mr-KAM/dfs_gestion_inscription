@@ -89,3 +89,34 @@ def test_student_joins_by_code_or_address(app, db, client):
     assert "Code de classe inconnu" in html
     db.session.expire_all()
     assert c.sas_class == "Data"
+
+
+def test_admin_sees_classes_of_every_coach_with_exercises(app, db, client, admin):
+    from datetime import timedelta
+
+    from app.services import attendance_service
+    from app.utils import utcnow
+
+    sas, other, a, out, coach = _setup(db)
+    coach.full_name = "Coach Yao"
+    other_coach = make_user("coach", "coach2@test.ci")
+    k = campus_service.create_class(coach, sas.id, "Dev Web")
+    campus_service.create_class(other_coach, sas.id, "Data")
+    a.sas_class = "Dev Web"
+    db.session.commit()
+    e = campus_service.create_exercise(coach, {"target": f"{sas.id}:Dev Web", "title": "Boucles"})
+    campus_service.create_exercise(coach, {"target": f"{sas.id}:Dev Web", "title": "Fonctions"})
+    campus_service.submit_answer(e, a, "ma réponse")
+    campus_service.send_notification(coach, f"{sas.id}:Dev Web", "Cours annulé", "")
+    attendance_service.open_session(sas, "Dev Web", "Lundi", 15, coach, starts_at=utcnow() - timedelta(hours=2), hours=3)
+
+    login(client, admin)
+    html = client.get("/campus/classes").get_data(as_text=True)
+    assert "Coach Yao" in html and "Dev Web" in html and "Data" in html and "Classes et coachs" in html
+    html = client.get(f"/campus/classes?coach={other_coach.id}").get_data(as_text=True)
+    assert "Data" in html and "Dev Web" not in html
+    html = client.get(f"/campus/classes/{k.id}").get_data(as_text=True)
+    assert all(t in html for t in ("Boucles", "Fonctions", "1 / 1", "Cours annulé", "Lundi", "Coach Yao", "3 h"))
+    report = campus_service.class_report(k)
+    boucles = next(x for x in report["exercises"] if x["exercise"].title == "Boucles")
+    assert (boucles["handed_in"], boucles["to_review"], report["absent_hours"]) == (1, 1, 3)  # A missed the 3 h call

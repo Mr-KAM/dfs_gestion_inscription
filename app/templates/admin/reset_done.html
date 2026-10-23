@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Mot de passe temporaire{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Mot de passe réinitialisé</h1>
+<div class="card card-body" style="max-width: 560px">
+  <p>Mot de passe temporaire de <strong>{{ user.display_name }}</strong> ({{ user.email }}) :</p>
+  <div class="d-flex gap-2 align-items-center mb-3">
+    <code class="fs-4">{{ temporary }}</code>
+    <button type="button" class="btn btn-sm btn-outline-primary js-copy" data-copy="{{ temporary }}"><i class="bi bi-clipboard"></i> Copier</button>
+  </div>
+  <p class="small text-muted">Il ne sera plus affiché : transmettez-le à la personne par un canal privé (en main propre, téléphone).
+    Elle devra choisir un nouveau mot de passe dès sa connexion.</p>
+  <div><a class="btn btn-primary" href="{{ url_for('admin.users') }}">Retour aux utilisateurs</a></div>
+</div>
+{% endblock %}

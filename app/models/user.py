@@ -104,6 +104,25 @@ class User(UserMixin, db.Model):
         return f"{self.id}:{self.session_fingerprint}"
 
 
+RESET_PENDING, RESET_DONE, RESET_REJECTED = "pending", "done", "rejected"
+
+
+class PasswordResetRequest(db.Model):
+    """'Mot de passe oublié' from a login page; handled by an administrator (no email sending in the app)."""
+    __tablename__ = "password_reset_requests"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    message = db.Column(db.String(255), default="")  # how to reach the person, context...
+    ip_address = db.Column(db.String(64))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    status = db.Column(db.String(20), nullable=False, default=RESET_PENDING, index=True)
+    handled_by = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
+    handled_at = db.Column(db.DateTime(timezone=True))
+
+    user = db.relationship("User", foreign_keys=[user_id])
+
+
 @login_manager.user_loader
 def load_user(session_id: str):
     """Re-checked on every request: deactivation or a password change ends existing sessions."""

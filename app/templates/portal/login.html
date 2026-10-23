@@ -18,6 +18,7 @@
 </form>
 {% endblock %}
 {% block links %}
+  <a href="{{ url_for('auth.forgot_password', espace='candidat') }}">Mot de passe oublié ?</a><br>
   Pas encore de compte ? <a href="{{ url_for('portal.signup') }}">Créer un compte</a><br>
   <span class="text-muted">Personnel DFS :</span> <a href="{{ url_for('auth.login') }}">accès équipe</a>
 {% endblock %}

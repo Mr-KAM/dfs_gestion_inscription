@@ -17,10 +17,11 @@ from werkzeug.utils import secure_filename
 from app.auth import _safe_next
 from app.campus import attendance_form_context
 from app.extensions import db
-from app.models import AuditLog, Candidate, KoboSubmission, Room, Sas, TechnicalTestSession, User, Workstation
+from app.models import (AuditLog, Candidate, KoboSubmission, PasswordResetRequest, Room, Sas,
+                        TechnicalTestSession, User, Workstation)
 from app.models.candidate import FILE_MISSING, FILE_NOT_FOUND, FILE_STATUSES
 from app.models.user import ROLE_ADMIN, ROLE_CANDIDATE, ROLE_COACH, ROLE_RESIDENCE, ROLES
-from app.services import (attendance_service, audit_service, campus_service, candidate_service,
+from app.services import (account_service, attendance_service, audit_service, campus_service, candidate_service,
                           import_service, sas_service, settings_service)
 from app.services.audit_service import ACTION_LABELS
 from app.utils import allow_camera
@@ -50,7 +51,24 @@ def users():
     if request.args.get("tab") == "candidats":
         return _candidate_accounts()
     staff = select(User).where(User.role != ROLE_CANDIDATE).order_by(User.role, User.email)
-    return render_template("admin/users.html", users=db.session.scalars(staff).all(), tab="staff")
+    return render_template("admin/users.html", users=db.session.scalars(staff).all(), tab="staff",
+                           resets=account_service.pending_resets())
+
+
+@bp.post("/reset-requests/<int:request_id>")
+def reset_request_handle(request_id: int):
+    request_ = db.get_or_404(PasswordResetRequest, request_id)
+    approve = request.form.get("approve") == "1"
+    try:
+        temporary = account_service.handle_reset(request_, current_user, approve)
+    except candidate_service.BusinessError as exc:
+        flash(str(exc), "danger")
+        return redirect(url_for("admin.users"))
+    if temporary:  # rendered (not flashed): the session cookie must never carry a password
+        return render_template("admin/reset_done.html", user=request_.user, temporary=temporary)
+    flash(f"Mot de passe de {request_.user.email} remis au mot de passe initial (changement imposé)." if approve
+          else f"Demande de {request_.user.email} rejetée.", "success" if approve else "info")
+    return redirect(url_for("admin.users"))
 
 
 def _candidate_accounts():
@@ -64,7 +82,8 @@ def _candidate_accounts():
                               Candidate.exam_code.ilike(like), Candidate.phone.ilike(like)))
     page = db.paginate(stmt, page=request.args.get("page", 1, type=int), per_page=current_app.config["PER_PAGE"],
                        error_out=False)  # last row of the last page deleted: empty page, not a 404
-    return render_template("admin/users.html", page=page, args=args, tab="candidats")
+    return render_template("admin/users.html", page=page, args=args, tab="candidats",
+                           resets=account_service.pending_resets())
 
 
 def _user_from_form(user: User, creating: bool) -> None:

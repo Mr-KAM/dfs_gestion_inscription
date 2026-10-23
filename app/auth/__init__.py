@@ -80,6 +80,23 @@ def login():
     return render_template("auth/login.html")
 
 
+@bp.route("/mot-de-passe-oublie", methods=["GET", "POST"])
+def forgot_password():
+    """Request a password reset; an administrator handles it (Utilisateurs)."""
+    candidate_space = request.args.get("espace") == "candidat"
+    back = url_for("portal.login" if candidate_space else "auth.login")
+    if request.method == "POST":
+        try:
+            account_service.request_reset(request.form.get("email", ""), request.form.get("message", ""),
+                                          request.remote_addr)
+            flash("Demande enregistrée. Si un compte correspond à cet email, l'équipe DFS va réinitialiser votre "
+                  "mot de passe et vous recontacter.", "success")
+            return redirect(back)
+        except BusinessError as exc:
+            flash(str(exc), "danger")
+    return render_template("auth/forgot.html", back=back, candidate_space=candidate_space)
+
+
 @bp.post("/logout")
 @login_required
 def logout():

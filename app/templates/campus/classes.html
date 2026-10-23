@@ -17,12 +17,26 @@
   <div class="form-text">Les étudiants admis à ce SAS la rejoignent par QR code, par adresse, ou sur invitation.</div>
 </form>
 {% endif %}
-<div class="card"><ul class="list-group list-group-flush">
-{% for c in classes %}
-  <li class="list-group-item d-flex justify-content-between align-items-center">
-    <a href="{{ url_for('campus.class_open', key=c.key) }}"><strong>{{ c.class_name }}</strong></a>
-    <span class="text-muted small">{{ c.sas.name }} · {{ c.count }} étudiant(s)</span>
-  </li>
-{% else %}<li class="list-group-item text-muted">Aucune classe.</li>{% endfor %}
-</ul></div>
+{% if current_user.role == 'admin' %}
+<form class="d-flex gap-2 align-items-center mb-2" method="get">
+  <label class="small text-muted" for="coach">Coach</label>
+  <select class="form-select form-select-sm" id="coach" name="coach" style="max-width: 260px" data-autosubmit>
+    <option value="">Tous</option><option value="none" {{ 'selected' if coach_id == 'none' }}>Sans coach</option>
+    {% for u in all_coaches %}<option value="{{ u.id }}" {{ 'selected' if coach_id == u.id | string }}>{{ u.display_name }}</option>{% endfor %}
+  </select>
+</form>
+{% endif %}
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
+  <thead><tr><th>Classe</th><th>SAS</th><th>Coach(s)</th><th>Étudiants</th><th>Exercices</th><th>Appels</th></tr></thead>
+  <tbody>
+  {% for c in classes %}{% set key = (c.sas.id, c.class_name) %}
+    <tr>
+      <td><a href="{{ url_for('campus.class_open', key=c.key) }}"><strong>{{ c.class_name }}</strong></a></td>
+      <td>{{ c.sas.name }}</td>
+      <td>{% for u in coaches.get(c.key, []) %}{{ u.display_name }}{{ ', ' if not loop.last }}{% else %}<span class="text-muted">—</span>{% endfor %}</td>
+      <td>{{ c.count }}</td><td>{{ exercises.get(key, 0) }}</td><td>{{ calls.get(key, 0) }}</td>
+    </tr>
+  {% else %}<tr><td colspan="6" class="text-muted">Aucune classe.</td></tr>{% endfor %}
+  </tbody>
+</table></div></div>
 {% endblock %}

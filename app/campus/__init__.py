@@ -299,10 +299,19 @@ def classes():
             return redirect(url_for("campus.class_page", class_id=klass.id))
         except BusinessError as exc:
             flash(str(exc), "danger")
+    coaches = campus_service.coaches_by_class()
     mine = [c for c in campus_service.class_choices()
             if campus_service.can_manage(current_user, c["sas"].id, c["class_name"])]
+    coach_id = request.args.get("coach", "")
+    if coach_id == "none":
+        mine = [c for c in mine if not coaches.get(c["key"])]
+    elif coach_id.isdigit():
+        mine = [c for c in mine if any(u.id == int(coach_id) for u in coaches.get(c["key"], []))]
+    exercises, calls = campus_service.class_counts()
     sas_list = db.session.scalars(select(Sas).order_by(Sas.created_at.desc())).all()
-    return render_template("campus/classes.html", classes=mine, sas_list=sas_list)
+    all_coaches = sorted({u.id: u for users in coaches.values() for u in users}.values(), key=lambda u: u.display_name)
+    return render_template("campus/classes.html", classes=mine, sas_list=sas_list, coaches=coaches, coach_id=coach_id,
+                           all_coaches=all_coaches, exercises=exercises, calls=calls)
 
 
 @bp.get("/classes/open")
@@ -330,7 +339,7 @@ def class_page(class_id: int):
     join_url = url_for("portal.join_class", code=klass.join_code, _external=True)
     qr = Markup(segno.make(join_url, error="m").svg_inline(border=4, dark="#000", light="#fff", omitsize=True))
     return render_template("campus/class.html", k=klass, join_url=join_url, qr=qr,
-                           members=campus_service.class_members(klass))
+                           **campus_service.class_report(klass))
 
 
 @bp.post("/classes/<int:class_id>/invite")

@@ -1,6 +1,7 @@
 """Candidate accounts: bulk creation with the default password, self sign-up, password change."""
 import io
 import re
+import secrets
 from datetime import date
 
 from flask import abort, current_app, send_file
@@ -8,11 +9,11 @@ from sqlalchemy import exists, func, or_, select
 from werkzeug.security import generate_password_hash
 
 from app.extensions import db
-from app.models import Candidate, User
-from app.models.user import ROLE_CANDIDATE
+from app.models import Candidate, PasswordResetRequest, User
+from app.models.user import RESET_DONE, RESET_PENDING, RESET_REJECTED, ROLE_CANDIDATE
 from app.services import audit_service
 from app.services.candidate_service import BusinessError
-from app.utils import norm_email, norm_phone
+from app.utils import norm_email, norm_phone, utcnow
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 MIN_PASSWORD = 8
@@ -70,6 +71,55 @@ def sync_account(candidate: Candidate) -> None:
     else:
         default_hash = generate_password_hash(current_app.config["CANDIDATE_DEFAULT_PASSWORD"])
         db.session.add(_new_account(candidate, email, default_hash, must_change=True))
+
+
+RESET_REQUESTS_PER_IP_HOUR = 5
+RESET_REQUESTS_PER_EMAIL_HOUR = 3
+
+
+def request_reset(email: str, message: str, ip: str | None) -> None:
+    """Public 'forgot password': records a request for the admins. Same outcome whether the email exists or not
+    (no account enumeration); limited per IP and per email."""
+    email = norm_email(email)[:255]
+    if not EMAIL_RE.match(email):
+        raise BusinessError("Adresse email invalide.")
+    if (audit_service.recent_count("password_reset_request", 60, ip=ip) >= RESET_REQUESTS_PER_IP_HOUR
+            or audit_service.recent_count("password_reset_request", 60, email=email) >= RESET_REQUESTS_PER_EMAIL_HOUR):
+        raise BusinessError("Trop de demandes. Réessayez plus tard ou adressez-vous à l'équipe DFS.")
+    user = db.session.scalar(select(User).where(func.lower(User.email) == email))
+    audit_service.log("password_reset_request", user, {"email": email, "known": user is not None}, user=user)
+    if user is not None:
+        pending = db.session.scalar(select(PasswordResetRequest).where(
+            PasswordResetRequest.user_id == user.id, PasswordResetRequest.status == RESET_PENDING))
+        pending = pending or PasswordResetRequest(user=user)
+        pending.message, pending.ip_address, pending.created_at = message.strip()[:255], ip, utcnow()  # one per user
+        db.session.add(pending)
+    db.session.commit()
+
+
+def pending_resets() -> list[PasswordResetRequest]:
+    return db.session.scalars(select(PasswordResetRequest).where(PasswordResetRequest.status == RESET_PENDING)
+                              .order_by(PasswordResetRequest.created_at)).all()
+
+
+def handle_reset(request_: PasswordResetRequest, admin: User, approve: bool) -> str | None:
+    """Approve: a candidate gets the initial password back; a staff member gets a temporary password (returned,
+    shown once to the admin). Both must choose a new one at their next login. Reject: nothing changes."""
+    if request_.status != RESET_PENDING:
+        raise BusinessError("Cette demande a déjà été traitée.")
+    request_.status = RESET_DONE if approve else RESET_REJECTED
+    request_.handled_by, request_.handled_at = admin.id, utcnow()
+    temporary = None
+    if approve and request_.user.is_candidate:
+        reset_password(request_.user)  # commits
+    elif approve:
+        temporary = secrets.token_urlsafe(9)
+        request_.user.set_password(temporary)
+        request_.user.must_change_password = True
+        audit_service.log("user_password_reset", request_.user, {"email": request_.user.email, "temporary": True})
+    audit_service.log("password_reset_handled", request_.user, {"approved": approve})
+    db.session.commit()
+    return temporary
 
 
 def reset_password(account: User) -> None:

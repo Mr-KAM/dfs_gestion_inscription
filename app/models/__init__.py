@@ -7,10 +7,11 @@ from app.models.infra import Building, Consumable, ConsumableMovement, Equipment
 from app.models.kobo import KoboSubmission
 from app.models.sas import Sas
 from app.models.technical_test import TechnicalTestSession
-from app.models.user import User
+from app.models.user import PasswordResetRequest, User
 from app.models.workstation import Room, Workstation
 
 __all__ = ["Attendance", "AttendanceSession", "AuditLog", "Setting", "Candidate", "ClassInvitation", "Exercise",
            "ExerciseSubmission", "Incident", "Notification", "SasClass", "Visit", "KoboSubmission", "Sas",
            "TechnicalTestSession", "User", "Room", "Workstation", "Building", "Level", "Space", "Equipment",
-           "Consumable", "ConsumableMovement", "ExerciseAnswer", "Media"]
+           "Consumable", "ConsumableMovement", "ExerciseAnswer", "Media",
+           "PasswordResetRequest"]

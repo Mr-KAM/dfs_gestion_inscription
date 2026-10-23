@@ -220,6 +220,8 @@ L'administrateur initial est créé au démarrage **uniquement si aucun administ
 * onglet **Équipe** : créer / modifier / désactiver le personnel et choisir son rôle ; pour un **coach**, cocher ses classes ;
 * onglet **Candidats** : suivre les comptes candidats (matricule, état du compte, dernière connexion), modifier, réinitialiser le mot de passe, désactiver, supprimer.
 
+**Mot de passe oublié** : lien sur les deux pages de connexion (`/mot-de-passe-oublie`). La personne saisit son email (et un moyen de la joindre) ; la réponse est identique que le compte existe ou non. Les demandes apparaissent en tête de **Utilisateurs** (pastille dans le menu) : pour un candidat, *Remettre le mot de passe initial* ; pour le personnel, *Mot de passe temporaire* (affiché une seule fois à l'admin, à transmettre par un canal privé). Dans les deux cas, un nouveau mot de passe est imposé à la connexion suivante. Demandes limitées par IP et par email. L'application n'envoie pas d'emails.
+
 **Mon profil** (`/profil`, clic sur son nom en haut à droite) : chaque membre du personnel modifie son nom, son téléphone, sa **photo** (JPEG / PNG / WebP, 2 Mo max.) et son mot de passe. L'email et le rôle restent gérés par l'admin.
 
 ```bash

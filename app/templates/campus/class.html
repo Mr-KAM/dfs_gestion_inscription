@@ -4,7 +4,16 @@
 {% block content %}
 <a class="small text-muted text-decoration-none" href="{{ url_for('campus.classes') }}"><i class="bi bi-arrow-left"></i> Classes</a>
 <h1 class="page-title mt-1">{{ k.name }} <span class="status status-info align-middle">{{ members | length }} étudiant(s)</span></h1>
-<div class="text-muted mb-3">{{ k.sas.name }}</div>
+<div class="text-muted mb-3">{{ k.sas.name }} · créée le {{ k.created_at | dt }}{% if creator %} par {{ creator.display_name }}{% endif %}
+  · coach(s) : {% for u in coaches %}{{ u.display_name }}{{ ', ' if not loop.last }}{% else %}aucun{% endfor %}</div>
+
+<div class="row g-2 mb-3">
+  {% for label, value in (("Étudiants", members | length), ("Exercices", exercises | length),
+                          ("À corriger", exercises | sum(attribute='to_review')), ("Appels", calls | length),
+                          ("Heures d'absence", absent_hours ~ ' h')) %}
+  <div class="col-6 col-md"><div class="card card-body py-2"><div class="small text-muted">{{ label }}</div><div class="fs-5 fw-semibold">{{ value }}</div></div></div>
+  {% endfor %}
+</div>
 
 <div class="row g-3">
   <div class="col-lg-5">
@@ -44,6 +53,47 @@
       {% endfor %}
       </ul></div>
     {% endif %}
+  </div>
+</div>
+
+<div class="card mt-3"><div class="card-header"><i class="bi bi-journal-code"></i> Exercices de la classe</div>
+<div class="table-responsive"><table class="table table-sm align-middle mb-0">
+  <thead><tr><th>Exercice</th><th>Publication</th><th>Date limite</th><th>Rendus</th><th>Soumissions</th><th>À corriger</th><th>Validés</th><th>À refaire</th></tr></thead>
+  <tbody>
+  {% for x in exercises %}{% set e = x.exercise %}
+    <tr>
+      <td><a href="{{ url_for('campus.exercise', exercise_id=e.id) }}">{{ e.title }}</a></td>
+      <td>{% if e.is_published %}{{ e.opens_at | dt }}{% else %}{{ status(('info', 'Programmé ' ~ (e.opens_at | dt))) }}{% endif %}</td>
+      <td>{{ e.due_at | dt or '—' }}</td>
+      <td>{{ x.handed_in }} / {{ members | length }}</td><td>{{ x.attempts }}</td>
+      <td>{% if x.to_review %}<strong class="text-warning">{{ x.to_review }}</strong>{% else %}0{% endif %}</td>
+      <td>{{ x.validated }}</td><td>{{ x.rejected }}</td>
+    </tr>
+  {% else %}<tr><td colspan="8" class="text-muted">Aucun exercice pour cette classe.</td></tr>{% endfor %}
+  </tbody>
+</table></div></div>
+
+<div class="row g-3 mt-0">
+  <div class="col-lg-7">
+    <div class="card"><div class="card-header"><i class="bi bi-calendar-check"></i> Appels</div>
+      <ul class="list-group list-group-flush">
+      {% for x in calls %}{% set s = x.session %}
+        <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <a href="{{ url_for('campus.attendance', session_id=s.id) }}">{{ s.label }}</a>
+          <span class="small text-muted">{{ s.opened_at | dt }} · {{ s.hours }} h · {{ x.present }} / {{ members | length }} présent(s)</span>
+          {{ status(s.state_badge) }}
+        </li>
+      {% else %}<li class="list-group-item text-muted">Aucun appel.</li>{% endfor %}
+      </ul></div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card"><div class="card-header"><i class="bi bi-megaphone"></i> Notifications envoyées</div>
+      <ul class="list-group list-group-flush">
+      {% for n in notifications %}
+        <li class="list-group-item small"><strong>{{ n.title }}</strong>
+          <div class="text-muted">{{ n.created_at | dt }}{% if n.author %} · {{ n.author.display_name }}{% endif %}</div></li>
+      {% else %}<li class="list-group-item text-muted">Aucune notification.</li>{% endfor %}
+      </ul></div>
   </div>
 </div>
 {% endblock %}

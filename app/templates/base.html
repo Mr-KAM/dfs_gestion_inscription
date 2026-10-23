@@ -95,9 +95,10 @@
         {{ nav('admin.rooms', 'pc-display', 'Salles & ordinateurs') }}
         {{ nav('kobo.index', 'cloud-arrow-down', 'KoboToolbox', 'kobo.') }}
         {{ nav('admin.sas_list', 'door-open', 'SAS', 'admin.sas') }}
-        {{ nav('campus.index', 'house-door', 'Vie du SAS', 'campus.') }}
+        {{ nav('campus.index', 'house-door', 'Vie du SAS', 'campus.index') }}
+        {{ nav('campus.classes', 'people', 'Classes et coachs', 'campus.class') }}
         {{ nav('infra.index', 'building', 'Infrastructures', 'infra.') }}
-        {{ nav('admin.users', 'person-gear', 'Utilisateurs', 'admin.user') }}
+        <a class="nav-link {{ is_active('admin.users', 'admin.user') }}" href="{{ url_for('admin.users') }}"><i class="bi bi-person-gear"></i>Utilisateurs{% if reset_requests %} <span class="badge text-bg-warning ms-auto" title="Demandes de réinitialisation">{{ reset_requests }}</span>{% endif %}</a>
         {{ nav('admin.scan', 'qr-code-scan', 'Scanner QR') }}
         {{ nav('admin.imports', 'upload', 'Imports', 'admin.import') }}
         {{ nav('admin.exports', 'download', 'Exports') }}

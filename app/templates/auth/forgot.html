@@ -1,0 +1,23 @@
+{% extends "_auth_layout.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}Mot de passe oublié{% endblock %}
+{% block eyebrow %}{{ 'Espace candidat' if candidate_space else 'Plateforme de recrutement' }}{% endblock %}
+{% block hero_title %}Mot de passe<br>oublié{% endblock %}
+{% block hero_text %}Indiquez l'email de votre compte : l'équipe DFS réinitialise votre mot de passe et vous recontacte.{% endblock %}
+{% block card_title %}Réinitialisation{% endblock %}
+{% block card_sub %}Demande à l'équipe DFS{% endblock %}
+{% block card_icon %}key{% endblock %}
+{% block form %}
+<form method="post" novalidate>
+  {{ csrf() }}
+  <label class="form-label" for="email">Email du compte</label>
+  <input class="form-control mb-3" type="email" id="email" name="email" placeholder="Email" autocomplete="username"
+         value="{{ request.form.get('email', '') }}" required autofocus>
+  <label class="form-label" for="message">Comment vous joindre ? <span class="text-muted">(facultatif)</span></label>
+  <input class="form-control mb-3" id="message" name="message" maxlength="255" placeholder="Téléphone, précisions…"
+         value="{{ request.form.get('message', '') }}">
+  <button class="btn btn-primary btn-lg w-100">Envoyer la demande</button>
+</form>
+<p class="small text-muted mt-3 mb-0">Après la réinitialisation, vous devrez choisir un nouveau mot de passe à la connexion.</p>
+{% endblock %}
+{% block links %}<a href="{{ back }}"><i class="bi bi-arrow-left"></i> Retour à la connexion</a>{% endblock %}

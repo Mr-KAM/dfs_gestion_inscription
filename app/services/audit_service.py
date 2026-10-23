@@ -20,6 +20,8 @@ ACTION_LABELS = {
     "user_activate": "Activation utilisateur",
     "user_password_reset": "Réinitialisation mot de passe",
     "password_change": "Changement de mot de passe",
+    "password_reset_request": "Demande de réinitialisation du mot de passe",
+    "password_reset_handled": "Demande de réinitialisation traitée",
     "profile_update": "Mise à jour du profil (candidat)",
     "candidate_accounts_create": "Création comptes candidats",
     "candidate_signup": "Inscription candidat",

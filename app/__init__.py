@@ -66,6 +66,10 @@ def _check_config(app: Flask) -> None:
 
 
 def _register_web_helpers(app: Flask) -> None:
+    from flask import flash, redirect, url_for
+    from sqlalchemy import func, select
+
+    from app.models import PasswordResetRequest
     from app.models.user import ROLES
     from app.services import candidate_service, settings_service
 
@@ -100,9 +104,22 @@ def _register_web_helpers(app: Flask) -> None:
 
     @app.context_processor
     def inject_globals():
-        return {"app_name": settings_service.get("app_name"), "ROLES": ROLES}
+        reset_requests = 0
+        if current_user.is_authenticated and current_user.role == "admin":
+            reset_requests = db.session.scalar(select(func.count(PasswordResetRequest.id)).where(
+                PasswordResetRequest.status == "pending"))
+        return {"app_name": settings_service.get("app_name"), "ROLES": ROLES, "reset_requests": reset_requests}
 
     app.add_template_global(candidate_service.matricule_qr, "matricule_qr")  # global: visible inside macros
+
+    @app.before_request
+    def staff_password_change():
+        """Temporary password given by an admin: choose a personal one before anything else."""
+        if (current_user.is_authenticated and not current_user.is_candidate and current_user.must_change_password
+                and request.endpoint not in ("auth.profile", "auth.photo", "auth.logout", "static")):
+            flash("Votre mot de passe a été réinitialisé : choisissez un nouveau mot de passe.", "warning")
+            return redirect(url_for("auth.profile"))
+        return None
 
     @app.after_request
     def security_headers(response):

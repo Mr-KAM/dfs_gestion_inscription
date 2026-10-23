@@ -10,6 +10,24 @@
   <a class="btn btn-primary" href="{{ url_for('candidates.create') }}"><i class="bi bi-person-plus"></i> Nouveau candidat</a>
   {% endif %}
 </div>
+{% if resets %}
+<div class="card mb-3 border-warning"><div class="card-header"><i class="bi bi-key"></i> Demandes de réinitialisation de mot de passe ({{ resets | length }})</div>
+  <ul class="list-group list-group-flush">
+  {% for r in resets %}
+    <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div><strong>{{ r.user.display_name }}</strong> <span class="small text-muted">{{ r.user.email }} · {{ r.user.role_label }}{% if not r.user.active %} · compte désactivé{% endif %}</span>
+        <div class="small text-muted">Demandé le {{ r.created_at | dt }}{% if r.message %} · « {{ r.message }} »{% endif %}</div></div>
+      <form class="d-flex gap-2" method="post" action="{{ url_for('admin.reset_request_handle', request_id=r.id) }}">
+        {{ csrf() }}
+        <button class="btn btn-sm btn-warning" name="approve" value="1"
+                data-confirm="{{ 'Remettre le mot de passe initial de ' if r.user.is_candidate else 'Générer un mot de passe temporaire pour ' }}{{ r.user.email }} ?">
+          <i class="bi bi-arrow-counterclockwise"></i> {{ 'Remettre le mot de passe initial' if r.user.is_candidate else 'Mot de passe temporaire' }}</button>
+        <button class="btn btn-sm btn-outline-secondary" name="approve" value="0">Rejeter</button>
+      </form>
+    </li>
+  {% endfor %}
+  </ul></div>
+{% endif %}
 <ul class="nav nav-tabs mb-3">
   <li class="nav-item"><a class="nav-link {{ 'active' if tab == 'staff' }}" href="{{ url_for('admin.users') }}">Équipe</a></li>
   <li class="nav-item"><a class="nav-link {{ 'active' if tab == 'candidats' }}" href="{{ url_for('admin.users', tab='candidats') }}">Candidats</a></li>

@@ -8,8 +8,8 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, or_, select
 
 from app.extensions import db
-from app.models import (Candidate, ClassInvitation, Exercise, ExerciseAnswer, ExerciseSubmission, Incident, Media,
-                        Notification, Sas, SasClass, Visit)
+from app.models import (AttendanceSession, Candidate, ClassInvitation, Exercise, ExerciseAnswer, ExerciseSubmission,
+                        Incident, Media, Notification, Sas, SasClass, User, Visit)
 from app.models.campus import (INCIDENT_CATEGORIES, INVITE_ACCEPTED, INVITE_DECLINED, INVITE_PENDING, KIND_VISIT,
                                REJECTED, SUBMITTED, VALIDATED, VISIT_KINDS)
 from app.models.user import ROLE_ADMIN, ROLE_COACH, ROLE_RECEPTION
@@ -458,3 +458,55 @@ def answer_invitation(invitation: ClassInvitation, candidate: Candidate, accept:
     invitation.status, invitation.responded_at = INVITE_DECLINED, utcnow()
     audit_service.log("class_decline", invitation.klass, {"matricule": candidate.matricule})
     db.session.commit()
+
+
+# ---- class reports (admin overview, class page)
+
+def coaches_by_class() -> dict[str, list[User]]:
+    """'sas_id:class' -> coaches teaching it (from each coach's classes)."""
+    out: dict[str, list[User]] = {}
+    for coach in db.session.scalars(select(User).where(User.role == ROLE_COACH).order_by(User.full_name, User.email)):
+        for key in coach.coach_classes or []:
+            out.setdefault(key, []).append(coach)
+    return out
+
+
+def class_counts() -> tuple[dict, dict]:
+    """(exercises, roll calls) per (sas_id, class name), two grouped queries for the whole list."""
+    exercises = dict(((s, n), c) for s, n, c in db.session.execute(
+        select(Exercise.sas_id, Exercise.class_name, func.count(Exercise.id))
+        .group_by(Exercise.sas_id, Exercise.class_name)))
+    calls = dict(((s, n), c) for s, n, c in db.session.execute(
+        select(AttendanceSession.sas_id, AttendanceSession.class_name, func.count(AttendanceSession.id))
+        .group_by(AttendanceSession.sas_id, AttendanceSession.class_name)))
+    return exercises, calls
+
+
+def class_report(klass: SasClass) -> dict:
+    """Everything about one class: coaches, exercises with their results, roll calls, notifications."""
+    members = class_members(klass)
+    ids = {c.id for c in members}
+    exercises = []
+    stmt = select(Exercise).where(Exercise.sas_id == klass.sas_id, Exercise.class_name == klass.name)
+    for e in db.session.scalars(stmt.order_by(Exercise.opens_at.desc())):
+        subs = [s for s in e.submissions if s.candidate_id in ids]
+        exercises.append({
+            "exercise": e,
+            "handed_in": sum(1 for s in subs if s.attempts),
+            "attempts": sum(len(s.attempts) for s in subs),
+            "to_review": sum(1 for s in subs if s.attempts and not s.attempts[-1].reviewed_at),
+            "validated": sum(1 for s in subs if s.status == VALIDATED),
+            "rejected": sum(1 for s in subs if s.status == REJECTED),
+        })
+    calls = [{"session": s, "present": sum(1 for m in s.marks if m.candidate_id in ids)}
+             for s in db.session.scalars(select(AttendanceSession).where(
+                 AttendanceSession.sas_id == klass.sas_id, AttendanceSession.class_name == klass.name)
+                 .order_by(AttendanceSession.opened_at.desc()).limit(30))]
+    notifications = db.session.scalars(select(Notification).where(
+        Notification.sas_id == klass.sas_id, Notification.class_name == klass.name)
+        .order_by(Notification.created_at.desc()).limit(10)).all()
+    creator = db.session.get(User, klass.created_by) if klass.created_by else None
+    return {"members": members, "exercises": exercises, "calls": calls, "notifications": notifications,
+            "coaches": coaches_by_class().get(klass.key, []), "creator": creator,
+            "absent_hours": sum(c["session"].hours * (len(members) - c["present"]) for c in calls
+                                if c["session"].is_closed)}
