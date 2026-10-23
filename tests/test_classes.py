@@ -34,6 +34,8 @@ def test_coach_creates_class_and_invites(app, db, client):
     assert [(i.candidate_id, i.status) for i in ClassInvitation.query] == [(a.id, "pending")]
     html = client.post(f"/campus/classes/{k.id}/invite", data={"candidates": a.email}, follow_redirects=True).get_data(as_text=True)
     assert "déjà invité" in html
+    html = client.get(f"/campus/classes/{k.id}").get_data(as_text=True)
+    assert "Date heure invitation" in html and "ALPHA" in html and "En cours" in html  # invited, not yet in
 
     old = k.join_code
     client.post(f"/campus/classes/{k.id}/renew")
@@ -120,3 +122,7 @@ def test_admin_sees_classes_of_every_coach_with_exercises(app, db, client, admin
     report = campus_service.class_report(k)
     boucles = next(x for x in report["exercises"] if x["exercise"].title == "Boucles")
     assert (boucles["handed_in"], boucles["to_review"], report["absent_hours"]) == (1, 1, 3)  # A missed the 3 h call
+    campus_service.review(e, a, coach, "validated", "", "")
+    row = campus_service.class_report(k)["roster"][0]
+    assert (row["candidate"].id, row["member"], row["validated"]) == (a.id, True, 1)
+    assert "Rejoint par code" in client.get(f"/campus/classes/{k.id}").get_data(as_text=True)

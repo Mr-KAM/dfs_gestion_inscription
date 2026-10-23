@@ -176,7 +176,7 @@ class Incident(db.Model):
 
 
 INVITE_PENDING, INVITE_ACCEPTED, INVITE_DECLINED = "pending", "accepted", "declined"
-INVITE_BADGES = {INVITE_PENDING: ("warning", "En attente"), INVITE_ACCEPTED: ("success", "Acceptée"),
+INVITE_BADGES = {INVITE_PENDING: ("warning", "En cours"), INVITE_ACCEPTED: ("success", "Acceptée"),
                  INVITE_DECLINED: ("secondary", "Refusée")}
 
 

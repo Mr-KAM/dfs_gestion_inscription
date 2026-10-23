@@ -37,24 +37,23 @@
       <div class="form-text">L'invitation apparaît sur la page de l'étudiant, qui l'accepte ou la refuse.</div>
       <div><button class="btn btn-primary mt-2"><i class="bi bi-send"></i> Inviter</button></div>
     </form>
-    <div class="card mb-3"><div class="card-header"><i class="bi bi-people"></i> Étudiants</div>
-      <ul class="list-group list-group-flush">
-      {% for c in members %}
-        <li class="list-group-item d-flex justify-content-between"><span>{{ c.full_name }}</span><code class="small">{{ c.matricule }}</code></li>
-      {% else %}<li class="list-group-item text-muted">Personne pour l'instant.</li>{% endfor %}
-      </ul></div>
-    {% if k.invitations %}
-    <div class="card"><div class="card-header"><i class="bi bi-envelope"></i> Invitations</div>
-      <ul class="list-group list-group-flush">
-      {% for i in k.invitations %}
-        <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
-          <span>{{ i.candidate.full_name }} <code class="small">{{ i.candidate.matricule }}</code></span>
-          <span class="small text-muted">{{ i.created_at | dt }}</span>{{ status(i.badge) }}</li>
-      {% endfor %}
-      </ul></div>
-    {% endif %}
   </div>
 </div>
+
+<div class="card mt-3"><div class="card-header"><i class="bi bi-people"></i> Étudiants et invitations</div>
+<div class="table-responsive"><table class="table table-sm align-middle mb-0">
+  <thead><tr><th>Nom et prénoms</th><th>Matricule</th><th>Date heure invitation</th><th>État invitation</th><th>Exercices validés</th></tr></thead>
+  <tbody>
+  {% for r in roster %}{% set i = r.invitation %}
+    <tr>
+      <td>{{ r.candidate.full_name }}</td><td><code class="small">{{ r.candidate.matricule }}</code></td>
+      <td>{{ i.created_at | dt if i else '—' }}</td>
+      <td>{% if r.member %}{{ status(('success', 'Acceptée') if i else ('success', 'Rejoint par code')) }}{% else %}{{ status(i.badge) }}{% endif %}</td>
+      <td>{{ r.validated }} / {{ exercises | length }}</td>
+    </tr>
+  {% else %}<tr><td colspan="5" class="text-muted">Personne pour l'instant.</td></tr>{% endfor %}
+  </tbody>
+</table></div></div>
 
 <div class="card mt-3"><div class="card-header"><i class="bi bi-journal-code"></i> Exercices de la classe</div>
 <div class="table-responsive"><table class="table table-sm align-middle mb-0">

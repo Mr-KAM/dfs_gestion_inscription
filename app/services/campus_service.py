@@ -486,9 +486,12 @@ def class_report(klass: SasClass) -> dict:
     """Everything about one class: coaches, exercises with their results, roll calls, notifications."""
     members = class_members(klass)
     ids = {c.id for c in members}
-    exercises = []
+    exercises, validated = [], {}
     stmt = select(Exercise).where(Exercise.sas_id == klass.sas_id, Exercise.class_name == klass.name)
     for e in db.session.scalars(stmt.order_by(Exercise.opens_at.desc())):
+        for s in e.submissions:
+            if s.status == VALIDATED:
+                validated[s.candidate_id] = validated.get(s.candidate_id, 0) + 1
         subs = [s for s in e.submissions if s.candidate_id in ids]
         exercises.append({
             "exercise": e,
@@ -506,7 +509,14 @@ def class_report(klass: SasClass) -> dict:
         Notification.sas_id == klass.sas_id, Notification.class_name == klass.name)
         .order_by(Notification.created_at.desc()).limit(10)).all()
     creator = db.session.get(User, klass.created_by) if klass.created_by else None
-    return {"members": members, "exercises": exercises, "calls": calls, "notifications": notifications,
+    # one row per student: members first, then the invited ones not (yet) in the class
+    invitations = {i.candidate_id: i for i in klass.invitations}
+    roster = [{"candidate": c, "invitation": invitations.get(c.id), "member": True} for c in members]
+    roster += [{"candidate": i.candidate, "invitation": i, "member": False}
+               for i in sorted(klass.invitations, key=lambda i: i.candidate.full_name or "") if i.candidate_id not in ids]
+    for row in roster:
+        row["validated"] = validated.get(row["candidate"].id, 0)
+    return {"members": members, "roster": roster, "exercises": exercises, "calls": calls, "notifications": notifications,
             "coaches": coaches_by_class().get(klass.key, []), "creator": creator,
             "absent_hours": sum(c["session"].hours * (len(members) - c["present"]) for c in calls
                                 if c["session"].is_closed)}
