@@ -134,7 +134,7 @@ def register(form) -> User:
     return account
 
 
-def _photo_type(data: bytes) -> str | None:
+def image_type(data: bytes) -> str | None:
     """Real content type from the first bytes (never trust the file name). No SVG: it can carry scripts."""
     if data.startswith(b"\xff\xd8\xff"):
         return "image/jpeg"
@@ -152,7 +152,7 @@ def _read_photo(form, photo) -> bytes | None:
     data = photo.read(PHOTO_MAX_BYTES + 1)
     if len(data) > PHOTO_MAX_BYTES:
         raise BusinessError("Photo trop lourde : 2 Mo maximum.")
-    if _photo_type(data) is None:
+    if image_type(data) is None:
         raise BusinessError("Photo invalide : formats JPEG, PNG ou WebP uniquement.")
     return data
 
@@ -161,7 +161,7 @@ def _apply_photo(owner, form, data: bytes | None) -> None:
     if form.get("remove_photo"):
         owner.photo = owner.photo_type = None
     elif data:
-        owner.photo, owner.photo_type = data, _photo_type(data)
+        owner.photo, owner.photo_type = data, image_type(data)
 
 
 def update_profile(candidate: Candidate, form, photo=None) -> None:

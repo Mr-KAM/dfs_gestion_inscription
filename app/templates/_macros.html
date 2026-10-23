@@ -125,3 +125,25 @@
 </div>
 {% endfor %}
 {%- endmacro %}
+
+{# Rich text (TOAST UI Editor, Markdown). The plain textarea is the no-JS fallback and carries the value. #}
+{% macro md_editor(name, value='', id=None, placeholder='') -%}
+  {% set id = id or name %}
+  <textarea class="form-control" id="{{ id }}" name="{{ name }}" rows="8" placeholder="{{ placeholder }}">{{ value }}</textarea>
+  <div class="js-editor" data-input="{{ id }}" data-upload="{{ url_for('campus.media_upload') }}" data-csrf="{{ csrf_token() }}"></div>
+  <div class="form-text">Mise en forme, liens vers la documentation et images (bouton image, ou coller une capture). JPEG / PNG / WebP, 5 Mo max.</div>
+{%- endmacro %}
+
+{% macro md_view(text) -%}
+  <div class="js-md md-fallback">{{ text }}</div>
+{%- endmacro %}
+
+{% macro editor_css() -%}
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/toastui/toastui-editor.min.css') }}">
+{%- endmacro %}
+
+{% macro editor_js() -%}
+  <script src="{{ url_for('static', filename='vendor/toastui/toastui-editor-all.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/toastui/fr-fr.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/editor.js') }}"></script>
+{%- endmacro %}

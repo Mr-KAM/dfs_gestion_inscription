@@ -64,9 +64,13 @@ class ExerciseSubmission(db.Model):
     feedback = db.Column(db.Text, default="")
     reviewed_by = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
     reviewed_at = db.Column(db.DateTime(timezone=True))
+    # The coach lets the student hand in again (set by "À refaire" too; cleared by the next answer).
+    resubmit_allowed = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
 
     exercise = db.relationship("Exercise", back_populates="submissions")
     candidate = db.relationship("Candidate")
+    attempts = db.relationship("ExerciseAnswer", back_populates="submission", cascade="all, delete-orphan",
+                               order_by="ExerciseAnswer.number")
 
     __table_args__ = (
         db.UniqueConstraint("exercise_id", "candidate_id", name="uq_exercise_submissions_exercise_candidate"),
@@ -75,6 +79,44 @@ class ExerciseSubmission(db.Model):
     @property
     def badge(self) -> tuple[str, str]:
         return SUBMISSION_BADGES.get(self.status, ("secondary", self.status))
+
+
+class ExerciseAnswer(db.Model):
+    """Every answer handed in, with the coach's review of it: the full history is kept."""
+    __tablename__ = "exercise_answers"
+
+    id = db.Column(db.Integer, primary_key=True)
+    submission_id = db.Column(db.Integer, db.ForeignKey("exercise_submissions.id", ondelete="CASCADE"),
+                              nullable=False, index=True)
+    number = db.Column(db.Integer, nullable=False)  # 1st, 2nd... submission
+    answer = db.Column(db.Text, nullable=False, default="")
+    submitted_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    status = db.Column(db.String(20), nullable=False, default=SUBMITTED)
+    score = db.Column(db.String(20), default="")
+    feedback = db.Column(db.Text, default="")
+    reviewed_by = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
+    reviewed_at = db.Column(db.DateTime(timezone=True))
+
+    submission = db.relationship("ExerciseSubmission", back_populates="attempts")
+
+    __table_args__ = (db.UniqueConstraint("submission_id", "number", name="uq_exercise_answers_submission_number"),)
+
+    @property
+    def badge(self) -> tuple[str, str]:
+        return SUBMISSION_BADGES.get(self.status, ("secondary", self.status))
+
+
+class Media(db.Model):
+    """Image inserted in an exercise statement (rich editor). Random key: URLs cannot be guessed."""
+    __tablename__ = "media"
+
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(32), nullable=False, unique=True)
+    data = db.deferred(db.Column(db.LargeBinary, nullable=False))
+    mimetype = db.Column(db.String(20), nullable=False)
+    size = db.Column(db.Integer, nullable=False)
+    created_by = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
 
 
 KIND_VISIT, KIND_ACTIVITY = "visit", "activity"

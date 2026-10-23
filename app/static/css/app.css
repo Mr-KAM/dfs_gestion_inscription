@@ -206,3 +206,8 @@ a.stat-card:hover { border-color: var(--dfs-blue); }
 /* Site register: show only the fields of the chosen reason (no script: CSP). Without :has(), both stay visible. */
 .passage-form:has(#kind-visit:checked) .only-activity,
 .passage-form:has(#kind-activity:checked) .only-visit { display: none; }
+
+/* Rich text: plain text until the viewer renders it; images never wider than their card */
+.md-fallback { white-space: pre-line; }
+.toastui-editor-contents img { max-width: 100%; height: auto; }
+.toastui-editor-contents { font-size: 1rem; }

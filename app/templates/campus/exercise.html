@@ -1,13 +1,31 @@
 {% extends "base.html" %}
-{% from "_macros.html" import csrf, status %}
+{% from "_macros.html" import csrf, status, md_editor, md_view, editor_css, editor_js %}
 {% block title %}{{ e.title }}{% endblock %}
+{% block head %}{{ editor_css() }}{% endblock %}
 {% block content %}
 <a class="small text-muted text-decoration-none" href="{{ url_for('campus.exercises') }}"><i class="bi bi-arrow-left"></i> Exercices</a>
 <h1 class="page-title mt-1">{{ e.title }}</h1>
 <div class="text-muted mb-3">{{ e.sas.name }} · {{ e.class_name or 'tout le SAS' }} ·
   {% if e.is_published %}publié le {{ e.opens_at | dt }}{% else %}programmé pour le {{ e.opens_at | dt }} (invisible pour les étudiants){% endif %}
   {% if e.due_at %}· limite {{ e.due_at | dt }}{% endif %}</div>
-{% if e.instructions %}<div class="card card-body mb-3" style="white-space: pre-line">{{ e.instructions }}</div>{% endif %}
+{% if e.instructions %}<div class="card card-body mb-3">{{ md_view(e.instructions) }}</div>{% endif %}
+
+<details class="card mb-3" {{ 'open' if request.args.get('edit') }}>
+  <summary class="card-header"><i class="bi bi-pencil"></i> Modifier le titre, l'énoncé ou la date limite</summary>
+  <form class="card-body" method="post" action="{{ url_for('campus.exercise_edit', exercise_id=e.id) }}">
+    {{ csrf() }}
+    <div class="row g-2">
+      <div class="col-md-8"><label class="form-label" for="title">Titre</label>
+        <input class="form-control" id="title" name="title" maxlength="150" required value="{{ e.title }}"></div>
+      <div class="col-md-4"><label class="form-label" for="due_at">Date limite de soumission</label>
+        <input class="form-control" id="due_at" name="due_at" type="datetime-local" value="{{ e.due_at | dt('%Y-%m-%dT%H:%M') if e.due_at else '' }}">
+        <div class="form-text">Vide = pas de limite.</div></div>
+      <div class="col-12"><label class="form-label" for="instructions">Énoncé</label>{{ md_editor('instructions', e.instructions or '') }}</div>
+    </div>
+    <div class="form-text">Les réponses déjà rendues sont conservées.</div>
+    <button class="btn btn-primary mt-2"><i class="bi bi-check2"></i> Enregistrer</button>
+  </form>
+</details>
 
 <div class="card"><div class="card-header"><i class="bi bi-check2-square"></i> Résultats</div>
 <ul class="list-group list-group-flush">
@@ -17,10 +35,31 @@
       <div><strong>{{ c.full_name }}</strong> <code class="small">{{ c.matricule }}</code> <span class="small text-muted">{{ c.sas_class or '' }}</span></div>
       <div>{% if sub %}{{ status(sub.badge) }}{% if sub.score %} <strong>{{ sub.score }}</strong>{% endif %}{% else %}{{ status(('secondary', 'Pas de réponse')) }}{% endif %}</div>
     </div>
-    {% if sub and sub.answer %}
-    <div class="small bg-light rounded p-2 mt-2" style="white-space: pre-line">{{ sub.answer }}</div>
-    <div class="small text-muted">Rendu le {{ sub.submitted_at | dt }}</div>
+    {% if sub and sub.attempts %}
+    <div class="mt-2">
+    {% for a in sub.attempts | reverse %}
+      <div class="border rounded p-2 mb-1 {{ 'bg-light' if loop.first }}">
+        <div class="small d-flex justify-content-between flex-wrap gap-2">
+          <span><strong>Soumission {{ a.number }}</strong> · rendue le {{ a.submitted_at | dt }}</span>
+          <span>{% if a.reviewed_at %}{{ status(a.badge) }}{% if a.score %} {{ a.score }}{% endif %}{% else %}{{ status(('info', 'À corriger')) }}{% endif %}</span>
+        </div>
+        <div class="small mt-1" style="white-space: pre-line">{{ a.answer }}</div>
+        {% if a.feedback %}<div class="small text-muted mt-1"><i class="bi bi-chat-left-text"></i> {{ a.feedback }}</div>{% endif %}
+      </div>
+    {% endfor %}
+    </div>
     {% endif %}
+    <div class="d-flex align-items-center gap-2 mt-1 flex-wrap">
+      {% if sub and sub.resubmit_allowed %}
+        <span class="status status-warning">Nouvelle soumission autorisée</span>
+        <form method="post" action="{{ url_for('campus.exercise_resubmit', exercise_id=e.id, candidate_id=c.id) }}">{{ csrf() }}
+          <input type="hidden" name="allowed" value="0"><button class="btn btn-sm btn-link p-0">Retirer l'autorisation</button></form>
+      {% elif sub and (sub.attempts or sub.status == VALIDATED) %}
+        <form method="post" action="{{ url_for('campus.exercise_resubmit', exercise_id=e.id, candidate_id=c.id) }}">{{ csrf() }}
+          <input type="hidden" name="allowed" value="1">
+          <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-repeat"></i> Autoriser une nouvelle soumission</button></form>
+      {% endif %}
+    </div>
     <form class="row g-2 align-items-end mt-1" method="post" action="{{ url_for('campus.exercise_review', exercise_id=e.id, candidate_id=c.id) }}">
       {{ csrf() }}
       <div class="col-4 col-md-2"><input class="form-control form-control-sm" name="score" maxlength="20" placeholder="Note" value="{{ sub.score if sub else '' }}" aria-label="Note de {{ c.full_name }}"></div>
@@ -34,3 +73,4 @@
 {% else %}<li class="list-group-item text-muted">Aucun étudiant dans cette classe.</li>{% endfor %}
 </ul></div>
 {% endblock %}
+{% block scripts %}{{ editor_js() }}{% endblock %}

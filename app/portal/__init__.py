@@ -94,7 +94,8 @@ def exercises():
         return redirect(url_for("portal.exercises") + f"#e{exercise.id}")
     items = campus_service.exercises_for(candidate)
     submissions = {s.exercise_id: s for e in items for s in e.submissions if s.candidate_id == candidate.id}
-    return render_template("portal/exercises.html", exercises=items, submissions=submissions)
+    can_submit = {e.id: campus_service.can_submit(e, submissions.get(e.id)) for e in items}
+    return render_template("portal/exercises.html", exercises=items, submissions=submissions, can_submit=can_submit)
 
 
 @bp.route("/profil", methods=["GET", "POST"])

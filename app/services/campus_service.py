@@ -8,14 +8,14 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, or_, select
 
 from app.extensions import db
-from app.models import (Candidate, ClassInvitation, Exercise, ExerciseSubmission, Incident, Notification, Sas,
-                        SasClass, Visit)
+from app.models import (Candidate, ClassInvitation, Exercise, ExerciseAnswer, ExerciseSubmission, Incident, Media,
+                        Notification, Sas, SasClass, Visit)
 from app.models.campus import (INCIDENT_CATEGORIES, INVITE_ACCEPTED, INVITE_DECLINED, INVITE_PENDING, KIND_VISIT,
                                REJECTED, SUBMITTED, VALIDATED, VISIT_KINDS)
 from app.models.user import ROLE_ADMIN, ROLE_COACH, ROLE_RECEPTION
-from app.services import audit_service, settings_service
+from app.services import account_service, audit_service, settings_service
 from app.services.candidate_service import BusinessError
-from app.utils import utcnow
+from app.utils import as_utc, utcnow
 
 
 # ---- classes and rights
@@ -163,33 +163,105 @@ def _submission(exercise: Exercise, candidate: Candidate) -> ExerciseSubmission:
     return found
 
 
+def update_exercise(exercise: Exercise, user, form) -> None:
+    """The coach corrects the title, the statement and the deadline (answers already handed in are kept)."""
+    title = form.get("title", "").strip()[:150]
+    if not title:
+        raise BusinessError("Le titre est obligatoire.")
+    due_at = local_datetime(form.get("due_at", ""))
+    if due_at and due_at <= as_utc(exercise.opens_at):
+        raise BusinessError("La date limite doit être après la publication.")
+    changed = [label for label, old, new in (("titre", exercise.title, title),
+                                             ("énoncé", exercise.instructions, form.get("instructions", "").strip()),
+                                             ("date limite", exercise.due_at and as_utc(exercise.due_at), due_at))
+               if old != new]
+    exercise.title, exercise.due_at = title, due_at
+    exercise.instructions = form.get("instructions", "").strip()[:20000]
+    audit_service.log("exercise_update", exercise, {"changed": changed})
+    db.session.commit()
+
+
+def can_submit(exercise: Exercise, submission: ExerciseSubmission | None) -> bool:
+    """First answer: published and before the deadline. Afterwards only with the coach's permission
+    (which also works after the deadline)."""
+    if not exercise.is_published:
+        return False
+    if submission is not None and submission.resubmit_allowed:
+        return True
+    if submission is not None and (submission.attempts or submission.status == VALIDATED):
+        return False
+    return exercise.accepts_answers
+
+
 def submit_answer(exercise: Exercise, candidate: Candidate, answer: str) -> None:
     if exercise.sas_id != candidate.sas_id or exercise.class_name not in ("", candidate.sas_class):
         raise BusinessError("Cet exercice ne concerne pas votre classe.")
-    if not exercise.accepts_answers:
+    submission = next((s for s in exercise.submissions if s.candidate_id == candidate.id), None)
+    if not can_submit(exercise, submission):
+        if submission is not None and (submission.attempts or submission.status == VALIDATED):
+            raise BusinessError("Vous avez déjà rendu cet exercice : une nouvelle soumission doit être autorisée "
+                                "par votre coach.")
         raise BusinessError("Cet exercice n'accepte plus de réponse (date limite passée).")
     answer = answer.strip()[:20000]
     if not answer:
         raise BusinessError("Votre réponse est vide.")
     submission = _submission(exercise, candidate)
-    if submission.status == VALIDATED:
-        raise BusinessError("Votre exercice est déjà validé.")
-    submission.answer, submission.submitted_at, submission.status = answer, utcnow(), SUBMITTED
-    audit_service.log("exercise_submit", exercise, {"matricule": candidate.matricule})
+    now = utcnow()
+    submission.attempts.append(ExerciseAnswer(number=len(submission.attempts) + 1, answer=answer, submitted_at=now))
+    submission.answer, submission.submitted_at, submission.status = answer, now, SUBMITTED
+    submission.score, submission.feedback, submission.resubmit_allowed = "", "", False  # previous ones: in history
+    audit_service.log("exercise_submit", exercise, {"matricule": candidate.matricule,
+                                                    "attempt": len(submission.attempts)})
     db.session.commit()
 
 
 def review(exercise: Exercise, candidate: Candidate, user, status: str, score: str, feedback: str) -> None:
-    """The coach validates (or sends back) a student's result, with or without an answer submitted in the app."""
+    """The coach validates (or sends back) a student's result, with or without an answer submitted in the app.
+    The review is also stored on the latest answer (history); « À refaire » allows a new submission."""
     if status not in (VALIDATED, REJECTED):
         raise BusinessError("Décision invalide.")
     if candidate not in exercise_roster(exercise):
         raise BusinessError("Cet étudiant ne fait pas partie de cet exercice.")
     submission = _submission(exercise, candidate)
-    submission.status, submission.score, submission.feedback = status, score.strip()[:20], feedback.strip()[:5000]
-    submission.reviewed_by, submission.reviewed_at = user.id, utcnow()
+    now, score, feedback = utcnow(), score.strip()[:20], feedback.strip()[:5000]
+    for target in (submission, *submission.attempts[-1:]):
+        target.status, target.score, target.feedback, target.reviewed_by, target.reviewed_at = \
+            status, score, feedback, user.id, now
+    submission.resubmit_allowed = status == REJECTED
     audit_service.log("exercise_review", exercise, {"matricule": candidate.matricule, "status": status})
     db.session.commit()
+
+
+def set_resubmission(exercise: Exercise, candidate: Candidate, user, allowed: bool) -> None:
+    """Coach's permission for one more submission (the history of the previous ones is kept)."""
+    if candidate not in exercise_roster(exercise):
+        raise BusinessError("Cet étudiant ne fait pas partie de cet exercice.")
+    _submission(exercise, candidate).resubmit_allowed = allowed
+    audit_service.log("exercise_resubmit", exercise, {"matricule": candidate.matricule, "allowed": allowed,
+                                                      "by": user.id})
+    db.session.commit()
+
+
+# ---- images of the rich editor (exercise statements)
+
+MEDIA_MAX_BYTES = 5 * 1024 * 1024
+
+
+def save_media(user, upload) -> Media:
+    data = upload.read(MEDIA_MAX_BYTES + 1) if upload else b""
+    if not data:
+        raise BusinessError("Aucune image reçue.")
+    if len(data) > MEDIA_MAX_BYTES:
+        raise BusinessError("Image trop lourde : 5 Mo maximum.")
+    mimetype = account_service.image_type(data)  # real format from the bytes; SVG (scripts) refused
+    if mimetype is None:
+        raise BusinessError("Image invalide : formats JPEG, PNG ou WebP uniquement.")
+    media = Media(key=secrets.token_hex(16), data=data, mimetype=mimetype, size=len(data), created_by=user.id)
+    db.session.add(media)
+    db.session.flush()
+    audit_service.log("media_upload", media, {"size": len(data), "type": mimetype})
+    db.session.commit()
+    return media
 
 
 # ---- reception

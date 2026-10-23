@@ -2,7 +2,7 @@
 coach (roll calls, notifications, exercises for his classes), reception (visits, absences, problems),
 residence manager (bedrooms / equipment: the /admin/sas pages)."""
 import segno
-from flask import Blueprint, abort, flash, make_response, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, jsonify, make_response, redirect, render_template, request, url_for
 from flask_login import current_user
 from markupsafe import Markup
 from sqlalchemy import or_, select
@@ -19,6 +19,7 @@ from app.utils import allow_camera, roles_required, utcnow
 bp = Blueprint("campus", __name__, url_prefix="/campus")
 DESK_ROLES = (ROLE_ADMIN, ROLE_RECEPTION)  # site register, every incident
 CLASS_ROLES = (ROLE_ADMIN, ROLE_COACH)  # create classes, join QR codes, invitations
+EXERCISE_ROLES = (ROLE_ADMIN, ROLE_COACH, ROLE_RECEPTION)  # may write exercise statements (and upload their images)
 
 
 @bp.before_request
@@ -171,6 +172,43 @@ def exercise(exercise_id: int):
     submissions = {s.candidate_id: s for s in exercise.submissions}
     return render_template("campus/exercise.html", e=exercise, students=campus_service.exercise_roster(exercise),
                            submissions=submissions, VALIDATED=VALIDATED, REJECTED=REJECTED)
+
+
+@bp.post("/exercises/<int:exercise_id>/edit")
+def exercise_edit(exercise_id: int):
+    exercise = _exercise(exercise_id)
+    try:
+        campus_service.update_exercise(exercise, current_user, request.form)
+        flash("Exercice mis à jour.", "success")
+    except BusinessError as exc:
+        db.session.rollback()
+        flash(str(exc), "danger")
+    return redirect(url_for("campus.exercise", exercise_id=exercise.id))
+
+
+@bp.post("/exercises/<int:exercise_id>/resubmit/<int:candidate_id>")
+def exercise_resubmit(exercise_id: int, candidate_id: int):
+    """Allow (or withdraw) one more submission for this student; previous answers stay in the history."""
+    exercise = _exercise(exercise_id)
+    allowed = request.form.get("allowed") == "1"
+    try:
+        campus_service.set_resubmission(exercise, db.get_or_404(Candidate, candidate_id), current_user, allowed)
+        flash("Nouvelle soumission autorisée." if allowed else "Autorisation retirée.", "success")
+    except BusinessError as exc:
+        flash(str(exc), "danger")
+    return redirect(url_for("campus.exercise", exercise_id=exercise.id) + f"#s{candidate_id}")
+
+
+@bp.post("/media")
+def media_upload():
+    """Image pasted / inserted in the rich editor (fetch from static/js/editor.js, CSRF in the X-CSRFToken header)."""
+    if current_user.role not in EXERCISE_ROLES:
+        abort(403)
+    try:
+        media = campus_service.save_media(current_user, request.files.get("file"))
+    except BusinessError as exc:
+        return jsonify(error=str(exc)), 400
+    return jsonify(url=url_for("auth.media", key=media.key))
 
 
 @bp.post("/exercises/<int:exercise_id>/review/<int:candidate_id>")

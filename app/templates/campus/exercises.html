@@ -1,6 +1,7 @@
 {% extends "base.html" %}
-{% from "_macros.html" import csrf, status %}
+{% from "_macros.html" import csrf, status, md_editor, editor_css, editor_js %}
 {% block title %}Exercices{% endblock %}
+{% block head %}{{ editor_css() }}{% endblock %}
 {% block content %}
 <h1 class="page-title mb-3">Exercices</h1>
 {% if targets %}
@@ -12,8 +13,8 @@
         {% for t in targets %}<option value="{{ t.key }}" {{ 'selected' if request.form.get('target') == t.key }}>{{ t.label }}</option>{% endfor %}</select></div>
     <div class="col-md-7"><label class="form-label" for="title">Titre</label>
       <input class="form-control" id="title" name="title" maxlength="150" required value="{{ request.form.get('title', '') }}"></div>
-    <div class="col-12"><label class="form-label" for="instructions">Consignes</label>
-      <textarea class="form-control" id="instructions" name="instructions" rows="5">{{ request.form.get('instructions', '') }}</textarea></div>
+    <div class="col-12"><label class="form-label" for="instructions">Énoncé</label>
+      {{ md_editor('instructions', request.form.get('instructions', ''), placeholder="Consignes, liens vers la documentation, images…") }}</div>
     <div class="col-md-6"><label class="form-label" for="opens_at">Publication</label>
       <input class="form-control" id="opens_at" name="opens_at" type="datetime-local" value="{{ request.form.get('opens_at', '') }}">
       <div class="form-text">Vide = tout de suite. Avant cette date, les étudiants ne voient pas l'exercice.</div></div>
@@ -41,3 +42,4 @@
   </tbody>
 </table></div></div>
 {% endblock %}
+{% block scripts %}{{ editor_js() }}{% endblock %}

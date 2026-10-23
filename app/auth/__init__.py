@@ -1,12 +1,13 @@
+import io
 from urllib.parse import urlsplit
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, flash, redirect, render_template, request, send_file, session, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 from sqlalchemy import func, select
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.extensions import db
-from app.models import User
+from app.models import Media, User
 from app.services import account_service, audit_service
 from app.services.candidate_service import BusinessError
 from app.utils import utcnow
@@ -121,3 +122,15 @@ def photo():
     if current_user.is_candidate:
         abort(404)
     return account_service.photo_response(current_user._get_current_object())  # own photo only
+
+
+@bp.get("/media/<key>")
+@login_required
+def media(key: str):
+    """Images of exercise statements: any logged-in user (students read the statements), random 32-hex keys."""
+    item = db.session.scalar(select(Media).where(Media.key == key)) if len(key) == 32 else None
+    if item is None:
+        abort(404)
+    response = send_file(io.BytesIO(item.data), mimetype=item.mimetype, max_age=86400)
+    response.headers["Cache-Control"] = "private, max-age=86400"
+    return response
