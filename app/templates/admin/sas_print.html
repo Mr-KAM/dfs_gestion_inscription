@@ -1,0 +1,35 @@
+{% from "_macros.html" import avatar %}
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admis {{ sas.name }} · DFS</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+{# Opens the print dialog: "Enregistrer au format PDF" saves the file (app.js, data-autoprint). #}
+<body class="bg-white p-3" data-autoprint>
+  <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+    <div><h1 class="h4 mb-1">{{ sas.name }} : liste des admis</h1>
+      <div class="small text-muted">{{ members | length }} étudiant(s) · {{ stats.women }} F / {{ stats.men }} M au SAS ·
+        édité le {{ printed_at | dt }}</div></div>
+    <button class="btn btn-primary d-print-none" type="button" data-print><i class="bi bi-file-earmark-pdf"></i> Imprimer / PDF</button>
+  </div>
+  <table class="table table-sm table-bordered align-middle">
+    <thead><tr><th>#</th><th>Photo</th><th>Matricule</th><th>Nom et prénoms</th><th>Sexe</th><th>Classe</th><th>Chambre</th>
+      <th>Matériel</th><th>Abs.</th></tr></thead>
+    <tbody>
+    {% for c in members %}
+      <tr><td>{{ loop.index }}</td><td>{{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 48) }}</td>
+        <td><code>{{ c.matricule }}</code></td><td>{{ c.full_name }}</td><td>{{ c.gender or '—' }}</td>
+        <td>{{ c.sas_class or '' }}</td><td>{{ c.sas_bedroom or '' }}</td><td>{{ c.sas_equipment or '' }}</td>
+        <td>{{ hours.get(c.id, 0) }} h</td></tr>
+    {% else %}<tr><td colspan="9" class="text-muted">Aucun étudiant.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

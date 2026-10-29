@@ -88,6 +88,22 @@ def test_filters(app, db, client, admin):
     assert names(f"q={a.matricule.lower()}") == {"ALPHA"}
 
 
+def test_stats_and_students_export(app, db, client, admin):
+    import pandas as pd
+    login(client, admin)
+    sas = _sas(client)
+    a, b, _ = _admitted(db, sas, [("ALPHA", "F"), ("=BETA", "M"), ("GAMMA", "M")])
+    a.sas_class = "Classe A"
+    db.session.commit()
+    html = client.get(f"/admin/sas/{sas.id}").get_data(as_text=True)
+    assert "3 · 1 F / 2 M" in html and "Taux de présence" in html and "avatar" in html and "students-export" in html
+    sheet = pd.read_excel(io.BytesIO(client.get(f"/admin/sas/{sas.id}/students-export?format=xlsx&gender=M").data),
+                          dtype=str)
+    assert list(sheet["Nom et prénoms"]) == ["'=BETA", "GAMMA"] and "Heures d'absence" in sheet  # filters applied
+    html = client.get(f"/admin/sas/{sas.id}/students-export?format=pdf&class=Classe+A").get_data(as_text=True)
+    assert "data-autoprint" in html and "ALPHA" in html and "GAMMA" not in html
+
+
 def test_csv_template_and_import(app, db, client, admin):
     login(client, admin)
     sas = _sas(client)

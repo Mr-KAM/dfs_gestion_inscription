@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import csrf, passed_checkbox, status %}
+{% from "_macros.html" import avatar, csrf, passed_checkbox, stat, status %}
 {% block title %}{{ sas.name }}{% endblock %}
 {% block content %}
 {% set is_admin = current_user.role == 'admin' %}
@@ -10,6 +10,26 @@
   <form method="post" action="{{ url_for('admin.sas_delete', sas_id=sas.id) }}" data-confirm="Supprimer le SAS « {{ sas.name }} » ?">
     {{ csrf() }}<button class="btn btn-outline-danger" {{ 'disabled title="Retirez d\'abord les candidats"' | safe if sas.members }}><i class="bi bi-trash"></i> Supprimer</button></form>
   {% endif %}
+</div>
+
+{% set t, n = stats, stats.students or 1 %}
+{% macro share(k) %}{{ t[k] }} <span class="small text-muted">/ {{ t.students }} ({{ (100 * t[k] / n) | round | int }} %)</span>{% endmacro %}
+<div class="row g-3 mb-3">
+  {{ stat('Admis', t.students ~ ' · ' ~ t.women ~ ' F / ' ~ t.men ~ ' M', 'mortarboard') }}
+  {{ stat('Classes', t.classes, 'people', url_for('campus.classes') if is_admin) }}
+  {{ stat('Avec classe', share('with_class'), 'person-check') }}
+  {{ stat('Avec chambre', share('with_bedroom'), 'house-door') }}
+  {{ stat('Avec matériel', share('with_equipment'), 'laptop') }}
+  {{ stat('Avec photo', share('with_photo'), 'camera') }}
+</div>
+<div class="row g-3 mb-3">
+  {{ stat('Exercices', t.exercises, 'journal-text', url_for('campus.exercises') if is_admin) }}
+  {{ stat('Copies à corriger', t.to_review, 'journal-check', url_for('campus.exercises') if is_admin) }}
+  {{ stat('Copies validées', t.validated, 'check2-circle') }}
+  {{ stat('Appels', t.calls ~ (' (' ~ t.open_calls ~ ' en cours)' if t.open_calls else ''), 'calendar-check') }}
+  {{ stat('Taux de présence', (t.attendance_rate ~ ' %') if t.attendance_rate is not none else '—', 'graph-up') }}
+  {{ stat("Heures d'absence", t.absent_hours ~ ' h', 'calendar-x') }}
+  {{ stat('Incidents ouverts', t.open_incidents, 'exclamation-octagon', url_for('campus.incidents') if is_admin) }}
 </div>
 
 {% if is_admin %}
@@ -118,7 +138,11 @@
 {%- endmacro %}
 <div class="card"><div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
   <span><i class="bi bi-house-door"></i> Admis : classe, chambre et matériel</span>
-  <span class="small text-muted">{{ members | length }} / {{ sas.members | length }} affiché(s)</span></div>
+  <span class="d-flex align-items-center gap-2 flex-wrap"><span class="small text-muted">{{ members | length }} / {{ sas.members | length }} affiché(s)</span>
+  {% if is_admin and members %}
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('admin.sas_students_export', sas_id=sas.id, format='xlsx', **filters) }}"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('admin.sas_students_export', sas_id=sas.id, format='pdf', **filters) }}" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
+  {% endif %}</span></div>
 <form class="card-body border-bottom row g-2 align-items-center mx-0" method="get">
   <div class="col-12 col-md-4"><input class="form-control form-control-sm" type="search" name="q" value="{{ filters.q }}" placeholder="Nom, matricule, email, code…" aria-label="Rechercher"></div>
   <div class="col-6 col-md-2"><select class="form-select form-select-sm" name="gender" aria-label="Sexe" data-autosubmit>
@@ -130,10 +154,11 @@
     {% if filters.values() | select | list %}<a class="btn btn-sm btn-link" href="{{ url_for('admin.sas_detail', sas_id=sas.id) }}">Réinitialiser</a>{% endif %}</div>
 </form>
 <div class="table-responsive"><table class="table table-sm align-middle mb-0">
-  <thead><tr><th>Matricule</th><th>Candidat</th><th>Sexe</th><th>Motivation validée</th><th>Technique validé</th><th>Admis le</th><th>Absences</th><th>Classe</th><th>Chambre</th><th>Matériel</th><th></th></tr></thead>
+  <thead><tr><th><span class="visually-hidden">Photo</span></th><th>Matricule</th><th>Candidat</th><th>Sexe</th><th>Motivation validée</th><th>Technique validé</th><th>Admis le</th><th>Absences</th><th>Classe</th><th>Chambre</th><th>Matériel</th><th></th></tr></thead>
   <tbody>
   {% for c in members %}
     <tr>
+      <td>{{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 32) }}</td>
       <td><code>{{ c.matricule }}</code></td>
       <td><a href="{{ url_for('candidates.detail', candidate_id=c.id) }}">{{ c.full_name }}</a><div class="small text-muted">{{ c.email or '' }}</div></td>
       <td>{{ c.gender or '—' }}</td>
@@ -150,7 +175,7 @@
         <button class="btn btn-sm btn-primary" title="Enregistrer"><i class="bi bi-save"></i></button>
         {% if is_admin %}<button class="btn btn-sm btn-outline-danger" name="remove" value="1" title="Retirer du SAS" data-confirm="Retirer {{ c.full_name }} du SAS ?"><i class="bi bi-person-dash"></i></button>{% endif %}</form></td>
     </tr>
-  {% else %}<tr><td colspan="11" class="text-muted">{{ 'Aucun candidat ne correspond aux filtres.' if sas.members else 'Aucun candidat admis.' }}</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="12" class="text-muted">{{ 'Aucun candidat ne correspond aux filtres.' if sas.members else 'Aucun candidat admis.' }}</td></tr>{% endfor %}
   </tbody>
 </table></div></div>
 {% endblock %}

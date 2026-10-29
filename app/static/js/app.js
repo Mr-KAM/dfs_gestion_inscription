@@ -153,6 +153,14 @@
     }
   });
 
+  // Print pages (PDF export): <button data-print>, <body data-autoprint> opens the dialog once loaded.
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("[data-print]")) window.print();
+  });
+  window.addEventListener("load", () => {
+    if (document.body.hasAttribute("data-autoprint")) window.print();
+  });
+
   document.addEventListener("DOMContentLoaded", () => {
     initTimers(document);
     setInterval(tick, 1000);

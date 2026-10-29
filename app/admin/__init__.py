@@ -24,7 +24,7 @@ from app.models.user import ROLE_ADMIN, ROLE_CANDIDATE, ROLE_COACH, ROLE_RESIDEN
 from app.services import (account_service, attendance_service, audit_service, campus_service, candidate_service,
                           import_service, sas_service, settings_service)
 from app.services.audit_service import ACTION_LABELS
-from app.utils import allow_camera
+from app.utils import allow_camera, utcnow
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
 MIN_PASSWORD = 8
@@ -357,7 +357,36 @@ def sas_detail(sas_id: int):
     absence_hours, _summary, _detail = attendance_service.sas_report(sas)
     return render_template("admin/sas.html", sas=sas, ready=ready, filters=filters, classes=classes,
                            members=sas_service.filter_members(sas.members, request.args), targets=targets,
-                           absence_hours=absence_hours, **attendance_form_context())
+                           absence_hours=absence_hours, stats=sas_service.sas_figures(sas), **attendance_form_context())
+
+
+@bp.get("/sas/<int:sas_id>/students-export")
+def sas_students_export(sas_id: int):
+    """Admitted students (page filters applied): Excel file, or a print page the browser saves as PDF (with photos).
+    ponytail: PDF = browser print, no PDF library; add one (fpdf2 + Pillow for WebP) if a server-made file is needed."""
+    sas = db.get_or_404(Sas, sas_id)
+    members = sorted(sas_service.filter_members(sas.members, request.args),
+                     key=lambda c: (c.sas_class or "", c.full_name))
+    hours, _summary, _detail = attendance_service.sas_report(sas)
+    fmt = "pdf" if request.args.get("format") == "pdf" else "xlsx"
+    audit_service.log("export", sas, {"kind": "sas_students", "format": fmt, "rows": len(members)})
+    db.session.commit()
+    if fmt == "pdf":
+        return render_template("admin/sas_print.html", sas=sas, members=members, hours=hours,
+                               stats=sas_service.sas_figures(sas), printed_at=utcnow())
+    rows = [{"Matricule": c.matricule, "Nom et prénoms": c.full_name, "Sexe": c.gender or "", "Email": c.email or "",
+             "Téléphone": c.phone or "", "Classe": c.sas_class or "", "Chambre": c.sas_bedroom or "",
+             "Matériel": c.sas_equipment or "", "Admis le": c.sas_admitted_at.strftime("%d/%m/%Y")
+             if c.sas_admitted_at else "", "Heures d'absence": hours.get(c.id, 0)} for c in members]
+    buffer = io.BytesIO()
+    columns = ["Matricule", "Nom et prénoms", "Sexe", "Email", "Téléphone", "Classe", "Chambre", "Matériel",
+               "Admis le", "Heures d'absence"]
+    with pd.ExcelWriter(buffer) as writer:
+        pd.DataFrame([{k: _neutralize(v) for k, v in r.items()} for r in rows], columns=columns).to_excel(
+            writer, index=False, sheet_name="Admis")
+    buffer.seek(0)
+    return send_file(buffer, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                     as_attachment=True, download_name=f"admis_{secure_filename(sas.name) or sas.id}.xlsx")
 
 
 @bp.get("/sas/<int:sas_id>/attendance-export")
