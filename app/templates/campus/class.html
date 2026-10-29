@@ -2,16 +2,44 @@
 {% from "_macros.html" import csrf, status %}
 {% block title %}{{ k.name }}{% endblock %}
 {% block content %}
+{# Filters of the three lists (students, exercises, roll calls): each form keeps the filters of the other lists. #}
+{% macro keep(names) %}{% for n, v in filters.items() if v and n not in names %}<input type="hidden" name="{{ n }}" value="{{ v }}">{% endfor %}{% endmacro %}
+{% macro choice(name, label, choices, cls='col-6 col-md-2') %}
+  <div class="{{ cls }}"><select class="form-select form-select-sm" name="{{ name }}" aria-label="{{ label }}" data-autosubmit>
+    {% for v, l in choices %}<option value="{{ v }}" {{ 'selected' if filters[name] == v }}>{{ l }}</option>{% endfor %}</select></div>
+{%- endmacro %}
+{% macro buttons(names, anchor, cls='col-12 col-md-2') %}
+  {% set other, ns = {}, namespace(active=false) %}
+  {% for n, v in filters.items() if v %}{% if n in names %}{% set ns.active = true %}{% else %}{% set _ = other.update({n: v}) %}{% endif %}{% endfor %}
+  <div class="{{ cls }} d-flex gap-1"><button class="btn btn-sm btn-primary flex-fill"><i class="bi bi-search"></i> Filtrer</button>
+    {% if ns.active %}
+    <a class="btn btn-sm btn-outline-secondary" aria-label="Effacer les filtres"
+       href="{{ url_for('campus.class_page', class_id=k.id, **other) }}#{{ anchor }}"><i class="bi bi-x-lg"></i></a>{% endif %}</div>
+{%- endmacro %}
+{% macro counter(shown, total) %}<span class="text-muted small">({{ shown }}{% if shown != total %} / {{ total }}{% endif %})</span>{% endmacro %}
+{% macro pct(value) %}{{ (value ~ ' %') if value is not none else '—' }}{% endmacro %}
+{% set ROSTER, EXERCISES, CALLS = ('q', 'state', 'done', 'abs'), ('eq', 'est'), ('cq', 'cst') %}
+
 <a class="small text-muted text-decoration-none" href="{{ url_for('campus.classes') }}"><i class="bi bi-arrow-left"></i> Classes</a>
 <h1 class="page-title mt-1">{{ k.name }} <span class="status status-info align-middle">{{ members | length }} étudiant(s)</span></h1>
 <div class="text-muted mb-3">{{ k.sas.name }} · créée le {{ k.created_at | dt }}{% if creator %} par {{ creator.display_name }}{% endif %}
   · coach(s) : {% for u in coaches %}{{ u.display_name }}{{ ', ' if not loop.last }}{% else %}aucun{% endfor %}</div>
 
-<div class="row g-2 mb-3">
-  {% for label, value in (("Étudiants", members | length), ("Exercices", exercises | length),
-                          ("À corriger", exercises | sum(attribute='to_review')), ("Appels", calls | length),
-                          ("Heures d'absence", absent_hours ~ ' h')) %}
+<div class="row g-2 mb-2">
+  {% for label, value in (("Étudiants", members | length), ("Invitations en cours", stats.pending_invitations),
+                          ("Exercices", exercises | length), ("À corriger", exercises | sum(attribute='to_review')),
+                          ("Appels", calls | length)) %}
   <div class="col-6 col-md"><div class="card card-body py-2"><div class="small text-muted">{{ label }}</div><div class="fs-5 fw-semibold">{{ value }}</div></div></div>
+  {% endfor %}
+</div>
+<div class="row g-2 mb-3">
+  {% for label, value, hint in (("Taux de présence", pct(stats.presence), "appels clôturés"),
+                                ("Exercices rendus", pct(stats.handed_in), "exercices publiés"),
+                                ("Exercices validés", pct(stats.validation), "exercices publiés"),
+                                ("Étudiants absents", stats.absentees, "au moins un appel manqué"),
+                                ("Heures d'absence", absent_hours ~ ' h', "toute la classe")) %}
+  <div class="col-6 col-md"><div class="card card-body py-2"><div class="small text-muted">{{ label }}</div>
+    <div class="fs-5 fw-semibold">{{ value }}</div><div class="small text-muted">{{ hint }}</div></div></div>
   {% endfor %}
 </div>
 
@@ -41,61 +69,80 @@
 </div>
 
 <div class="card mt-3" id="etudiants"><div class="card-header"><i class="bi bi-people"></i> Étudiants et invitations
-  <span class="text-muted small">({{ roster | length }}{% if roster | length != roster_total %} / {{ roster_total }}{% endif %})</span></div>
+  {{ counter(shown.roster | length, totals.roster) }}</div>
 <form class="row g-2 p-2 border-bottom" method="get" action="#etudiants">
-  <div class="col-12 col-md-5"><input class="form-control form-control-sm" type="search" name="q" value="{{ filters.q }}"
+  {{ keep(ROSTER) }}
+  <div class="col-12 col-md-4"><input class="form-control form-control-sm" type="search" name="q" value="{{ filters.q }}"
     placeholder="Rechercher : nom, matricule, email" aria-label="Rechercher un étudiant"></div>
-  <div class="col-6 col-md-3"><select class="form-select form-select-sm" name="state" aria-label="État invitation" data-autosubmit>
-    {% for v, l in (('', 'Tous les états'), ('pending', 'En cours'), ('accepted', 'Acceptée'), ('code', 'Rejoint par code'), ('declined', 'Refusée')) %}
-    <option value="{{ v }}" {{ 'selected' if filters.state == v }}>{{ l }}</option>{% endfor %}</select></div>
-  <div class="col-6 col-md-2"><select class="form-select form-select-sm" name="done" aria-label="Exercices validés" data-autosubmit>
-    {% for v, l in (('', 'Exercices : tous'), ('none', 'Aucun validé'), ('some', 'En partie'), ('all', 'Tous validés')) %}
-    <option value="{{ v }}" {{ 'selected' if filters.done == v }}>{{ l }}</option>{% endfor %}</select></div>
-  <div class="col-12 col-md-2 d-flex gap-1"><button class="btn btn-sm btn-primary flex-fill"><i class="bi bi-search"></i> Filtrer</button>
-    {% if filters.q or filters.state or filters.done %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('campus.class_page', class_id=k.id) }}#etudiants" aria-label="Effacer les filtres"><i class="bi bi-x-lg"></i></a>{% endif %}</div>
+  {{ choice('state', 'État invitation', (('', 'Tous les états'), ('pending', 'En cours'), ('accepted', 'Acceptée'),
+                                          ('code', 'Rejoint par code'), ('declined', 'Refusée'))) }}
+  {{ choice('done', 'Exercices validés', (('', 'Exercices : tous'), ('none', 'Aucun validé'), ('some', 'En partie'), ('all', 'Tous validés'))) }}
+  {{ choice('abs', 'Absences', (('', 'Absences : toutes'), ('with', 'Avec absences'), ('without', 'Sans absence'))) }}
+  {{ buttons(ROSTER, 'etudiants') }}
 </form>
 <div class="table-responsive"><table class="table table-sm align-middle mb-0">
-  <thead><tr><th>Nom et prénoms</th><th>Matricule</th><th>Date heure invitation</th><th>État invitation</th><th>Exercices validés</th></tr></thead>
+  <thead><tr><th>Nom et prénoms</th><th>Matricule</th><th>Date heure invitation</th><th>État invitation</th>
+    <th>Exercices validés</th><th>Présence</th><th>Heures d'absence</th></tr></thead>
   <tbody>
-  {% for r in roster %}{% set i = r.invitation %}
+  {% for r in shown.roster %}{% set i = r.invitation %}
     <tr>
-      <td>{% if r.member %}<a href="{{ url_for('campus.student', candidate_id=r.candidate.id) }}">{{ r.candidate.full_name }}</a>{% else %}{{ r.candidate.full_name }}{% endif %}</td><td><code class="small">{{ r.candidate.matricule }}</code></td>
+      <td>{% if r.member %}<a href="{{ url_for('campus.student', candidate_id=r.candidate.id) }}">{{ r.candidate.full_name }}</a>{% else %}{{ r.candidate.full_name }}{% endif %}</td>
+      <td><code class="small">{{ r.candidate.matricule }}</code></td>
       <td>{{ i.created_at | dt if i else '—' }}</td>
       <td>{% if r.member %}{{ status(('success', 'Acceptée') if i else ('success', 'Rejoint par code')) }}{% else %}{{ status(i.badge) }}{% endif %}</td>
       <td>{{ r.validated }} / {{ exercises | length }}</td>
+      <td>{{ pct(r.presence) }}</td>
+      <td>{% if not r.member %}—{% elif r.absent_hours %}<strong class="text-danger">{{ r.absent_hours }} h</strong>{% else %}0 h{% endif %}</td>
     </tr>
-  {% else %}<tr><td colspan="5" class="text-muted">{{ 'Aucun résultat pour ces filtres.' if roster_total else "Personne pour l'instant." }}</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="7" class="text-muted">{{ 'Aucun résultat pour ces filtres.' if totals.roster else "Personne pour l'instant." }}</td></tr>{% endfor %}
   </tbody>
 </table></div></div>
 
-<div class="card mt-3"><div class="card-header"><i class="bi bi-journal-code"></i> Exercices de la classe</div>
+<div class="card mt-3" id="exercices"><div class="card-header"><i class="bi bi-journal-code"></i> Exercices de la classe
+  {{ counter(shown.exercises | length, totals.exercises) }}</div>
+<form class="row g-2 p-2 border-bottom" method="get" action="#exercices">
+  {{ keep(EXERCISES) }}
+  <div class="col-12 col-md-6"><input class="form-control form-control-sm" type="search" name="eq" value="{{ filters.eq }}"
+    placeholder="Rechercher un exercice" aria-label="Rechercher un exercice"></div>
+  {{ choice('est', 'État exercice', (('', 'Tous les exercices'), ('review', 'Avec réponses à corriger'), ('open', 'Ouverts'),
+                                     ('past', 'Date limite passée'), ('published', 'Publiés'), ('scheduled', 'Programmés')),
+            'col-12 col-md-4') }}
+  {{ buttons(EXERCISES, 'exercices') }}
+</form>
 <div class="table-responsive"><table class="table table-sm align-middle mb-0">
   <thead><tr><th>Exercice</th><th>Publication</th><th>Date limite</th><th>Rendus</th><th>Soumissions</th><th>À corriger</th><th>Validés</th><th>À refaire</th></tr></thead>
   <tbody>
-  {% for x in exercises %}{% set e = x.exercise %}
+  {% for x in shown.exercises %}{% set e = x.exercise %}
     <tr>
       <td><a href="{{ url_for('campus.exercise', exercise_id=e.id) }}">{{ e.title }}</a></td>
       <td>{% if e.is_published %}{{ e.opens_at | dt }}{% else %}{{ status(('info', 'Programmé ' ~ (e.opens_at | dt))) }}{% endif %}</td>
       <td>{{ e.due_at | dt or '—' }}</td>
       <td>{{ x.handed_in }} / {{ members | length }}</td><td>{{ x.attempts }}</td>
-      <td>{% if x.to_review %}<strong class="text-warning">{{ x.to_review }}</strong>{% else %}0{% endif %}</td>
+      <td>{% if x.to_review %}<a class="fw-semibold text-warning" href="{{ url_for('campus.exercise', exercise_id=e.id, status='submitted') }}#resultats">{{ x.to_review }}</a>{% else %}0{% endif %}</td>
       <td>{{ x.validated }}</td><td>{{ x.rejected }}</td>
     </tr>
-  {% else %}<tr><td colspan="8" class="text-muted">Aucun exercice pour cette classe.</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="8" class="text-muted">{{ 'Aucun résultat pour ces filtres.' if totals.exercises else 'Aucun exercice pour cette classe.' }}</td></tr>{% endfor %}
   </tbody>
 </table></div></div>
 
 <div class="row g-3 mt-0">
   <div class="col-lg-7">
-    <div class="card"><div class="card-header"><i class="bi bi-calendar-check"></i> Appels</div>
+    <div class="card" id="appels"><div class="card-header"><i class="bi bi-calendar-check"></i> Appels {{ counter(shown.calls | length, totals.calls) }}</div>
+      <form class="row g-2 p-2 border-bottom" method="get" action="#appels">
+        {{ keep(CALLS) }}
+        <div class="col-12 col-md-6"><input class="form-control form-control-sm" type="search" name="cq" value="{{ filters.cq }}"
+          placeholder="Rechercher un appel" aria-label="Rechercher un appel"></div>
+        {{ choice('cst', 'État appel', (('', 'Tous'), ('open', 'En cours'), ('planned', 'Prévus'), ('closed', 'Clôturés')), 'col-12 col-md-3') }}
+        {{ buttons(CALLS, 'appels', 'col-12 col-md-3') }}
+      </form>
       <ul class="list-group list-group-flush">
-      {% for x in calls %}{% set s = x.session %}
+      {% for x in shown.calls %}{% set s = x.session %}
         <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
           <a href="{{ url_for('campus.attendance', session_id=s.id) }}">{{ s.label }}</a>
           <span class="small text-muted">{{ s.opened_at | dt }} · {{ s.hours }} h · {{ x.present }} / {{ members | length }} présent(s)</span>
           {{ status(s.state_badge) }}
         </li>
-      {% else %}<li class="list-group-item text-muted">Aucun appel.</li>{% endfor %}
+      {% else %}<li class="list-group-item text-muted">{{ 'Aucun résultat pour ces filtres.' if totals.calls else 'Aucun appel.' }}</li>{% endfor %}
       </ul></div>
   </div>
   <div class="col-lg-5">

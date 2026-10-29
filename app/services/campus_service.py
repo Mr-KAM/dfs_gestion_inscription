@@ -501,10 +501,16 @@ def class_report(klass: SasClass) -> dict:
             "validated": sum(1 for s in subs if s.status == VALIDATED),
             "rejected": sum(1 for s in subs if s.status == REJECTED),
         })
-    calls = [{"session": s, "present": sum(1 for m in s.marks if m.candidate_id in ids)}
-             for s in db.session.scalars(select(AttendanceSession).where(
-                 AttendanceSession.sas_id == klass.sas_id, AttendanceSession.class_name == klass.name)
-                 .order_by(AttendanceSession.opened_at.desc()).limit(30))]
+    calls, missed = [], {}  # missed: candidate id -> (closed calls missed, hours)
+    for s in db.session.scalars(select(AttendanceSession).where(
+            AttendanceSession.sas_id == klass.sas_id, AttendanceSession.class_name == klass.name)
+            .order_by(AttendanceSession.opened_at.desc())):
+        marked = {m.candidate_id for m in s.marks}
+        calls.append({"session": s, "present": len(marked & ids)})
+        if s.is_closed:
+            for cid in ids - marked:
+                n, h = missed.get(cid, (0, 0))
+                missed[cid] = (n + 1, h + s.hours)
     notifications = db.session.scalars(select(Notification).where(
         Notification.sas_id == klass.sas_id, Notification.class_name == klass.name)
         .order_by(Notification.created_at.desc()).limit(10)).all()
@@ -515,11 +521,25 @@ def class_report(klass: SasClass) -> dict:
     roster += [{"candidate": i.candidate, "invitation": i, "member": False}
                for i in sorted(klass.invitations, key=lambda i: i.candidate.full_name or "")
                if i.candidate_id not in ids]
+    closed = sum(1 for c in calls if c["session"].is_closed)
     for row in roster:
-        row["validated"] = validated.get(row["candidate"].id, 0)
+        cid = row["candidate"].id
+        row["validated"] = validated.get(cid, 0)
         row["state"] = (("accepted" if row["invitation"] else "code") if row["member"]
                         else row["invitation"].status)
-    return {"members": members, "roster": roster, "exercises": exercises, "calls": calls, "notifications": notifications,
-            "coaches": coaches_by_class().get(klass.key, []), "creator": creator,
-            "absent_hours": sum(c["session"].hours * (len(members) - c["present"]) for c in calls
-                                if c["session"].is_closed)}
+        row["missed"], row["absent_hours"] = missed.get(cid, (0, 0)) if row["member"] else (0, 0)
+        row["presence"] = round(100 * (closed - row["missed"]) / closed) if row["member"] and closed else None
+    published = [x for x in exercises if x["exercise"].is_published]
+    expected = len(members) * len(published)  # one answer expected per student and published exercise
+    stats = {
+        "presence": round(100 * sum(c["present"] for c in calls if c["session"].is_closed) / (closed * len(members)))
+        if closed and members else None,
+        "handed_in": round(100 * sum(x["handed_in"] for x in published) / expected) if expected else None,
+        "validation": round(100 * sum(x["validated"] for x in published) / expected) if expected else None,
+        "absentees": len(missed),
+        "pending_invitations": sum(1 for r in roster if r["state"] == INVITE_PENDING),
+    }
+    return {"members": members, "roster": roster, "exercises": exercises, "calls": calls,
+            "notifications": notifications,
+            "coaches": coaches_by_class().get(klass.key, []), "creator": creator, "stats": stats,
+            "absent_hours": sum(h for _, h in missed.values())}

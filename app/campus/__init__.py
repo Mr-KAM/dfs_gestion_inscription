@@ -8,13 +8,14 @@ from markupsafe import Markup
 from sqlalchemy import and_, false, or_, select
 
 from app.extensions import db
-from app.models import AttendanceSession, Candidate, Exercise, ExerciseSubmission, Incident, Notification, Sas, SasClass, Visit
+from app.models import (AttendanceSession, Candidate, Exercise, ExerciseSubmission, Incident, Notification, Sas,
+                        SasClass, Visit)
 from app.models.attendance import HOURS_CHOICES, METHOD_LABELS
 from app.models.campus import ACTIVITY_CATEGORIES, ID_TYPES, INCIDENT_CATEGORIES, REJECTED, VALIDATED, VISIT_KINDS
 from app.models.user import CAMPUS_ROLES, ROLE_ADMIN, ROLE_COACH, ROLE_RECEPTION
 from app.services import attendance_service, audit_service, campus_service
 from app.services.candidate_service import BusinessError
-from app.utils import allow_camera, roles_required, utcnow
+from app.utils import allow_camera, as_utc, roles_required, utcnow
 
 bp = Blueprint("campus", __name__, url_prefix="/campus")
 DESK_ROLES = (ROLE_ADMIN, ROLE_RECEPTION)  # site register, every incident
@@ -373,25 +374,58 @@ def class_page(class_id: int):
     join_url = url_for("portal.join_class", code=klass.join_code, _external=True)
     qr = Markup(segno.make(join_url, error="m").svg_inline(border=4, dark="#000", light="#fff", omitsize=True))
     report = campus_service.class_report(klass)
-    # roster filters: search (name / matricule / email), invitation state, validated exercises
-    q, state, done = (request.args.get(k, "").strip() for k in ("q", "state", "done"))
+    filters = {k: request.args.get(k, "").strip() for k in CLASS_FILTERS}
+    _filter_class_report(report, filters)
+    return render_template("campus/class.html", k=klass, join_url=join_url, qr=qr, filters=filters, **report)
+
+
+# class page filters: students (q, state, done, abs), exercises (eq, est), roll calls (cq, cst)
+CLASS_FILTERS = ("q", "state", "done", "abs", "eq", "est", "cq", "cst")
+
+
+def _filter_class_report(report: dict, f: dict) -> None:
+    """Narrow the three lists of the class page; keeps the totals for the « x / y » counters."""
     total = len(report["exercises"])
     rows = report["roster"]
-    if q:
-        rows = [r for r in rows if q.lower() in " ".join(
+    if f["q"]:
+        rows = [r for r in rows if f["q"].lower() in " ".join(
             (r["candidate"].full_name or "", r["candidate"].matricule or "", r["candidate"].email or "")).lower()]
-    if state:
-        rows = [r for r in rows if r["state"] == state]
-    if done == "none":
+    if f["state"]:
+        rows = [r for r in rows if r["state"] == f["state"]]
+    if f["done"] == "none":
         rows = [r for r in rows if not r["validated"]]
-    elif done == "some":
+    elif f["done"] == "some":
         rows = [r for r in rows if 0 < r["validated"] < total]
-    elif done == "all":
+    elif f["done"] == "all":
         rows = [r for r in rows if total and r["validated"] == total]
-    report["roster_total"] = len(report["roster"])
-    report["roster"] = rows
-    return render_template("campus/class.html", k=klass, join_url=join_url, qr=qr,
-                           filters={"q": q, "state": state, "done": done}, **report)
+    if f["abs"] == "with":
+        rows = [r for r in rows if r["missed"]]
+    elif f["abs"] == "without":
+        rows = [r for r in rows if r["member"] and not r["missed"]]
+
+    exercises = report["exercises"]
+    if f["eq"]:
+        exercises = [x for x in exercises if f["eq"].lower() in x["exercise"].title.lower()]
+    now = utcnow()
+    tests = {"published": lambda x: x["exercise"].is_published,
+             "scheduled": lambda x: not x["exercise"].is_published,
+             "review": lambda x: x["to_review"],
+             "open": lambda x: x["exercise"].is_published and not (x["exercise"].due_at
+                                                                  and as_utc(x["exercise"].due_at) <= now),
+             "past": lambda x: x["exercise"].due_at and as_utc(x["exercise"].due_at) <= now}
+    if f["est"] in tests:
+        exercises = [x for x in exercises if tests[f["est"]](x)]
+
+    calls = report["calls"]
+    if f["cq"]:
+        calls = [c for c in calls if f["cq"].lower() in c["session"].label.lower()]
+    states = {"open": lambda s: s.is_open, "closed": lambda s: s.is_closed,
+              "planned": lambda s: not s.is_open and not s.is_closed}
+    if f["cst"] in states:
+        calls = [c for c in calls if states[f["cst"]](c["session"])]
+
+    report["totals"] = {"roster": len(report["roster"]), "exercises": total, "calls": len(report["calls"])}
+    report["shown"] = {"roster": rows, "exercises": exercises, "calls": calls}
 
 
 @bp.post("/classes/<int:class_id>/invite")
@@ -458,4 +492,5 @@ def student(candidate_id: int):
     incidents = db.session.scalars(select(Incident).where(Incident.candidate_id == c.id)
                                    .order_by(Incident.created_at.desc())).all()
     return render_template("campus/student.html", c=c, sessions=sessions[:30], marks=marks, visits=visits,
-                           incidents=incidents, submissions=submissions, absence_hours=attendance_service.absence_hours(c, sessions, marks))
+                           incidents=incidents, submissions=submissions,
+                           absence_hours=attendance_service.absence_hours(c, sessions, marks))

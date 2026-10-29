@@ -126,6 +126,19 @@ def test_admin_sees_classes_of_every_coach_with_exercises(app, db, client, admin
     row = campus_service.class_report(k)["roster"][0]
     assert (row["candidate"].id, row["member"], row["validated"]) == (a.id, True, 1)
     assert "Rejoint par code" in client.get(f"/campus/classes/{k.id}").get_data(as_text=True)
+    report = campus_service.class_report(k)
+    assert (report["roster"][0]["absent_hours"], report["roster"][0]["presence"]) == (3, 0)
+    assert report["stats"] == {"presence": 0, "handed_in": 50, "validation": 50, "absentees": 1,
+                               "pending_invitations": 0}  # 1 student, 2 exercises: 1 handed in and validated
+
+    def page(**args):
+        return client.get(f"/campus/classes/{k.id}", query_string=args).get_data(as_text=True)
+    assert "Taux de présence" in page() and "50 %" in page()
+    assert "Boucles" in page(eq="bou") and "Fonctions" not in page(eq="bou")
+    assert "Boucles" not in page(est="review") and "Fonctions" not in page(est="review")  # all reviewed
+    assert "Lundi" in page(cst="closed") and "Lundi" not in page(cst="open") and "Lundi" not in page(cq="mardi")
+    assert "ALPHA" in page(abs="with") and "ALPHA" not in page(abs="without")
+    assert '<input type="hidden" name="eq" value="bou">' in page(eq="bou", abs="with")  # other lists keep it
     b = make_candidate(email="b@test.ci", cni="B", phone="0404040404", full_name="BRAVO", sas=sas)
     campus_service.invite(k, coach, b.matricule)
 
