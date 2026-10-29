@@ -379,8 +379,8 @@ def class_page(class_id: int):
     return render_template("campus/class.html", k=klass, join_url=join_url, qr=qr, filters=filters, **report)
 
 
-# class page filters: students (q, state, done, abs), exercises (eq, est), roll calls (cq, cst)
-CLASS_FILTERS = ("q", "state", "done", "abs", "eq", "est", "cq", "cst")
+# class page filters: students (q, state, done, abs, sex), exercises (eq, est), roll calls (cq, cst)
+CLASS_FILTERS = ("q", "state", "done", "abs", "sex", "eq", "est", "cq", "cst")
 
 
 def _filter_class_report(report: dict, f: dict) -> None:
@@ -402,6 +402,8 @@ def _filter_class_report(report: dict, f: dict) -> None:
         rows = [r for r in rows if r["missed"]]
     elif f["abs"] == "without":
         rows = [r for r in rows if r["member"] and not r["missed"]]
+    if f["sex"] in ("M", "F"):
+        rows = [r for r in rows if r["candidate"].gender == f["sex"]]
 
     exercises = report["exercises"]
     if f["eq"]:

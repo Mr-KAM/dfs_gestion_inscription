@@ -139,7 +139,7 @@ def test_admin_sees_classes_of_every_coach_with_exercises(app, db, client, admin
     assert "Lundi" in page(cst="closed") and "Lundi" not in page(cst="open") and "Lundi" not in page(cq="mardi")
     assert "ALPHA" in page(abs="with") and "ALPHA" not in page(abs="without")
     assert '<input type="hidden" name="eq" value="bou">' in page(eq="bou", abs="with")  # other lists keep it
-    b = make_candidate(email="b@test.ci", cni="B", phone="0404040404", full_name="BRAVO", sas=sas)
+    b = make_candidate(email="b@test.ci", cni="B", phone="0404040404", full_name="BRAVO", sas=sas, gender="F")
     campus_service.invite(k, coach, b.matricule)
 
     def names(**args):  # students listed once the roster is filtered
@@ -148,4 +148,5 @@ def test_admin_sees_classes_of_every_coach_with_exercises(app, db, client, admin
     assert names() == ["ALPHA", "BRAVO"]
     assert names(q="bra") == ["BRAVO"] and names(q=a.matricule.lower()) == ["ALPHA"]
     assert names(state="pending") == ["BRAVO"] and names(state="code") == ["ALPHA"]
+    assert names(sex="F") == ["BRAVO"] and "avatar" in client.get(f"/campus/classes/{k.id}").get_data(as_text=True)
     assert names(done="some") == ["ALPHA"] and names(done="none") == ["BRAVO"] and names(done="all") == []  # 1 of 2

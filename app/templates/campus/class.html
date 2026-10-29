@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import csrf, status %}
+{% from "_macros.html" import avatar, csrf, status %}
 {% block title %}{{ k.name }}{% endblock %}
 {% block content %}
 {# Filters of the three lists (students, exercises, roll calls): each form keeps the filters of the other lists. #}
@@ -18,7 +18,7 @@
 {%- endmacro %}
 {% macro counter(shown, total) %}<span class="text-muted small">({{ shown }}{% if shown != total %} / {{ total }}{% endif %})</span>{% endmacro %}
 {% macro pct(value) %}{{ (value ~ ' %') if value is not none else '—' }}{% endmacro %}
-{% set ROSTER, EXERCISES, CALLS = ('q', 'state', 'done', 'abs'), ('eq', 'est'), ('cq', 'cst') %}
+{% set ROSTER, EXERCISES, CALLS = ('q', 'state', 'done', 'abs', 'sex'), ('eq', 'est'), ('cq', 'cst') %}
 
 <a class="small text-muted text-decoration-none" href="{{ url_for('campus.classes') }}"><i class="bi bi-arrow-left"></i> Classes</a>
 <h1 class="page-title mt-1">{{ k.name }} <span class="status status-info align-middle">{{ members | length }} étudiant(s)</span></h1>
@@ -72,21 +72,24 @@
   {{ counter(shown.roster | length, totals.roster) }}</div>
 <form class="row g-2 p-2 border-bottom" method="get" action="#etudiants">
   {{ keep(ROSTER) }}
-  <div class="col-12 col-md-4"><input class="form-control form-control-sm" type="search" name="q" value="{{ filters.q }}"
+  <div class="col-12 col-md-3"><input class="form-control form-control-sm" type="search" name="q" value="{{ filters.q }}"
     placeholder="Rechercher : nom, matricule, email" aria-label="Rechercher un étudiant"></div>
   {{ choice('state', 'État invitation', (('', 'Tous les états'), ('pending', 'En cours'), ('accepted', 'Acceptée'),
                                           ('code', 'Rejoint par code'), ('declined', 'Refusée'))) }}
   {{ choice('done', 'Exercices validés', (('', 'Exercices : tous'), ('none', 'Aucun validé'), ('some', 'En partie'), ('all', 'Tous validés'))) }}
   {{ choice('abs', 'Absences', (('', 'Absences : toutes'), ('with', 'Avec absences'), ('without', 'Sans absence'))) }}
+  {{ choice('sex', 'Sexe', (('', 'Tous les sexes'), ('F', 'Femmes'), ('M', 'Hommes')), 'col-6 col-md-1') }}
   {{ buttons(ROSTER, 'etudiants') }}
 </form>
 <div class="table-responsive"><table class="table table-sm align-middle mb-0">
-  <thead><tr><th>Nom et prénoms</th><th>Matricule</th><th>Date heure invitation</th><th>État invitation</th>
+  <thead><tr><th><span class="visually-hidden">Photo</span></th><th>Nom et prénoms</th><th>Sexe</th><th>Matricule</th><th>Date heure invitation</th><th>État invitation</th>
     <th>Exercices validés</th><th>Présence</th><th>Heures d'absence</th></tr></thead>
   <tbody>
   {% for r in shown.roster %}{% set i = r.invitation %}
     <tr>
+      <td>{{ avatar(r.candidate, url_for('candidates.photo', candidate_id=r.candidate.id), 32) }}</td>
       <td>{% if r.member %}<a href="{{ url_for('campus.student', candidate_id=r.candidate.id) }}">{{ r.candidate.full_name }}</a>{% else %}{{ r.candidate.full_name }}{% endif %}</td>
+      <td>{{ r.candidate.gender or '—' }}</td>
       <td><code class="small">{{ r.candidate.matricule }}</code></td>
       <td>{{ i.created_at | dt if i else '—' }}</td>
       <td>{% if r.member %}{{ status(('success', 'Acceptée') if i else ('success', 'Rejoint par code')) }}{% else %}{{ status(i.badge) }}{% endif %}</td>
@@ -94,7 +97,7 @@
       <td>{{ pct(r.presence) }}</td>
       <td>{% if not r.member %}—{% elif r.absent_hours %}<strong class="text-danger">{{ r.absent_hours }} h</strong>{% else %}0 h{% endif %}</td>
     </tr>
-  {% else %}<tr><td colspan="7" class="text-muted">{{ 'Aucun résultat pour ces filtres.' if totals.roster else "Personne pour l'instant." }}</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="9" class="text-muted">{{ 'Aucun résultat pour ces filtres.' if totals.roster else "Personne pour l'instant." }}</td></tr>{% endfor %}
   </tbody>
 </table></div></div>
 
