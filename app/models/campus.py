@@ -223,3 +223,64 @@ class ClassInvitation(db.Model):
     @property
     def badge(self) -> tuple[str, str]:
         return INVITE_BADGES.get(self.status, ("secondary", self.status))
+
+
+# Individual SAS evaluation grid: (section, key, criterion, observable indicators, weight). Weights total 100.
+EVAL_CRITERIA = (
+    ("Compétences techniques", "technicity", "Technicité",
+     "Maîtrise les gestes, outils et logiciels du brief ; exécute proprement et en sécurité", 20),
+    ("Compétences techniques", "agronomy", "Lecture agronomique",
+     "Interprète une parcelle, une culture ou une donnée terrain ; relie l'observation à une décision", 20),
+    ("Engagement et savoir-être", "motivation", "Motivation",
+     "S'implique, pose des questions, va au bout des tâches sans relance", 10),
+    ("Engagement et savoir-être", "attendance", "Présence et ponctualité",
+     "Présent aux séances, à l'heure, prévient en cas d'absence", 10),
+    ("Engagement et savoir-être", "respect", "Respect",
+     "Respecte les personnes, le matériel, le site et les consignes", 10),
+    ("Collaboration", "teamwork", "Travail en équipe",
+     "Tient son rôle, respecte les décisions collectives, contribue au livrable", 10),
+    ("Collaboration", "mutual_aid", "Entraide", "Aide spontanément un pair, partage ce qu'il sait", 10),
+    ("Dynamique d'apprentissage", "progress", "Progression",
+     "Prend en compte les retours ; écart visible entre début et fin de session", 10),
+)
+NOT_OBSERVED = "na"
+EVAL_SCALE = (("1", "Insuffisant", "Attendu non atteint, même avec appui"),
+              ("2", "À renforcer", "Atteint en partie ou avec appui fréquent"),
+              ("3", "Satisfaisant", "Atteint de façon autonome"),
+              ("4", "Très bon", "Dépasse l'attendu, sert d'appui aux autres"),
+              (NOT_OBSERVED, "Non observé", "Pas encore d'occasion d'observer"))
+
+
+class Evaluation(db.Model):
+    """Individual SAS evaluation of a student (one per student), filled by a coach or an admin.
+    Never shown to the candidate. ratings / evidence: {criterion key: "1".."4" | "na"} / {key: text}."""
+    __tablename__ = "evaluations"
+
+    id = db.Column(db.Integer, primary_key=True)
+    candidate_id = db.Column(db.Integer, db.ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False,
+                             unique=True)
+    ratings = db.Column(db.JSON, nullable=False, default=dict)
+    evidence = db.Column(db.JSON, nullable=False, default=dict)
+    comment = db.Column(db.Text, default="")
+    updated_by = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow)
+
+    candidate = db.relationship("Candidate")
+    author = db.relationship("User")
+
+    def points(self, key: str, weight: int) -> float | None:
+        """Points = weight x rating / 4; None if not rated or not observed."""
+        rating = (self.ratings or {}).get(key, "")
+        return weight * int(rating) / 4 if rating in ("1", "2", "3", "4") else None
+
+    @property
+    def totals(self) -> tuple[float, int]:
+        """(points of the rated criteria, their total weight)."""
+        rated = [(p, w) for _s, k, _t, _i, w in EVAL_CRITERIA if (p := self.points(k, w)) is not None]
+        return sum(p for p, _ in rated), sum(w for _, w in rated)
+
+    @property
+    def score(self) -> int | None:
+        """Score out of 100 = points / observed weights x 100 (N/O and unrated criteria are left out)."""
+        points, weight = self.totals
+        return round(100 * points / weight) if weight else None

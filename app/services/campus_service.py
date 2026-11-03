@@ -8,10 +8,10 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, or_, select
 
 from app.extensions import db
-from app.models import (AttendanceSession, Candidate, ClassInvitation, Exercise, ExerciseAnswer, ExerciseSubmission,
-                        Incident, Media, Notification, Sas, SasClass, User, Visit)
-from app.models.campus import (INCIDENT_CATEGORIES, INVITE_ACCEPTED, INVITE_DECLINED, INVITE_PENDING, KIND_VISIT,
-                               REJECTED, SUBMITTED, VALIDATED, VISIT_KINDS)
+from app.models import (AttendanceSession, Candidate, ClassInvitation, Evaluation, Exercise, ExerciseAnswer,
+                        ExerciseSubmission, Incident, Media, Notification, Sas, SasClass, User, Visit)
+from app.models.campus import (EVAL_CRITERIA, EVAL_SCALE, INCIDENT_CATEGORIES, INVITE_ACCEPTED, INVITE_DECLINED,
+                               INVITE_PENDING, KIND_VISIT, REJECTED, SUBMITTED, VALIDATED, VISIT_KINDS)
 from app.models.user import ROLE_ADMIN, ROLE_COACH, ROLE_RECEPTION
 from app.services import account_service, audit_service, settings_service
 from app.services.candidate_service import BusinessError
@@ -213,6 +213,41 @@ def submit_answer(exercise: Exercise, candidate: Candidate, answer: str) -> None
     audit_service.log("exercise_submit", exercise, {"matricule": candidate.matricule,
                                                     "attempt": len(submission.attempts)})
     db.session.commit()
+
+
+def evaluation_of(candidate: Candidate) -> Evaluation:
+    """The student's evaluation; a blank one (not saved) until a coach fills it."""
+    return (db.session.scalar(select(Evaluation).where(Evaluation.candidate_id == candidate.id))
+            or Evaluation(ratings={}, evidence={}, comment=""))
+
+
+def evaluation_from_form(form) -> Evaluation:
+    """Grid posted by the form (not saved): r_<key> = "1".."4" | "na" | "" (not rated), e_<key> = evidence."""
+    ratings, evidence = {}, {}
+    for _section, key, _title, _ind, _weight in EVAL_CRITERIA:
+        rating = form.get(f"r_{key}", "")
+        if rating in {value for value, _label, _hint in EVAL_SCALE}:
+            ratings[key] = rating
+        if text := form.get(f"e_{key}", "").strip()[:500]:
+            evidence[key] = text
+    return Evaluation(ratings=ratings, evidence=evidence, comment=form.get("comment", "").strip()[:2000])
+
+
+def save_evaluation(candidate: Candidate, user, posted: Evaluation) -> Evaluation:
+    """A 1 or 4 rating must come with a written evidence (grid rule)."""
+    missing = [title for _s, key, title, _i, _w in EVAL_CRITERIA
+               if posted.ratings.get(key) in ("1", "4") and not posted.evidence.get(key)]
+    if missing:
+        raise BusinessError("Une cote 1 ou 4 doit être appuyée par une preuve écrite : " + ", ".join(missing) + ".")
+    evaluation = db.session.scalar(select(Evaluation).where(Evaluation.candidate_id == candidate.id))
+    if evaluation is None:
+        evaluation = Evaluation(candidate_id=candidate.id)
+        db.session.add(evaluation)
+    evaluation.ratings, evaluation.evidence, evaluation.comment = posted.ratings, posted.evidence, posted.comment
+    evaluation.updated_by, evaluation.updated_at = user.id, utcnow()
+    audit_service.log("evaluation_update", candidate, {"ratings": posted.ratings, "score": evaluation.score})
+    db.session.commit()
+    return evaluation
 
 
 def review(exercise: Exercise, candidate: Candidate, user, status: str, score: str, feedback: str) -> None:
@@ -522,7 +557,10 @@ def class_report(klass: SasClass) -> dict:
                for i in sorted(klass.invitations, key=lambda i: i.candidate.full_name or "")
                if i.candidate_id not in ids]
     closed = sum(1 for c in calls if c["session"].is_closed)
+    evaluations = {e.candidate_id: e for e in db.session.scalars(
+        select(Evaluation).where(Evaluation.candidate_id.in_(ids)))} if ids else {}
     for row in roster:
+        row["evaluation"] = evaluations.get(row["candidate"].id)
         cid = row["candidate"].id
         row["validated"] = validated.get(cid, 0)
         row["state"] = (("accepted" if row["invitation"] else "code") if row["member"]

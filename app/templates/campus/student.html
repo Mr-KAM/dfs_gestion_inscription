@@ -34,6 +34,14 @@
   </div>
 
   <div class="col-lg-7">
+    {% if evaluation is not none and c.sas_class %}
+    <div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center">
+      <span><i class="bi bi-clipboard-check"></i> Évaluation individuelle</span>
+      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('campus.evaluation', candidate_id=c.id) }}">{{ 'Modifier' if evaluation.id else 'Évaluer' }}</a></div>
+      <div class="card-body">{% if evaluation.id %}<span class="stat-value">{{ evaluation.score if evaluation.score is not none else '—' }}</span> / 100
+        <span class="small text-muted ms-2">mise à jour le {{ evaluation.updated_at | dt }}</span>
+        {% else %}<span class="text-muted">Pas encore évalué.</span>{% endif %}</div></div>
+    {% endif %}
     <div class="card mb-3"><div class="card-header"><i class="bi bi-calendar-check"></i> Présences</div>
       <ul class="list-group list-group-flush">
       {% for s in sessions %}{% set m = marks.get(s.id) %}

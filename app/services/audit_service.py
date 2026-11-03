@@ -54,6 +54,7 @@ ACTION_LABELS = {
     "exercise_review": "Correction exercice",
     "exercise_update": "Modification exercice",
     "exercise_resubmit": "Autorisation de nouvelle soumission",
+    "evaluation_update": "Évaluation individuelle SAS",
     "media_upload": "Image ajoutée (éditeur)",
     "visit_add": "Passage sur le site (arrivée)",
     "visit_leave": "Passage sur le site (départ)",

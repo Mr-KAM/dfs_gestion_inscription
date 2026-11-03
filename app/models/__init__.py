@@ -1,7 +1,7 @@
 from app.models.attendance import Attendance, AttendanceSession
 from app.models.audit import AuditLog, Setting
-from app.models.campus import (ClassInvitation, Exercise, ExerciseAnswer, ExerciseSubmission, Incident, Media,
-                               Notification, SasClass, Visit)
+from app.models.campus import (ClassInvitation, Evaluation, Exercise, ExerciseAnswer, ExerciseSubmission, Incident,
+                               Media, Notification, SasClass, Visit)
 from app.models.candidate import Candidate
 from app.models.infra import Building, Consumable, ConsumableMovement, Equipment, Level, Space
 from app.models.kobo import KoboSubmission
@@ -14,4 +14,4 @@ __all__ = ["Attendance", "AttendanceSession", "AuditLog", "Setting", "Candidate"
            "ExerciseSubmission", "Incident", "Notification", "SasClass", "Visit", "KoboSubmission", "Sas",
            "TechnicalTestSession", "User", "Room", "Workstation", "Building", "Level", "Space", "Equipment",
            "Consumable", "ConsumableMovement", "ExerciseAnswer", "Media",
-           "PasswordResetRequest"]
+           "PasswordResetRequest", "Evaluation"]

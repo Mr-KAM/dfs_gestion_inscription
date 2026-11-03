@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% from "_macros.html" import avatar, csrf %}
+{% block title %}Évaluation · {{ c.full_name }}{% endblock %}
+{% block content %}
+<div class="d-flex gap-3 small d-print-none">
+  <a class="text-muted text-decoration-none" href="{{ url_for('campus.evaluations') }}"><i class="bi bi-arrow-left"></i> Évaluations</a>
+  {% if editable %}
+  <a class="text-muted text-decoration-none" href="{{ url_for('campus.student', candidate_id=c.id) }}"><i class="bi bi-person"></i> Fiche de l'étudiant</a>
+  <a class="text-muted text-decoration-none" href="{{ url_for('campus.class_page', class_id=klass.id) }}"><i class="bi bi-people"></i> Classe {{ klass.name }}</a>
+  {% endif %}
+</div>
+<div class="d-flex justify-content-between align-items-center gap-3 mt-1 mb-3 flex-wrap">
+  <div class="d-flex align-items-center gap-3">
+    {{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 72) }}
+    <div>
+      <h1 class="page-title">Évaluation individuelle</h1>
+      <div class="text-muted">{{ c.full_name }} · <code>{{ c.matricule }}</code> · {{ c.sas.name }} · {{ c.sas_class }}</div>
+    </div>
+  </div>
+  <div class="text-end">
+    <div class="stat-value">{{ grid.score if grid.score is not none else '—' }}<span class="fs-6 text-muted"> / 100</span></div>
+    <div class="small text-muted">{% if grid.id %}Mise à jour le {{ grid.updated_at | dt }}{% if grid.author %} par {{ grid.author.full_name or grid.author.email }}{% endif %}{% else %}Pas encore évalué{% endif %}</div>
+    <button class="btn btn-sm btn-outline-secondary mt-1 d-print-none" type="button" data-print><i class="bi bi-printer"></i> Imprimer</button>
+  </div>
+</div>
+<p class="small text-muted d-print-none"><i class="bi bi-lock"></i> Fiche interne, jamais montrée à l'étudiant. Modifiable par les coachs de la classe et l'admin, lisible par les autres coachs.</p>
+{% if not editable %}<div class="alert alert-info d-print-none"><i class="bi bi-eye"></i> Lecture seule : cet étudiant n'est pas dans l'une de vos classes.</div>{% endif %}
+
+<div class="card mb-3"><div class="table-responsive"><table class="table table-sm align-middle mb-0">
+  <thead><tr><th>Échelle de cote</th>{% for value, label, _hint in scale %}<th>{{ 'N/O' if value == 'na' else value }} · {{ label }}</th>{% endfor %}</tr></thead>
+  <tbody><tr><td class="text-muted small">Repère</td>{% for _v, _l, hint in scale %}<td class="small">{{ hint }}</td>{% endfor %}</tr></tbody>
+</table></div></div>
+
+<form method="post" class="card mb-3">
+  {{ csrf() }}<fieldset {{ 'disabled' if not editable }}>
+  <div class="card-header"><i class="bi bi-clipboard-check"></i> Grille de cotation</div>
+  <div class="table-responsive"><table class="table table-bordered align-middle mb-0">
+    <thead><tr><th>Critère et indicateurs observables</th><th class="text-center">Poids</th>
+      <th class="text-center" title="Non coté">—</th>
+      {% for value, label, _hint in scale %}<th class="text-center" title="{{ label }}">{{ 'N/O' if value == 'na' else value }}</th>{% endfor %}
+      <th class="text-center">Points</th><th>Preuve principale (fait + date)</th></tr></thead>
+    <tbody>
+    {% set ns = namespace(section='') %}
+    {% for section, key, title, indicators, weight in criteria %}
+      {% if section != ns.section %}{% set ns.section = section %}
+      <tr class="table-light"><th colspan="10" class="text-uppercase small">{{ section }}</th></tr>{% endif %}
+      {% set rating = grid.ratings.get(key, '') %}{% set pts = grid.points(key, weight) %}
+      <tr>
+        <td><strong>{{ title }}</strong><div class="small text-muted">{{ indicators }}</div></td>
+        <td class="text-center fw-bold">{{ weight }}</td>
+        <td class="text-center"><input class="form-check-input" type="radio" name="r_{{ key }}" value="" {{ 'checked' if not rating }} aria-label="{{ title }} : non coté"></td>
+        {% for value, label, _hint in scale %}
+        <td class="text-center {{ 'bg-body-secondary' if value == 'na' }}"><input class="form-check-input" type="radio" name="r_{{ key }}" value="{{ value }}" {{ 'checked' if rating == value }} aria-label="{{ title }} : {{ label }}"></td>
+        {% endfor %}
+        <td class="text-center">{{ ('%g' % pts) if pts is not none else ('N/O' if rating == 'na' else '') }}</td>
+        <td><textarea class="form-control form-control-sm" name="e_{{ key }}" rows="2" maxlength="500" aria-label="Preuve : {{ title }}" placeholder="Fait observé + date">{{ grid.evidence.get(key, '') }}</textarea></td>
+      </tr>
+    {% endfor %}
+    {% set points, observed = grid.totals %}
+    <tr class="table-light">
+      <th>Total <span class="fw-normal">(points des critères observés)</span></th><th class="text-center">{{ observed }}</th>
+      <td colspan="6"></td><th class="text-center">{{ '%g' % points }}</th>
+      <td class="small">Score : <strong>{{ grid.score if grid.score is not none else '—' }} / 100</strong></td>
+    </tr>
+    </tbody>
+  </table></div>
+  <div class="card-body">
+    <p class="small text-muted">Points = poids × cote ÷ 4. Score sur 100 = total des points ÷ total des poids observés × 100
+      (un critère N/O ou non coté est retiré du calcul). Une seule cote par critère ; une cote 1 ou 4 doit être appuyée par une preuve écrite.</p>
+    <label class="form-label" for="comment">Observations générales</label>
+    <textarea class="form-control" id="comment" name="comment" rows="3" maxlength="2000">{{ grid.comment or '' }}</textarea>
+    {% if editable %}<button class="btn btn-primary mt-2 d-print-none"><i class="bi bi-save"></i> Enregistrer la fiche</button>{% endif %}
+  </div>
+</fieldset></form>
+{% endblock %}

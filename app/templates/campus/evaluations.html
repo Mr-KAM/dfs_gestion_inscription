@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% from "_macros.html" import avatar, pagination %}
+{% block title %}Évaluations individuelles{% endblock %}
+{% block content %}
+<h1 class="page-title mb-1">Évaluations individuelles</h1>
+<p class="small text-muted"><i class="bi bi-lock"></i> Fiches internes, jamais montrées aux étudiants. Vous modifiez celles de vos classes ; les autres sont en lecture seule.</p>
+<form class="card card-body mb-3 row g-2 align-items-center mx-0" method="get">
+  <div class="col-12 col-md-4"><input class="form-control form-control-sm" type="search" name="q" value="{{ args.q }}"
+    placeholder="Nom, matricule…" aria-label="Rechercher"></div>
+  <div class="col-6 col-md-4"><select class="form-select form-select-sm" name="class" aria-label="Classe" data-autosubmit>
+    <option value="">Toutes les classes</option>
+    {% for k in classes %}<option value="{{ k.key }}" {{ 'selected' if args['class'] == k.key }}>{{ k.sas.name }} · {{ k.class_name }}</option>{% endfor %}</select></div>
+  <div class="col-6 col-md-3"><select class="form-select form-select-sm" name="state" aria-label="État" data-autosubmit>
+    <option value="">Évaluées ou non</option>
+    <option value="done" {{ 'selected' if args.state == 'done' }}>Évaluées</option>
+    <option value="todo" {{ 'selected' if args.state == 'todo' }}>À évaluer</option></select></div>
+  <div class="col-12 col-md-1"><button class="btn btn-sm btn-outline-primary w-100" title="Rechercher"><i class="bi bi-search"></i></button></div>
+</form>
+
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
+  <thead><tr><th><span class="visually-hidden">Photo</span></th><th>Nom et prénoms</th><th>Matricule</th><th>SAS · classe</th><th>Score</th><th>Mise à jour</th><th></th></tr></thead>
+  <tbody>
+  {% for c in page.items %}{% set e = grids.get(c.id) %}{% set mine = can_manage(current_user, c.sas_id, c.sas_class) %}
+    <tr>
+      <td>{{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 32) }}</td>
+      <td>{{ c.full_name }}</td>
+      <td><code>{{ c.matricule }}</code></td>
+      <td>{{ c.sas.name }} · {{ c.sas_class }}</td>
+      <td>{% if e %}<strong>{{ e.score if e.score is not none else '—' }}</strong> / 100{% else %}<span class="text-muted">À évaluer</span>{% endif %}</td>
+      <td class="small">{{ e.updated_at | dt if e else '—' }}</td>
+      <td class="text-end"><a class="btn btn-sm {{ 'btn-outline-primary' if mine else 'btn-outline-secondary' }}" href="{{ url_for('campus.evaluation', candidate_id=c.id) }}">
+        {% if mine %}<i class="bi bi-pencil"></i> {{ 'Modifier' if e else 'Évaluer' }}{% else %}<i class="bi bi-eye"></i> Voir{% endif %}</a></td>
+    </tr>
+  {% else %}<tr><td colspan="7" class="text-muted">Aucun étudiant ne correspond.</td></tr>{% endfor %}
+  </tbody>
+</table></div></div>
+{{ pagination(page, args) }}
+{% endblock %}

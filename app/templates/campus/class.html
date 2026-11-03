@@ -83,7 +83,7 @@
 </form>
 <div class="table-responsive"><table class="table table-sm align-middle mb-0">
   <thead><tr><th><span class="visually-hidden">Photo</span></th><th>Nom et prénoms</th><th>Sexe</th><th>Matricule</th><th>Date heure invitation</th><th>État invitation</th>
-    <th>Exercices validés</th><th>Présence</th><th>Heures d'absence</th></tr></thead>
+    <th>Exercices validés</th><th>Présence</th><th>Heures d'absence</th><th>Évaluation</th></tr></thead>
   <tbody>
   {% for r in shown.roster %}{% set i = r.invitation %}
     <tr>
@@ -96,8 +96,9 @@
       <td>{{ r.validated }} / {{ exercises | length }}</td>
       <td>{{ pct(r.presence) }}</td>
       <td>{% if not r.member %}—{% elif r.absent_hours %}<strong class="text-danger">{{ r.absent_hours }} h</strong>{% else %}0 h{% endif %}</td>
+      <td>{% if r.member %}{% set ev = r.evaluation %}<a href="{{ url_for('campus.evaluation', candidate_id=r.candidate.id) }}">{{ ((ev.score ~ ' / 100') if ev.score is not none else 'N/O') if ev else 'Évaluer' }}</a>{% else %}—{% endif %}</td>
     </tr>
-  {% else %}<tr><td colspan="9" class="text-muted">{{ 'Aucun résultat pour ces filtres.' if totals.roster else "Personne pour l'instant." }}</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="10" class="text-muted">{{ 'Aucun résultat pour ces filtres.' if totals.roster else "Personne pour l'instant." }}</td></tr>{% endfor %}
   </tbody>
 </table></div></div>
 

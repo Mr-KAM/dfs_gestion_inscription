@@ -8,10 +8,11 @@ from markupsafe import Markup
 from sqlalchemy import and_, false, or_, select
 
 from app.extensions import db
-from app.models import (AttendanceSession, Candidate, Exercise, ExerciseSubmission, Incident, Notification, Sas,
-                        SasClass, Visit)
+from app.models import (AttendanceSession, Candidate, Evaluation, Exercise, ExerciseSubmission, Incident, Notification,
+                        Sas, SasClass, Visit)
 from app.models.attendance import HOURS_CHOICES, METHOD_LABELS
-from app.models.campus import ACTIVITY_CATEGORIES, ID_TYPES, INCIDENT_CATEGORIES, REJECTED, VALIDATED, VISIT_KINDS
+from app.models.campus import (ACTIVITY_CATEGORIES, EVAL_CRITERIA, EVAL_SCALE, ID_TYPES, INCIDENT_CATEGORIES, REJECTED,
+                               VALIDATED, VISIT_KINDS)
 from app.models.user import CAMPUS_ROLES, ROLE_ADMIN, ROLE_COACH, ROLE_RECEPTION
 from app.services import attendance_service, audit_service, campus_service
 from app.services.candidate_service import BusinessError
@@ -493,6 +494,57 @@ def student(candidate_id: int):
                                      .order_by(Exercise.opens_at.desc())).all()
     incidents = db.session.scalars(select(Incident).where(Incident.candidate_id == c.id)
                                    .order_by(Incident.created_at.desc())).all()
+    evaluation = campus_service.evaluation_of(c) if current_user.role in CLASS_ROLES else None
     return render_template("campus/student.html", c=c, sessions=sessions[:30], marks=marks, visits=visits,
-                           incidents=incidents, submissions=submissions,
+                           incidents=incidents, submissions=submissions, evaluation=evaluation,
                            absence_hours=attendance_service.absence_hours(c, sessions, marks))
+
+
+@bp.route("/students/<int:candidate_id>/evaluation", methods=["GET", "POST"])
+def evaluation(candidate_id: int):
+    """Individual SAS evaluation grid of a student who joined a class: every coach and the admin read it,
+    only the coaches of his class and the admin change it (never the candidate, nor the reception)."""
+    _require_class_role()
+    c = db.get_or_404(Candidate, candidate_id)
+    if not (c.sas_id and c.sas_class):
+        abort(404)
+    editable = campus_service.can_manage(current_user, c.sas_id, c.sas_class)
+    grid = campus_service.evaluation_of(c)
+    if request.method == "POST":
+        if not editable:
+            abort(403)
+        grid = campus_service.evaluation_from_form(request.form)
+        try:
+            campus_service.save_evaluation(c, current_user, grid)
+        except BusinessError as exc:
+            flash(str(exc), "danger")  # form shown again with what was typed
+        else:
+            flash("Fiche d'évaluation enregistrée.", "success")
+            return redirect(url_for("campus.evaluation", candidate_id=c.id))
+    return render_template("campus/evaluation.html", c=c, grid=grid, criteria=EVAL_CRITERIA, scale=EVAL_SCALE,
+                           klass=campus_service.get_class(c.sas_id, c.sas_class), editable=editable)
+
+
+@bp.get("/evaluations")
+def evaluations():
+    """Students who joined a class with their evaluation score: every coach (read only outside his classes)."""
+    _require_class_role()
+    args = {k: request.args.get(k, "").strip() for k in ("q", "class", "state")}
+    evaluated = select(Evaluation.candidate_id)
+    stmt = (select(Candidate).where(Candidate.sas_id.is_not(None), Candidate.sas_class.is_not(None),
+                                    Candidate.sas_class != "").order_by(Candidate.sas_class, Candidate.full_name))
+    if args["q"]:
+        like = f"%{args['q']}%"
+        stmt = stmt.where(or_(Candidate.full_name.ilike(like), Candidate.matricule.ilike(like)))
+    sas_id, _, name = args["class"].partition(":")
+    if sas_id.isdigit() and name:
+        stmt = stmt.where(Candidate.sas_id == int(sas_id), Candidate.sas_class == name)
+    if args["state"] == "done":
+        stmt = stmt.where(Candidate.id.in_(evaluated))
+    elif args["state"] == "todo":
+        stmt = stmt.where(Candidate.id.not_in(evaluated))
+    page = db.paginate(stmt, page=request.args.get("page", 1, type=int), per_page=50, error_out=False)
+    grids = {e.candidate_id: e for e in db.session.scalars(
+        select(Evaluation).where(Evaluation.candidate_id.in_([c.id for c in page.items])))}
+    return render_template("campus/evaluations.html", page=page, args=args, grids=grids,
+                           classes=campus_service.class_choices(), can_manage=campus_service.can_manage)
