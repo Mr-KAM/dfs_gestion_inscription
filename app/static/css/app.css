@@ -198,6 +198,11 @@ a.stat-card:hover { border-color: var(--dfs-blue); }
 
 /* Candidate profile photo */
 .avatar { border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.avatar-zoom { display: inline-block; border-radius: 50%; cursor: zoom-in; }
+.photo-zoom { border: 0; padding: 0; background: transparent; max-width: 92vw; max-height: 92vh; overflow: visible; cursor: zoom-out; }
+.photo-zoom::backdrop { background: rgba(0, 0, 0, .8); }
+.photo-zoom img { display: block; max-width: 92vw; max-height: 88vh; border-radius: .5rem; object-fit: contain; }
+.photo-zoom .btn-close { position: absolute; top: .5rem; right: .5rem; padding: .5rem; background-color: rgba(0, 0, 0, .5); border-radius: 50%; opacity: 1; }
 .avatar-empty { display: inline-flex; align-items: center; justify-content: center; background: var(--dfs-blue-light); color: var(--dfs-muted); }
 
 /* Check-in QR code, projected to the room */

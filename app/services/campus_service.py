@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlsplit
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, update
 
 from app.extensions import db
 from app.models import (AttendanceSession, Candidate, ClassInvitation, Evaluation, Exercise, ExerciseAnswer,
@@ -405,6 +405,35 @@ def create_class(user, sas_id: int, name: str) -> SasClass:
     audit_service.log("class_create", klass, {"sas": sas.name, "name": name})
     db.session.commit()
     return klass
+
+
+def rename_class(klass: SasClass, user, name: str) -> None:
+    """Admin only. The name is copied in students, exercises, roll calls, notifications and coaches' classes:
+    all follow the new name."""
+    if user.role != ROLE_ADMIN:
+        raise BusinessError("Seul l'admin peut renommer une classe.")
+    old, name = klass.name, " ".join(name.split())[:50]
+    if not name:
+        raise BusinessError("Donnez un nom à la classe.")
+    if name == old:
+        return
+    taken = db.session.scalar(select(SasClass.id).where(SasClass.sas_id == klass.sas_id, SasClass.name == name))
+    used = db.session.scalar(select(Candidate.id).limit(1)
+                             .where(Candidate.sas_id == klass.sas_id, Candidate.sas_class == name))
+    if taken or used:
+        raise BusinessError(f"La classe « {name} » existe déjà dans {klass.sas.name}.")
+    db.session.execute(update(Candidate).where(Candidate.sas_id == klass.sas_id, Candidate.sas_class == old)
+                       .values(sas_class=name))
+    for model in (Exercise, AttendanceSession, Notification):
+        db.session.execute(update(model).where(model.sas_id == klass.sas_id, model.class_name == old)
+                           .values(class_name=name))
+    old_key, new_key = f"{klass.sas_id}:{old}", f"{klass.sas_id}:{name}"
+    for coach in db.session.scalars(select(User).where(User.role == ROLE_COACH)):
+        if old_key in (coach.coach_classes or []):  # new list: JSON change tracked
+            coach.coach_classes = sorted({*(k for k in coach.coach_classes if k != old_key), new_key})
+    klass.name = name
+    audit_service.log("class_rename", klass, {"from": old, "to": name})
+    db.session.commit()
 
 
 def renew_join_code(klass: SasClass) -> None:

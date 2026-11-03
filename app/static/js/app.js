@@ -153,6 +153,27 @@
     }
   });
 
+  // Student photo zoom: <a data-zoom href="photo"> opens it full size in a <dialog>; click or Esc closes.
+  document.addEventListener("click", (e) => {
+    const link = e.target.closest("a[data-zoom]");
+    if (!link) return;
+    e.preventDefault();
+    const dialog = document.createElement("dialog");
+    dialog.className = "photo-zoom";
+    const img = document.createElement("img");
+    img.src = link.href;
+    img.alt = (link.querySelector("img") || {}).alt || "Photo";
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "btn-close btn-close-white";
+    close.setAttribute("aria-label", "Fermer");
+    dialog.append(close, img);
+    dialog.addEventListener("click", () => dialog.close());
+    dialog.addEventListener("close", () => dialog.remove());
+    document.body.append(dialog);
+    dialog.showModal();
+  });
+
   // Print pages (PDF export): <button data-print>, <body data-autoprint> opens the dialog once loaded.
   document.addEventListener("click", (e) => {
     if (e.target.closest("[data-print]")) window.print();

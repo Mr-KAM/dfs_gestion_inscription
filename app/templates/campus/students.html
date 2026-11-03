@@ -22,7 +22,7 @@
   <tbody>
   {% for c in page.items %}
     <tr>
-      <td>{{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 32) }}</td>
+      <td>{{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 32, zoom=True) }}</td>
       <td><code>{{ c.matricule }}</code></td>
       <td><a href="{{ url_for('campus.student', candidate_id=c.id) }}">{{ c.full_name }}</a>{% if c.email %}<div class="small text-muted">{{ c.email }}</div>{% endif %}</td>
       <td>{{ c.sas.name }} · {{ c.sas_class or '—' }}</td>

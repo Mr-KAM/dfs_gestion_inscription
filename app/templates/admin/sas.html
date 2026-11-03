@@ -158,7 +158,7 @@
   <tbody>
   {% for c in members %}
     <tr>
-      <td>{{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 32) }}</td>
+      <td>{{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 32, zoom=True) }}</td>
       <td><code>{{ c.matricule }}</code></td>
       <td><a href="{{ url_for('candidates.detail', candidate_id=c.id) }}">{{ c.full_name }}</a><div class="small text-muted">{{ c.email or '' }}</div></td>
       <td>{{ c.gender or '—' }}</td>

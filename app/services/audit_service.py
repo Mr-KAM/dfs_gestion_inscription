@@ -61,6 +61,7 @@ ACTION_LABELS = {
     "incident_add": "Problème étudiant signalé",
     "incident_resolve": "Problème étudiant résolu",
     "class_create": "Création classe",
+    "class_rename": "Renommage classe",
     "infra_update": "Gestion des infrastructures",
     "equipment_create": "Matériel ajouté à l'inventaire",
     "equipment_update": "Matériel modifié / déplacé / attribué",

@@ -11,7 +11,7 @@
 </div>
 <div class="d-flex justify-content-between align-items-center gap-3 mt-1 mb-3 flex-wrap">
   <div class="d-flex align-items-center gap-3">
-    {{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 72) }}
+    {{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 72, zoom=True) }}
     <div>
       <h1 class="page-title">Évaluation individuelle</h1>
       <div class="text-muted">{{ c.full_name }} · <code>{{ c.matricule }}</code> · {{ c.sas.name }} · {{ c.sas_class }}</div>

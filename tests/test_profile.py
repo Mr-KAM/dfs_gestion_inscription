@@ -46,5 +46,6 @@ def test_photo_is_checked(app, db, client):
 def test_staff_sees_photo(app, db, client, admin):
     c = make_candidate(photo=PNG, photo_type="image/png")
     login(client, admin)
-    assert f"/candidates/{c.id}/photo" in client.get(f"/candidates/{c.id}").get_data(as_text=True)
+    html = client.get(f"/candidates/{c.id}").get_data(as_text=True)
+    assert f'href="/candidates/{c.id}/photo?v=' in html and "data-zoom" in html  # click to zoom
     assert client.get(f"/candidates/{c.id}/photo").data == PNG

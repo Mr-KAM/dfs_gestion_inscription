@@ -22,7 +22,7 @@
   <tbody>
   {% for c in page.items %}{% set e = grids.get(c.id) %}{% set mine = can_manage(current_user, c.sas_id, c.sas_class) %}
     <tr>
-      <td>{{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 32) }}</td>
+      <td>{{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 32, zoom=True) }}</td>
       <td>{{ c.full_name }}</td>
       <td><code>{{ c.matricule }}</code></td>
       <td>{{ c.sas.name }} · {{ c.sas_class }}</td>

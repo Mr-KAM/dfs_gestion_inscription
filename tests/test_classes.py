@@ -150,3 +150,31 @@ def test_admin_sees_classes_of_every_coach_with_exercises(app, db, client, admin
     assert names(state="pending") == ["BRAVO"] and names(state="code") == ["ALPHA"]
     assert names(sex="F") == ["BRAVO"] and "avatar" in client.get(f"/campus/classes/{k.id}").get_data(as_text=True)
     assert names(done="some") == ["ALPHA"] and names(done="none") == ["BRAVO"] and names(done="all") == []  # 1 of 2
+
+
+def test_admin_renames_class(app, db, client, admin):
+    from app.models import AttendanceSession, Exercise
+    from app.services import attendance_service
+    sas, other, a, out, coach = _setup(db)
+    k = campus_service.create_class(coach, sas.id, "Dev Web")
+    campus_service.create_class(coach, sas.id, "Data")
+    a.sas_class = "Dev Web"
+    db.session.commit()
+    campus_service.create_exercise(coach, {"target": f"{sas.id}:Dev Web", "title": "Boucles"})
+    attendance_service.open_session(sas, "Dev Web", "Lundi", 15, coach)
+
+    login(client, coach)
+    assert client.post(f"/campus/classes/{k.id}/rename", data={"name": "X"}, follow_redirects=True).status_code == 200
+    db.session.expire_all()
+    assert k.name == "Dev Web"  # coach: refused
+    client.post("/logout")
+    login(client, admin)
+    assert "Renommer la classe" in client.get(f"/campus/classes/{k.id}").get_data(as_text=True)
+    html = client.post(f"/campus/classes/{k.id}/rename", data={"name": "Data"},
+                       follow_redirects=True).get_data(as_text=True)
+    assert "existe déjà" in html
+    client.post(f"/campus/classes/{k.id}/rename", data={"name": "  Web   Mobile "})
+    db.session.expire_all()
+    assert (k.name, a.sas_class) == ("Web Mobile", "Web Mobile")
+    assert Exercise.query.one().class_name == AttendanceSession.query.one().class_name == "Web Mobile"
+    assert sorted(db.session.get(User, coach.id).coach_classes) == [f"{sas.id}:Data", f"{sas.id}:Web Mobile"]

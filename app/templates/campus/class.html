@@ -22,6 +22,13 @@
 
 <a class="small text-muted text-decoration-none" href="{{ url_for('campus.classes') }}"><i class="bi bi-arrow-left"></i> Classes</a>
 <h1 class="page-title mt-1">{{ k.name }} <span class="status status-info align-middle">{{ members | length }} étudiant(s)</span></h1>
+{% if current_user.role == 'admin' %}
+<details class="mb-2"><summary class="small text-primary">Renommer la classe</summary>
+  <form class="d-flex gap-2 mt-2 flex-wrap" method="post" action="{{ url_for('campus.class_rename', class_id=k.id) }}">
+    {{ csrf() }}<input class="form-control form-control-sm w-auto" name="name" value="{{ k.name }}" maxlength="50" required aria-label="Nouveau nom de la classe">
+    <button class="btn btn-sm btn-primary"><i class="bi bi-pencil"></i> Renommer</button>
+  </form></details>
+{% endif %}
 <div class="text-muted mb-3">{{ k.sas.name }} · créée le {{ k.created_at | dt }}{% if creator %} par {{ creator.display_name }}{% endif %}
   · coach(s) : {% for u in coaches %}{{ u.display_name }}{{ ', ' if not loop.last }}{% else %}aucun{% endfor %}</div>
 
@@ -87,7 +94,7 @@
   <tbody>
   {% for r in shown.roster %}{% set i = r.invitation %}
     <tr>
-      <td>{{ avatar(r.candidate, url_for('candidates.photo', candidate_id=r.candidate.id), 32) }}</td>
+      <td>{{ avatar(r.candidate, url_for('candidates.photo', candidate_id=r.candidate.id), 32, zoom=True) }}</td>
       <td>{% if r.member %}<a href="{{ url_for('campus.student', candidate_id=r.candidate.id) }}">{{ r.candidate.full_name }}</a>{% else %}{{ r.candidate.full_name }}{% endif %}</td>
       <td>{{ r.candidate.gender or '—' }}</td>
       <td><code class="small">{{ r.candidate.matricule }}</code></td>

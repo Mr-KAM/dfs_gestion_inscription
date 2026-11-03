@@ -4,7 +4,7 @@
 {% block content %}
 <a class="small text-muted text-decoration-none" href="{{ url_for('campus.students') }}"><i class="bi bi-arrow-left"></i> {{ 'Mes étudiants' if current_user.role == 'coach' else 'Étudiants du SAS' }}</a>
 <div class="d-flex align-items-center gap-3 mt-1 mb-3 flex-wrap">
-  {{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 96) }}
+  {{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 96, zoom=True) }}
   <div>
     <h1 class="page-title">{{ c.full_name }}</h1>
     <div class="text-muted"><code>{{ c.matricule }}</code> · {{ c.sas.name }} · {{ c.sas_class or 'sans classe' }}</div>

@@ -441,6 +441,17 @@ def class_invite(class_id: int):
     return redirect(url_for("campus.class_page", class_id=klass.id))
 
 
+@bp.post("/classes/<int:class_id>/rename")
+def class_rename(class_id: int):
+    klass = _klass(class_id)
+    try:
+        campus_service.rename_class(klass, current_user, request.form.get("name", ""))
+        flash(f"Classe renommée « {klass.name} ».", "success")
+    except BusinessError as exc:
+        flash(str(exc), "danger")
+    return redirect(url_for("campus.class_page", class_id=klass.id))
+
+
 @bp.post("/classes/<int:class_id>/renew")
 def class_renew(class_id: int):
     campus_service.renew_join_code(_klass(class_id))
