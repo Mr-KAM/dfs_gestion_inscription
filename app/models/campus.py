@@ -17,6 +17,8 @@ class Notification(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     sas_id = db.Column(db.Integer, db.ForeignKey("sas.id", ondelete="CASCADE"), nullable=False, index=True)
     class_name = db.Column(db.String(50), nullable=False, default="")
+    # Individual notification: only this student sees it (class_name = his class, for his coaches' lists).
+    candidate_id = db.Column(db.Integer, db.ForeignKey("candidates.id", ondelete="CASCADE"), index=True)
     title = db.Column(db.String(150), nullable=False)
     body = db.Column(db.Text, nullable=False, default="")
     created_by = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
@@ -24,6 +26,7 @@ class Notification(db.Model):
 
     sas = db.relationship("Sas")
     author = db.relationship("User")
+    candidate = db.relationship("Candidate")
 
 
 class Exercise(db.Model):

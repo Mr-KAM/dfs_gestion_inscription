@@ -161,7 +161,7 @@
       <ul class="list-group list-group-flush">
       {% for n in notifications %}
         <li class="list-group-item small"><strong>{{ n.title }}</strong>
-          <div class="text-muted">{{ n.created_at | dt }}{% if n.author %} · {{ n.author.display_name }}{% endif %}</div></li>
+          <div class="text-muted">{% if n.candidate %}<i class="bi bi-person"></i> {{ n.candidate.full_name }} · {% endif %}{{ n.created_at | dt }}{% if n.author %} · {{ n.author.display_name }}{% endif %}</div></li>
       {% else %}<li class="list-group-item text-muted">Aucune notification.</li>{% endfor %}
       </ul></div>
   </div>

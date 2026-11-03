@@ -174,7 +174,8 @@ def test_reception_browses_sas_students(app, db, client):
     assert names("class=Classe+B") == {"BETA"} and names("gender=F") == {"ALPHA"}
     html = client.get(f"/campus/students/{a.id}").get_data(as_text=True)
     assert all(t in html for t in ("ALPHA", a.matricule, "CH-07", "Classe A", "Allergie", "Heures d'absence"))
-    assert "<form" not in html.split("<main", 1)[1].split("</main>")[0]  # read only
+    main = html.split("<main", 1)[1].split("</main>")[0]
+    assert main.count("<form") == 1 and "/notify" in main  # read only, except the individual notification
     assert client.get(f"/campus/students/{recruit.id}").status_code == 404
 
 

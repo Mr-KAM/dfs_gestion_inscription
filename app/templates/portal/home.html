@@ -24,7 +24,7 @@
   <a class="small" href="{{ url_for('portal.notifications') }}">Tout voir</a></div>
   <ul class="list-group list-group-flush">
   {% for n in notifications %}
-    <li class="list-group-item"><div class="d-flex justify-content-between flex-wrap gap-2"><strong>{{ n.title }}</strong>
+    <li class="list-group-item"><div class="d-flex justify-content-between flex-wrap gap-2"><strong>{{ n.title }}{% if n.candidate_id %} <span class="status status-info">Pour vous</span>{% endif %}</strong>
       <span class="small text-muted">{{ n.created_at | dt }}</span></div>
       {% if n.body %}<div class="small" style="white-space: pre-line">{{ n.body | truncate(300) }}</div>{% endif %}</li>
   {% endfor %}

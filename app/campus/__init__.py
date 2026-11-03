@@ -506,9 +506,26 @@ def student(candidate_id: int):
     incidents = db.session.scalars(select(Incident).where(Incident.candidate_id == c.id)
                                    .order_by(Incident.created_at.desc())).all()
     evaluation = campus_service.evaluation_of(c) if current_user.role in CLASS_ROLES else None
+    personal = db.session.scalars(select(Notification).where(Notification.candidate_id == c.id)
+                                  .order_by(Notification.created_at.desc()).limit(20)).all()
     return render_template("campus/student.html", c=c, sessions=sessions[:30], marks=marks, visits=visits,
-                           incidents=incidents, submissions=submissions, evaluation=evaluation,
+                           incidents=incidents, submissions=submissions, evaluation=evaluation, personal=personal,
                            absence_hours=attendance_service.absence_hours(c, sessions, marks))
+
+
+@bp.post("/students/<int:candidate_id>/notify")
+def student_notify(candidate_id: int):
+    """Notification to this student only (seen on his space, like the class ones)."""
+    c = db.get_or_404(Candidate, candidate_id)
+    if current_user.role not in (*DESK_ROLES, ROLE_COACH):
+        abort(403)
+    try:
+        campus_service.send_individual_notification(current_user, c, request.form.get("title", ""),
+                                                    request.form.get("body", ""))
+        flash(f"Notification envoyée à {c.full_name}.", "success")
+    except BusinessError as exc:
+        flash(str(exc), "danger")
+    return redirect(url_for("campus.student", candidate_id=c.id) + "#notifier")
 
 
 @bp.route("/students/<int:candidate_id>/evaluation", methods=["GET", "POST"])

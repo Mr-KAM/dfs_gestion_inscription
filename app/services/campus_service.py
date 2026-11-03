@@ -111,10 +111,30 @@ def send_notification(user, target: str, title: str, body: str) -> Notification:
     return notification
 
 
+def send_individual_notification(user, candidate: Candidate, title: str, body: str) -> Notification:
+    """To one student: admin / reception, or a coach of his class."""
+    if not candidate.sas_id or not can_manage(user, candidate.sas_id, candidate.sas_class or ""):
+        raise BusinessError("Vous ne pouvez pas écrire à cet étudiant.")
+    title = title.strip()[:150]
+    if not title:
+        raise BusinessError("Le titre est obligatoire.")
+    notification = Notification(sas_id=candidate.sas_id, class_name=candidate.sas_class or "", candidate=candidate,
+                                title=title, body=body.strip()[:5000], created_by=user.id)
+    db.session.add(notification)
+    db.session.flush()
+    audit_service.log("notification_send", notification, {"candidate": candidate.matricule, "title": title})
+    db.session.commit()
+    return notification
+
+
 def notifications_for(candidate: Candidate, limit: int | None = None) -> list[Notification]:
+    """His class / SAS notifications and the ones sent to him alone (wherever his class is now)."""
     if not candidate.sas_id:
         return []
-    stmt = _for_candidate(Notification, candidate).order_by(Notification.created_at.desc())
+    stmt = select(Notification).where(Notification.sas_id == candidate.sas_id, or_(
+        Notification.candidate_id == candidate.id,
+        Notification.candidate_id.is_(None) & Notification.class_name.in_(("", candidate.sas_class or ""))))
+    stmt = stmt.order_by(Notification.created_at.desc())
     return db.session.scalars(stmt.limit(limit) if limit else stmt).all()
 
 

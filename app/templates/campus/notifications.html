@@ -25,7 +25,7 @@
   {% for n in sent %}
     <li class="list-group-item">
       <div class="d-flex justify-content-between flex-wrap gap-2"><strong>{{ n.title }}</strong>
-        <span class="small text-muted">{{ n.sas.name }} · {{ n.class_name or 'tout le SAS' }} · {{ n.created_at | dt }} · {{ n.author.display_name if n.author else '—' }}</span></div>
+        <span class="small text-muted">{{ n.sas.name }} · {% if n.candidate %}<i class="bi bi-person"></i> {{ n.candidate.full_name }}{% else %}{{ n.class_name or 'tout le SAS' }}{% endif %} · {{ n.created_at | dt }} · {{ n.author.display_name if n.author else '—' }}</span></div>
       {% if n.body %}<div class="small mt-1" style="white-space: pre-line">{{ n.body }}</div>{% endif %}
     </li>
   {% else %}<li class="list-group-item text-muted">Aucune notification.</li>{% endfor %}

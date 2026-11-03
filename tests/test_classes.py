@@ -1,6 +1,9 @@
 """Classes: a coach creates a class, students join it by QR code / address / code, or accept an invitation."""
+import pytest
+
 from app.models import ClassInvitation, Sas, SasClass, User
 from app.services import campus_service
+from app.services.candidate_service import BusinessError
 from tests.conftest import login, make_candidate, make_user
 from tests.test_portal import _logged_candidate
 
@@ -178,3 +181,32 @@ def test_admin_renames_class(app, db, client, admin):
     assert (k.name, a.sas_class) == ("Web Mobile", "Web Mobile")
     assert Exercise.query.one().class_name == AttendanceSession.query.one().class_name == "Web Mobile"
     assert sorted(db.session.get(User, coach.id).coach_classes) == [f"{sas.id}:Data", f"{sas.id}:Web Mobile"]
+
+
+def test_individual_notification(app, db, client):
+    from app.models import Notification
+    sas, other, a, out, coach = _setup(db)
+    campus_service.create_class(coach, sas.id, "Dev Web")
+    me = _logged_candidate(client, email="me@test.ci", cni="ME", phone="0303030303")
+    me.sas, me.sas_class, a.sas_class = sas, "Dev Web", "Dev Web"
+    db.session.commit()
+    stranger = make_user("coach", "coach2@test.ci")
+    with pytest.raises(BusinessError):  # not his class
+        campus_service.send_individual_notification(stranger, me, "Intrus", "")
+    campus_service.send_individual_notification(coach, a, "Pour ALPHA", "Viens me voir")
+    campus_service.send_individual_notification(coach, me, "Pour moi", "Bravo")
+    campus_service.send_notification(coach, f"{sas.id}:Dev Web", "Pour la classe", "")
+    html = client.get("/candidat/notifications").get_data(as_text=True)
+    assert "Pour moi" in html and "Pour vous" in html and "Pour la classe" in html and "Pour ALPHA" not in html
+
+    client.post("/logout")
+    login(client, coach)
+    html = client.post(f"/campus/students/{a.id}/notify", data={"title": "Rappel", "body": "Badge"},
+                       follow_redirects=True).get_data(as_text=True)
+    assert "Notification envoyée à ALPHA" in html and "Rappel" in html
+    assert Notification.query.filter_by(title="Rappel").one().candidate_id == a.id
+    assert "ALPHA" in client.get("/campus/notifications").get_data(as_text=True)  # listed with its addressee
+    client.post("/logout")
+    login(client, stranger)
+    client.post(f"/campus/students/{a.id}/notify", data={"title": "Non"})
+    assert Notification.query.filter_by(title="Non").count() == 0
