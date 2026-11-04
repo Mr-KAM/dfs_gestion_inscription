@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}Soutenances SAS{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Soutenances SAS</h1>
+
+<form class="card card-body mb-3" method="post">
+  {{ csrf() }}
+  <h2 class="h6"><i class="bi bi-calendar-plus"></i> Programmer une soutenance</h2>
+  <div class="row g-2 align-items-end">
+    <div class="col-md-3"><label class="form-label" for="sas_id">SAS</label>
+      <select class="form-select" id="sas_id" name="sas_id" required>
+        {% for s in sas_list %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><label class="form-label" for="name">Nom</label>
+      <input class="form-control" id="name" name="name" maxlength="150" required placeholder="Soutenance finale"></div>
+    <div class="col-md-2"><label class="form-label" for="starts_at">Début</label>
+      <input class="form-control" id="starts_at" name="starts_at" type="datetime-local"></div>
+    <div class="col-md-2"><label class="form-label" for="location">Lieu</label>
+      <input class="form-control" id="location" name="location" maxlength="150"></div>
+    <div class="col-md-2"><button class="btn btn-primary w-100" {{ 'disabled' if not sas_list }}><i class="bi bi-plus-lg"></i> Programmer</button></div>
+  </div>
+  {% if not sas_list %}<div class="form-text">Créez d'abord un SAS.</div>{% endif %}
+</form>
+
+<div class="card"><div class="table-responsive"><table class="table table-hover align-middle mb-0">
+  <thead><tr><th>Soutenance</th><th>SAS</th><th>Début</th><th>Lieu</th><th class="text-end">Jurys</th><th class="text-end">Étudiants</th></tr></thead>
+  <tbody>
+  {% for d in defenses %}
+    <tr>
+      <td><a class="fw-semibold" href="{{ url_for('defense.detail', defense_id=d.id) }}">{{ d.name }}</a></td>
+      <td>{{ d.sas.name }}</td>
+      <td>{{ d.starts_at | dt or '—' }}</td>
+      <td>{{ d.location or '—' }}</td>
+      <td class="text-end">{{ d.juries | length }}</td>
+      <td class="text-end">{{ d.juries | map(attribute='candidates') | map('length') | sum }} / {{ d.sas.members | length }}</td>
+    </tr>
+  {% else %}<tr><td colspan="6" class="text-muted">Aucune soutenance programmée.</td></tr>{% endfor %}
+  </tbody>
+</table></div></div>
+{% endblock %}

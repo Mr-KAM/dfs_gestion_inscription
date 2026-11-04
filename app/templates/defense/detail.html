@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% from "_macros.html" import avatar, csrf %}
+{% block title %}{{ defense.name }}{% endblock %}
+{% block content %}
+{% set ISO = '%Y-%m-%dT%H:%M' %}
+<a class="small text-muted text-decoration-none" href="{{ url_for('defense.index') }}"><i class="bi bi-arrow-left"></i> Soutenances</a>
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mt-1">
+  <h1 class="page-title">{{ defense.name }}</h1>
+  <form method="post" action="{{ url_for('defense.delete', defense_id=defense.id) }}"
+        data-confirm="Supprimer la soutenance « {{ defense.name }} », ses jurys et leurs listes ?">
+    {{ csrf() }}<button class="btn btn-outline-danger"><i class="bi bi-trash"></i> Supprimer</button></form>
+</div>
+<div class="text-muted mb-3">{{ defense.sas.name }} · {{ defense.starts_at | dt or 'date à fixer' }}{% if defense.location %} · {{ defense.location }}{% endif %}
+  · {{ defense.juries | length }} jury(s) · {{ defense.sas.members | length - unassigned | length }} / {{ defense.sas.members | length }} étudiant(s) placés</div>
+
+<details class="card mb-3"><summary class="card-header"><i class="bi bi-pencil"></i> Modifier la soutenance</summary>
+  <form class="card-body row g-2 align-items-end" method="post" action="{{ url_for('defense.update', defense_id=defense.id) }}">
+    {{ csrf() }}
+    <div class="col-md-4"><label class="form-label" for="d-name">Nom</label>
+      <input class="form-control" id="d-name" name="name" value="{{ defense.name }}" maxlength="150" required></div>
+    <div class="col-md-3"><label class="form-label" for="d-start">Début</label>
+      <input class="form-control" id="d-start" name="starts_at" type="datetime-local" value="{{ defense.starts_at | dt(ISO) }}"></div>
+    <div class="col-md-3"><label class="form-label" for="d-loc">Lieu</label>
+      <input class="form-control" id="d-loc" name="location" value="{{ defense.location or '' }}" maxlength="150"></div>
+    <div class="col-md-2"><button class="btn btn-primary w-100">Enregistrer</button></div>
+  </form></details>
+
+{% macro jury_fields(prefix, j=None) %}
+  <div class="col-md-3"><label class="form-label" for="{{ prefix }}-name">Nom du jury</label>
+    <input class="form-control form-control-sm" id="{{ prefix }}-name" name="name" value="{{ j.name if j else '' }}" maxlength="100" required placeholder="Jury 1"></div>
+  <div class="col-md-3"><label class="form-label" for="{{ prefix }}-room">Salle</label>
+    <input class="form-control form-control-sm" id="{{ prefix }}-room" name="room" value="{{ j.room if j else '' }}" maxlength="100"></div>
+  <div class="col-md-3"><label class="form-label" for="{{ prefix }}-start">Début <span class="text-muted">(vide : celui de la soutenance)</span></label>
+    <input class="form-control form-control-sm" id="{{ prefix }}-start" name="starts_at" type="datetime-local" value="{{ j.starts_at | dt('%Y-%m-%dT%H:%M') if j else '' }}"></div>
+  <div class="col-md-2"><label class="form-label" for="{{ prefix }}-dur">Durée / étudiant (min)</label>
+    <input class="form-control form-control-sm" id="{{ prefix }}-dur" name="duration" type="number" min="5" max="480" value="{{ j.duration if j else 30 }}" required></div>
+{% endmacro %}
+
+{% for j in defense.juries %}
+<div class="card mb-3" id="jury-{{ j.id }}">
+  <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span class="fw-semibold"><i class="bi bi-people"></i> {{ j.name }}</span>
+    <span class="small text-muted">{{ j.room or 'salle à fixer' }} · {{ j.start | dt or 'heure à fixer' }} · {{ j.duration }} min / étudiant
+      · {{ j.members | length }} membre(s) · {{ j.candidates | length }} étudiant(s)</span>
+  </div>
+  <details class="border-bottom"><summary class="card-body py-2 small text-primary">Modifier ou supprimer le jury</summary>
+    <form class="card-body pt-0 row g-2 align-items-end" method="post" action="{{ url_for('defense.jury_update', jury_id=j.id) }}">
+      {{ csrf() }}{{ jury_fields('j' ~ j.id, j) }}
+      <div class="col-md-1 d-flex gap-1"><button class="btn btn-sm btn-primary" title="Enregistrer"><i class="bi bi-save"></i></button>
+        <button class="btn btn-sm btn-outline-danger" name="delete" value="1" title="Supprimer le jury"
+                data-confirm="Supprimer le jury « {{ j.name }} » ? Ses membres et ses étudiants seront libérés."><i class="bi bi-trash"></i></button></div>
+    </form></details>
+
+  <div class="row g-0">
+    <div class="col-lg-5 border-end">
+      <div class="card-body pb-2"><h3 class="h6 mb-0">Membres du jury</h3></div>
+      <ul class="list-group list-group-flush">
+      {% for m in j.members %}
+        <li class="list-group-item d-flex justify-content-between align-items-center gap-2 flex-wrap">
+          <span>{{ m.user.display_name }} <span class="small text-muted d-block">{{ m.user.email }}</span></span>
+          <form class="d-flex gap-1" method="post" action="{{ url_for('defense.member_update', member_id=m.id) }}">
+            {{ csrf() }}
+            <select class="form-select form-select-sm" name="role" aria-label="Rôle de {{ m.user.display_name }}" data-autosubmit>
+              {% for value, label in roles.items() %}<option value="{{ value }}" {{ 'selected' if m.role == value }}>{{ label }}</option>{% endfor %}</select>
+            <button class="btn btn-sm btn-outline-danger" name="remove" value="1" title="Retirer du jury"><i class="bi bi-person-dash"></i></button>
+          </form>
+        </li>
+      {% else %}<li class="list-group-item text-muted small">Aucun membre.</li>{% endfor %}
+      </ul>
+      <form class="card-body row g-1" method="post" action="{{ url_for('defense.member_add', jury_id=j.id) }}">
+        {{ csrf() }}
+        <div class="col-12 col-xl-6"><select class="form-select form-select-sm" name="user_id" aria-label="Personne de l'équipe" required>
+          <option value="">Personne de l'équipe…</option>
+          {% for u in staff %}<option value="{{ u.id }}">{{ u.display_name }}</option>{% endfor %}</select></div>
+        <div class="col-8 col-xl-4"><select class="form-select form-select-sm" name="role" aria-label="Rôle">
+          {% for value, label in roles.items() %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>
+        <div class="col-4 col-xl-2"><button class="btn btn-sm btn-outline-primary w-100" {{ 'disabled' if not staff }} title="Ajouter au jury"><i class="bi bi-person-plus"></i></button></div>
+        {% if not staff %}<div class="form-text">Toute l'équipe est déjà dans un jury de cette soutenance.</div>{% endif %}
+      </form>
+    </div>
+    <div class="col-lg-7">
+      <div class="card-body pb-2"><h3 class="h6 mb-0">Étudiants qui soutiennent ({{ j.candidates | length }})</h3></div>
+      <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+        <thead><tr><th>Heure</th><th></th><th>Nom et prénoms</th><th>Matricule</th><th>Classe</th><th></th></tr></thead>
+        <tbody>
+        {% for row in j.candidates %}{% set c = row.candidate %}
+          <tr>
+            <td class="small text-nowrap">{{ j.slot(loop.index0) | dt('%H:%M') or loop.index }}</td>
+            <td>{{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 28, zoom=True) }}</td>
+            <td>{{ c.full_name }}</td><td><code>{{ c.matricule }}</code></td><td>{{ c.sas_class or '—' }}</td>
+            <td class="text-end text-nowrap"><form class="d-inline-flex gap-1" method="post" action="{{ url_for('defense.candidate_update', row_id=row.id) }}">
+              {{ csrf() }}
+              <button class="btn btn-sm btn-outline-secondary" name="move" value="-1" title="Passer plus tôt" {{ 'disabled' if loop.first }}><i class="bi bi-arrow-up"></i></button>
+              <button class="btn btn-sm btn-outline-secondary" name="move" value="1" title="Passer plus tard" {{ 'disabled' if loop.last }}><i class="bi bi-arrow-down"></i></button>
+              <button class="btn btn-sm btn-outline-danger" name="remove" value="1" title="Retirer du jury"><i class="bi bi-x-lg"></i></button></form></td>
+          </tr>
+        {% else %}<tr><td colspan="6" class="text-muted small">Aucun étudiant pour l'instant.</td></tr>{% endfor %}
+        </tbody>
+      </table></div>
+      <form class="card-body" method="post" action="{{ url_for('defense.candidates_load', jury_id=j.id) }}">
+        {{ csrf() }}
+        <label class="form-label small" for="c{{ j.id }}">Charger des étudiants : matricules ou emails (un par ligne, ou séparés par des virgules)</label>
+        <textarea class="form-control form-control-sm font-monospace" id="c{{ j.id }}" name="candidates" rows="2" placeholder="26CAND000001&#10;26CAND000002"></textarea>
+        <div class="d-flex gap-2 mt-2 flex-wrap">
+          <select class="form-select form-select-sm w-auto" name="class" aria-label="Ajouter toute une classe">
+            <option value="">… et/ou toute une classe</option>
+            {% for name in classes %}<option>{{ name }}</option>{% endfor %}</select>
+          <button class="btn btn-sm btn-primary"><i class="bi bi-upload"></i> Charger</button>
+        </div>
+        <div class="form-text">Étudiants admis à {{ defense.sas.name }} seulement ; un étudiant ne passe que devant un jury de cette soutenance.</div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+<form class="card card-body mb-3" method="post" action="{{ url_for('defense.jury_add', defense_id=defense.id) }}">
+  {{ csrf() }}
+  <h2 class="h6"><i class="bi bi-plus-lg"></i> Ajouter un jury</h2>
+  <div class="row g-2 align-items-end">
+    {{ jury_fields('new') }}
+    <div class="col-md-1"><button class="btn btn-sm btn-primary w-100">Créer</button></div>
+  </div>
+</form>
+
+{% if unassigned %}
+<details class="card"><summary class="card-header"><i class="bi bi-person-exclamation"></i> Étudiants sans jury ({{ unassigned | length }})</summary>
+  <ul class="list-group list-group-flush">
+  {% for c in unassigned %}<li class="list-group-item small"><code>{{ c.matricule }}</code> {{ c.full_name }} <span class="text-muted">· {{ c.sas_class or 'sans classe' }}</span></li>{% endfor %}
+  </ul></details>
+{% endif %}
+{% endblock %}

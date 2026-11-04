@@ -62,6 +62,7 @@ ACTION_LABELS = {
     "incident_resolve": "Problème étudiant résolu",
     "class_create": "Création classe",
     "class_rename": "Renommage classe",
+    "defense_update": "Gestion soutenances SAS",
     "infra_update": "Gestion des infrastructures",
     "equipment_create": "Matériel ajouté à l'inventaire",
     "equipment_update": "Matériel modifié / déplacé / attribué",
