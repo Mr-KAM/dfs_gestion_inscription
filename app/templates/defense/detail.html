@@ -1,20 +1,29 @@
 {% extends "base.html" %}
-{% from "_macros.html" import avatar, csrf %}
+{% from "_macros.html" import avatar, csrf, empty, meta, page_head, progress, stat %}
 {% block title %}{{ defense.name }}{% endblock %}
 {% block content %}
 {% set ISO = '%Y-%m-%dT%H:%M' %}
-<a class="small text-muted text-decoration-none" href="{{ url_for('defense.index') }}"><i class="bi bi-arrow-left"></i> Soutenances</a>
-<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mt-1">
-  <h1 class="page-title">{{ defense.name }}</h1>
+{% set admitted = defense.sas.members | length %}
+{% set placed = admitted - unassigned | length %}
+{% set juries = defense.juries | length %}
+{% set deliberated = defense.juries | selectattr('validated_at') | list | length %}
+{% set complete = results.values() | selectattr('complete') | list | length %}
+
+{% set head_meta %}
+  {{ meta('calendar-event', defense.starts_at | dt or 'Date à fixer', muted=not defense.starts_at) }}
+  {{ meta('geo-alt', defense.location or 'Lieu à fixer', muted=not defense.location) }}
+{% endset %}
+{% call page_head(defense.name, eyebrow='Soutenance · ' ~ defense.sas.name, back=url_for('defense.index'), back_label='Soutenances', meta=head_meta) %}
+  <button class="btn btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#edit-defense" aria-expanded="false" aria-controls="edit-defense"><i class="bi bi-pencil"></i> Modifier</button>
   <form method="post" action="{{ url_for('defense.delete', defense_id=defense.id) }}"
         data-confirm="Supprimer la soutenance « {{ defense.name }} », ses jurys et leurs listes ?">
     {{ csrf() }}<button class="btn btn-outline-danger"><i class="bi bi-trash"></i> Supprimer</button></form>
-</div>
-<div class="text-muted mb-3">{{ defense.sas.name }} · {{ defense.starts_at | dt or 'date à fixer' }}{% if defense.location %} · {{ defense.location }}{% endif %}
-  · {{ defense.juries | length }} jury(s) · {{ defense.sas.members | length - unassigned | length }} / {{ defense.sas.members | length }} étudiant(s) placés</div>
+{% endcall %}
 
-<details class="card mb-3"><summary class="card-header"><i class="bi bi-pencil"></i> Modifier la soutenance</summary>
-  <form class="card-body row g-2 align-items-end" method="post" action="{{ url_for('defense.update', defense_id=defense.id) }}">
+<div class="collapse" id="edit-defense">
+<form class="card mb-3" method="post" action="{{ url_for('defense.update', defense_id=defense.id) }}">
+  <div class="card-header"><i class="bi bi-pencil"></i> Modifier la soutenance</div>
+  <div class="card-body row g-2 align-items-end">
     {{ csrf() }}
     <div class="col-md-4"><label class="form-label" for="d-name">Nom</label>
       <input class="form-control" id="d-name" name="name" value="{{ defense.name }}" maxlength="150" required></div>
@@ -22,104 +31,156 @@
       <input class="form-control" id="d-start" name="starts_at" type="datetime-local" value="{{ defense.starts_at | dt(ISO) }}"></div>
     <div class="col-md-3"><label class="form-label" for="d-loc">Lieu</label>
       <input class="form-control" id="d-loc" name="location" value="{{ defense.location or '' }}" maxlength="150"></div>
-    <div class="col-md-2"><button class="btn btn-primary w-100">Enregistrer</button></div>
-  </form></details>
+    <div class="col-md-2"><button class="btn btn-primary w-100"><i class="bi bi-save"></i> Enregistrer</button></div>
+  </div>
+</form>
+</div>
+
+<div class="row g-3 mb-3">
+  {{ stat('Jurys', juries, 'people') }}
+  {{ stat('Étudiants placés', placed ~ ' / ' ~ admitted, 'person-check', progress=(100 * placed / admitted) if admitted else 0) }}
+  {{ stat('Fiches complètes', complete ~ ' / ' ~ (results | length), 'clipboard-check', progress=(100 * complete / (results | length)) if results else 0) }}
+  {{ stat('Délibérations', deliberated ~ ' / ' ~ juries, 'check2-circle', progress=(100 * deliberated / juries) if juries else 0) }}
+</div>
+
+{% if unassigned %}
+<div class="callout callout-warning mb-3">
+  <span><i class="bi bi-person-exclamation"></i> <strong>{{ unassigned | length }}</strong> étudiant(s) admis à {{ defense.sas.name }} sans jury.</span>
+  <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#unassigned" aria-expanded="false" aria-controls="unassigned">
+    <i class="bi bi-list-ul"></i> Voir la liste</button>
+</div>
+<div class="collapse" id="unassigned"><div class="card mb-3"><div class="card-header"><i class="bi bi-person-exclamation"></i> Étudiants sans jury ({{ unassigned | length }})</div>
+  <ul class="list-group list-group-flush">
+  {% for c in unassigned %}<li class="list-group-item small"><code>{{ c.matricule }}</code> {{ c.full_name }} <span class="text-muted">· {{ c.sas_class or 'sans classe' }}</span></li>{% endfor %}
+  </ul></div></div>
+{% endif %}
 
 {% macro jury_fields(prefix, j=None) %}
-  <div class="col-md-3"><label class="form-label" for="{{ prefix }}-name">Nom du jury</label>
-    <input class="form-control form-control-sm" id="{{ prefix }}-name" name="name" value="{{ j.name if j else '' }}" maxlength="100" required placeholder="Jury 1"></div>
-  <div class="col-md-3"><label class="form-label" for="{{ prefix }}-room">Salle</label>
-    <input class="form-control form-control-sm" id="{{ prefix }}-room" name="room" value="{{ j.room if j else '' }}" maxlength="100"></div>
-  <div class="col-md-3"><label class="form-label" for="{{ prefix }}-start">Début <span class="text-muted">(vide : celui de la soutenance)</span></label>
-    <input class="form-control form-control-sm" id="{{ prefix }}-start" name="starts_at" type="datetime-local" value="{{ j.starts_at | dt('%Y-%m-%dT%H:%M') if j else '' }}"></div>
-  <div class="col-md-2"><label class="form-label" for="{{ prefix }}-dur">Durée / étudiant (min)</label>
-    <input class="form-control form-control-sm" id="{{ prefix }}-dur" name="duration" type="number" min="5" max="480" value="{{ j.duration if j else 30 }}" required></div>
+  <div class="col-md-6 col-xl-3"><label class="form-label" for="{{ prefix }}-name">Nom du jury</label>
+    <input class="form-control" id="{{ prefix }}-name" name="name" value="{{ j.name if j else '' }}" maxlength="100" required placeholder="Jury 1"></div>
+  <div class="col-md-6 col-xl-3"><label class="form-label" for="{{ prefix }}-room">Salle</label>
+    <input class="form-control" id="{{ prefix }}-room" name="room" value="{{ j.room if j else '' }}" maxlength="100"></div>
+  <div class="col-md-6 col-xl-3"><label class="form-label" for="{{ prefix }}-start">Début</label>
+    <input class="form-control" id="{{ prefix }}-start" name="starts_at" type="datetime-local" value="{{ j.starts_at | dt('%Y-%m-%dT%H:%M') if j else '' }}"
+           aria-describedby="{{ prefix }}-start-help"></div>
+  <div class="col-md-6 col-xl-3"><label class="form-label" for="{{ prefix }}-dur">Durée / étudiant (min)</label>
+    <input class="form-control" id="{{ prefix }}-dur" name="duration" type="number" min="5" max="480" value="{{ j.duration if j else 30 }}" required></div>
+  <div class="col-12 form-text mt-1" id="{{ prefix }}-start-help">Début vide : celui de la soutenance. Les heures de passage se suivent selon la durée par étudiant.</div>
 {% endmacro %}
 
+<ul class="nav nav-tabs mb-3" role="tablist">
 {% for j in defense.juries %}
-<div class="card mb-3" id="jury-{{ j.id }}">
-  <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-    <span class="fw-semibold"><i class="bi bi-people"></i> {{ j.name }}
-      {% if j.validated_at %}<span class="status status-success">Délibéré le {{ j.validated_at | dt }}</span>{% else %}<span class="status status-info">Ouvert</span>{% endif %}</span>
-    <span class="small text-muted">{{ j.room or 'salle à fixer' }} · {{ j.start | dt or 'heure à fixer' }} · {{ j.duration }} min / étudiant
-      · {{ j.members | length }} membre(s) · {{ j.candidates | length }} étudiant(s)</span>
-    <span class="d-flex gap-1">
-      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('jury.jury_page', jury_id=j.id) }}"><i class="bi bi-stopwatch"></i> Espace jury</a>
-      <form method="post" action="{{ url_for('defense.jury_validate', jury_id=j.id) }}"
-            data-confirm="{{ 'Rouvrir la délibération ? Les membres pourront de nouveau modifier leurs notes et les résultats seront masqués aux étudiants.' if j.validated_at else 'Valider la délibération de ce jury ? Les fiches seront verrouillées et les résultats visibles par les étudiants.' }}">
-        {{ csrf() }}{% if j.validated_at %}<button class="btn btn-sm btn-outline-warning" name="reopen" value="1"><i class="bi bi-unlock"></i> Rouvrir</button>
-        {% else %}<button class="btn btn-sm btn-success"><i class="bi bi-check2-circle"></i> Valider la délibération</button>{% endif %}</form>
-    </span>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link {{ 'active' if loop.first }}" id="tab-jury-{{ j.id }}" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#jury-{{ j.id }}"
+            aria-controls="jury-{{ j.id }}" aria-selected="{{ 'true' if loop.first else 'false' }}">
+      <span class="dot dot-{{ 'success' if j.validated_at else 'info' }}" aria-hidden="true"></span>{{ j.name }}
+      <span class="visually-hidden">({{ 'délibéré' if j.validated_at else 'ouvert' }})</span>
+      <span class="count" title="Étudiants">{{ j.candidates | length }}</span></button></li>
+{% endfor %}
+  <li class="nav-item" role="presentation">
+    <button class="nav-link {{ 'active' if not defense.juries }}" id="tab-jury-new" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#jury-new"
+            aria-controls="jury-new" aria-selected="{{ 'false' if defense.juries else 'true' }}"><i class="bi bi-plus-lg" aria-hidden="true"></i>Nouveau jury</button></li>
+</ul>
+
+<div class="tab-content">
+{% for j in defense.juries %}
+{% set ns = namespace(complete=0) %}{% for row in j.candidates %}{% if results[row.id].complete %}{% set ns.complete = ns.complete + 1 %}{% endif %}{% endfor %}
+<div class="tab-pane fade {{ 'show active' if loop.first }}" id="jury-{{ j.id }}" role="tabpanel" aria-labelledby="tab-jury-{{ j.id }}">
+<div class="card">
+  <div class="card-body border-bottom">
+    <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+      <div class="min-w-0">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <h2 class="card-title-lg">{{ j.name }}</h2>
+          {% if j.validated_at %}<span class="status status-success">Délibéré le {{ j.validated_at | dt }}</span>{% else %}<span class="status status-info">Ouvert</span>{% endif %}
+        </div>
+        <div class="d-flex flex-wrap gap-1 mt-2">
+          {{ meta('door-open', j.room or 'Salle à fixer', muted=not j.room) }}
+          {{ meta('clock', j.start | dt or 'Heure à fixer', muted=not j.start) }}
+          {{ meta('hourglass-split', j.duration ~ ' min / étudiant') }}
+          {{ meta('people', (j.members | length) ~ ' membre(s)') }}
+        </div>
+      </div>
+      <div class="d-flex gap-2 flex-wrap">
+        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('jury.jury_page', jury_id=j.id) }}"><i class="bi bi-stopwatch"></i> Espace jury</a>
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#edit-jury-{{ j.id }}"
+                aria-expanded="false" aria-controls="edit-jury-{{ j.id }}"><i class="bi bi-pencil"></i> Modifier</button>
+        <form method="post" action="{{ url_for('defense.jury_validate', jury_id=j.id) }}"
+              data-confirm="{{ 'Rouvrir la délibération ? Les membres pourront de nouveau modifier leurs notes et les résultats seront masqués aux étudiants.' if j.validated_at else 'Valider la délibération de ce jury ? Les fiches seront verrouillées et les résultats visibles par les étudiants.' }}">
+          {{ csrf() }}{% if j.validated_at %}<button class="btn btn-sm btn-outline-warning" name="reopen" value="1"><i class="bi bi-unlock"></i> Rouvrir</button>
+          {% else %}<button class="btn btn-sm btn-success"><i class="bi bi-check2-circle"></i> Valider la délibération</button>{% endif %}</form>
+      </div>
+    </div>
+    {% if j.candidates %}<div class="mt-3 w-progress">{{ progress(ns.complete, j.candidates | length, 'Fiches complètes') }}</div>{% endif %}
   </div>
-  <details class="border-bottom"><summary class="card-body py-2 small text-primary">Modifier ou supprimer le jury</summary>
-    <form class="card-body pt-0 row g-2 align-items-end" method="post" action="{{ url_for('defense.jury_update', jury_id=j.id) }}">
-      {{ csrf() }}{{ jury_fields('j' ~ j.id, j) }}
-      <div class="col-md-1 d-flex gap-1"><button class="btn btn-sm btn-primary" title="Enregistrer"><i class="bi bi-save"></i></button>
-        <button class="btn btn-sm btn-outline-danger" name="delete" value="1" title="Supprimer le jury"
-                data-confirm="Supprimer le jury « {{ j.name }} » ? Ses membres et ses étudiants seront libérés."><i class="bi bi-trash"></i></button></div>
-    </form></details>
+
+  <div class="collapse" id="edit-jury-{{ j.id }}">
+    <form class="card-body border-bottom bg-light-subtle" method="post" action="{{ url_for('defense.jury_update', jury_id=j.id) }}">
+      {{ csrf() }}
+      <div class="row g-2 align-items-end">{{ jury_fields('j' ~ j.id, j) }}</div>
+      <div class="d-flex gap-2 mt-3 flex-wrap">
+        <button class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Enregistrer</button>
+        <button class="btn btn-sm btn-outline-danger" name="delete" value="1"
+                data-confirm="Supprimer le jury « {{ j.name }} » ? Ses membres et ses étudiants seront libérés."><i class="bi bi-trash"></i> Supprimer le jury</button>
+      </div>
+    </form>
+  </div>
 
   <div class="row g-0">
     <div class="col-lg-5 border-end">
-      <div class="card-body pb-2"><h3 class="h6 mb-0">Membres du jury</h3></div>
+      <div class="card-body pb-2"><h3 class="group-label mb-0">Membres du jury</h3></div>
       <ul class="list-group list-group-flush">
       {% for m in j.members %}
-        <li class="list-group-item d-flex justify-content-between align-items-center gap-2 flex-wrap">
-          <span>{{ m.user.display_name }} <span class="small text-muted d-block">{{ m.user.email }}</span></span>
-          <form class="d-flex gap-1" method="post" action="{{ url_for('defense.member_update', member_id=m.id) }}">
-            {{ csrf() }}
-            <select class="form-select form-select-sm" name="role" aria-label="Rôle de {{ m.user.display_name }}" data-autosubmit>
-              {% for value, label in roles.items() %}<option value="{{ value }}" {{ 'selected' if m.role == value }}>{{ label }}</option>{% endfor %}</select>
-            <button class="btn btn-sm btn-outline-danger" name="remove" value="1" title="Retirer du jury"><i class="bi bi-person-dash"></i></button>
-          </form>
-          <form class="d-flex gap-1 align-items-center w-100" method="post" enctype="multipart/form-data" action="{{ url_for('jury.signature', user_id=m.user_id) }}">
-            {{ csrf() }}<input type="hidden" name="defense_id" value="{{ defense.id }}">
-            {% if m.user.signature_type %}<a class="small text-success text-nowrap" href="{{ url_for('jury.signature', user_id=m.user_id) }}" target="_blank" rel="noopener"><i class="bi bi-pen"></i> Signature</a>
-            {% else %}<span class="small text-warning-emphasis text-nowrap"><i class="bi bi-exclamation-circle"></i> Sans signature</span>{% endif %}
-            <input class="form-control form-control-sm" type="file" name="signature" accept="image/png,image/jpeg,image/webp" aria-label="Signature de {{ m.user.display_name }}" required>
-            <button class="btn btn-sm btn-outline-secondary" title="Charger la signature"><i class="bi bi-upload"></i></button>
-          </form>
+        <li class="list-group-item">
+          <div class="list-row">
+            <div class="min-w-0"><div class="fw-semibold">{{ m.user.display_name }}</div>
+              <div class="small text-muted text-truncate">{{ m.user.email }}</div></div>
+            <form class="d-flex gap-1" method="post" action="{{ url_for('defense.member_update', member_id=m.id) }}">
+              {{ csrf() }}
+              <select class="form-select form-select-sm" name="role" aria-label="Rôle de {{ m.user.display_name }}" data-autosubmit>
+                {% for value, label in roles.items() %}<option value="{{ value }}" {{ 'selected' if m.role == value }}>{{ label }}</option>{% endfor %}</select>
+              <button class="btn btn-sm btn-outline-danger" name="remove" value="1" title="Retirer du jury" aria-label="Retirer {{ m.user.display_name }} du jury"
+                      data-confirm="Retirer {{ m.user.display_name }} du jury ?"><i class="bi bi-person-dash"></i></button>
+            </form>
+          </div>
+          <div class="d-flex align-items-center gap-2 mt-2 flex-wrap">
+            {% if m.user.signature_type %}<a class="status status-success text-decoration-none" href="{{ url_for('jury.signature', user_id=m.user_id) }}" target="_blank" rel="noopener"><i class="bi bi-pen"></i> Signature</a>
+            {% else %}<span class="status status-warning">Sans signature</span>{% endif %}
+            <button class="btn btn-link btn-sm p-0" type="button" data-bs-toggle="collapse" data-bs-target="#sig-{{ m.id }}" aria-expanded="false" aria-controls="sig-{{ m.id }}">
+              {{ 'Remplacer' if m.user.signature_type else 'Charger' }}</button>
+          </div>
+          <div class="collapse" id="sig-{{ m.id }}">
+            <form class="d-flex gap-1 align-items-center mt-2" method="post" enctype="multipart/form-data" action="{{ url_for('jury.signature', user_id=m.user_id) }}#jury-{{ j.id }}">
+              {{ csrf() }}<input type="hidden" name="defense_id" value="{{ defense.id }}">
+              <input class="form-control form-control-sm" type="file" name="signature" accept="image/png,image/jpeg,image/webp" aria-label="Signature de {{ m.user.display_name }}" required>
+              <button class="btn btn-sm btn-outline-primary" title="Charger la signature" aria-label="Charger la signature de {{ m.user.display_name }}"><i class="bi bi-upload"></i></button>
+            </form>
+          </div>
         </li>
-      {% else %}<li class="list-group-item text-muted small">Aucun membre.</li>{% endfor %}
+      {% else %}<li class="list-group-item">{{ empty('person-plus', "Aucun membre : ajoutez l'équipe du jury ci-dessous.") }}</li>{% endfor %}
       </ul>
-      <form class="card-body row g-1" method="post" action="{{ url_for('defense.member_add', jury_id=j.id) }}">
+      <form class="card-body border-top row g-1" method="post" action="{{ url_for('defense.member_add', jury_id=j.id) }}">
         {{ csrf() }}
         <div class="col-12 col-xl-6"><select class="form-select form-select-sm" name="user_id" aria-label="Personne de l'équipe" required>
           <option value="">Personne de l'équipe…</option>
           {% for u in staff %}<option value="{{ u.id }}">{{ u.display_name }}</option>{% endfor %}</select></div>
         <div class="col-8 col-xl-4"><select class="form-select form-select-sm" name="role" aria-label="Rôle">
           {% for value, label in roles.items() %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>
-        <div class="col-4 col-xl-2"><button class="btn btn-sm btn-outline-primary w-100" {{ 'disabled' if not staff }} title="Ajouter au jury"><i class="bi bi-person-plus"></i></button></div>
+        <div class="col-4 col-xl-2"><button class="btn btn-sm btn-outline-primary w-100" {{ 'disabled' if not staff }} title="Ajouter au jury" aria-label="Ajouter au jury"><i class="bi bi-person-plus"></i></button></div>
         {% if not staff %}<div class="form-text">Toute l'équipe est déjà dans un jury de cette soutenance.</div>{% endif %}
       </form>
     </div>
+
     <div class="col-lg-7">
-      <div class="card-body pb-2"><h3 class="h6 mb-0">Étudiants qui soutiennent ({{ j.candidates | length }})</h3></div>
-      <div class="table-responsive"><table class="table table-sm align-middle mb-0">
-        <thead><tr><th>Heure</th><th></th><th>Nom et prénoms</th><th>Classe</th><th class="text-end" title="Note de soutenance / note globale">Sout. / Glob.</th><th></th></tr></thead>
-        <tbody>
-        {% for row in j.candidates %}{% set c = row.candidate %}{% set r = results[row.id] %}
-          <tr>
-            <td class="small text-nowrap">{{ j.slot(loop.index0) | dt('%H:%M') or loop.index }}</td>
-            <td>{{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 28, zoom=True) }}</td>
-            <td>{{ c.full_name }}<div class="small"><code>{{ c.matricule }}</code></div></td><td>{{ c.sas_class or '—' }}</td>
-            <td class="text-end text-nowrap">{{ r.defense if r.defense is not none else '—' }} / <strong>{{ ('%g' % r.final) if r.final is not none else '—' }}</strong>
-              {% if not r.complete %}<i class="bi bi-hourglass-split text-muted" title="Notation incomplète"></i>{% endif %}</td>
-            <td class="text-end text-nowrap">
-              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('jury.sheet', row_id=row.id) }}" title="Fiche d'évaluation"><i class="bi bi-clipboard-check"></i></a>
-              {% if j.validated_at %}<a class="btn btn-sm btn-primary" href="{{ url_for('jury.print_sheet', row_id=row.id) }}" target="_blank" rel="noopener" title="Imprimer la fiche (PDF)"><i class="bi bi-file-earmark-pdf"></i></a>{% endif %}
-              <form class="d-inline-flex gap-1" method="post" action="{{ url_for('defense.candidate_update', row_id=row.id) }}">
-              {{ csrf() }}
-              <button class="btn btn-sm btn-outline-secondary" name="move" value="-1" title="Passer plus tôt" {{ 'disabled' if loop.first }}><i class="bi bi-arrow-up"></i></button>
-              <button class="btn btn-sm btn-outline-secondary" name="move" value="1" title="Passer plus tard" {{ 'disabled' if loop.last }}><i class="bi bi-arrow-down"></i></button>
-              <button class="btn btn-sm btn-outline-danger" name="remove" value="1" title="Retirer du jury" data-confirm="Retirer {{ c.full_name }} du jury ? Ses notes de soutenance seront supprimées."><i class="bi bi-x-lg"></i></button></form></td>
-          </tr>
-        {% else %}<tr><td colspan="6" class="text-muted small">Aucun étudiant pour l'instant.</td></tr>{% endfor %}
-        </tbody>
-      </table></div>
-      <form class="card-body" method="post" action="{{ url_for('defense.candidates_load', jury_id=j.id) }}">
+      <div class="card-body pb-2 d-flex align-items-center gap-3">
+        <h3 class="group-label mb-0 flex-grow-1">Étudiants qui soutiennent ({{ j.candidates | length }})</h3>
+        <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#load-{{ j.id }}"
+                aria-expanded="{{ 'false' if j.candidates else 'true' }}" aria-controls="load-{{ j.id }}"><i class="bi bi-person-plus"></i> Ajouter</button>
+      </div>
+      <div class="collapse {{ 'show' if not j.candidates }}" id="load-{{ j.id }}">
+      <form class="card-body pt-1 border-bottom" method="post" action="{{ url_for('defense.candidates_load', jury_id=j.id) }}">
         {{ csrf() }}
-        <label class="form-label small" for="c{{ j.id }}">Charger des étudiants : matricules ou emails (un par ligne, ou séparés par des virgules)</label>
+        <label class="form-label" for="c{{ j.id }}">Matricules ou emails (un par ligne, ou séparés par des virgules)</label>
         <textarea class="form-control form-control-sm font-monospace" id="c{{ j.id }}" name="candidates" rows="2" placeholder="26CAND000001&#10;26CAND000002"></textarea>
         <div class="d-flex gap-2 mt-2 flex-wrap">
           <select class="form-select form-select-sm w-auto" name="class" aria-label="Ajouter toute une classe">
@@ -129,24 +190,49 @@
         </div>
         <div class="form-text">Étudiants admis à {{ defense.sas.name }} seulement ; un étudiant ne passe que devant un jury de cette soutenance.</div>
       </form>
+      </div>
+      <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
+        <thead><tr><th>Heure</th><th><span class="visually-hidden">Photo</span></th><th>Étudiant</th><th>Classe</th>
+          <th class="text-end" title="Note de soutenance / note globale">Sout. / Glob.</th><th class="text-end"><span class="visually-hidden">Actions</span></th></tr></thead>
+        <tbody>
+        {% for row in j.candidates %}{% set c = row.candidate %}{% set r = results[row.id] %}
+          <tr>
+            <td><span class="slot">{{ j.slot(loop.index0) | dt('%H:%M') or loop.index }}</span></td>
+            <td>{{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 28, zoom=True) }}</td>
+            <td><div class="fw-semibold">{{ c.full_name }}</div><code class="small">{{ c.matricule }}</code></td>
+            <td>{{ c.sas_class or '—' }}</td>
+            <td class="text-end text-nowrap">{{ r.defense if r.defense is not none else '—' }} / <strong>{{ ('%g' % r.final) if r.final is not none else '—' }}</strong>
+              {% if not r.complete %}<i class="bi bi-hourglass-split text-muted" title="Notation incomplète"></i><span class="visually-hidden">Notation incomplète</span>{% endif %}</td>
+            <td class="text-end text-nowrap">
+              <div class="d-inline-flex gap-1 align-items-center">
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('jury.sheet', row_id=row.id) }}" title="Fiche d'évaluation" aria-label="Fiche d'évaluation de {{ c.full_name }}"><i class="bi bi-clipboard-check"></i></a>
+                {% if j.validated_at %}<a class="btn btn-sm btn-primary" href="{{ url_for('jury.print_sheet', row_id=row.id) }}" target="_blank" rel="noopener" title="Imprimer la fiche (PDF)" aria-label="Imprimer la fiche de {{ c.full_name }}"><i class="bi bi-file-earmark-pdf"></i></a>{% endif %}
+                <form class="btn-group" method="post" action="{{ url_for('defense.candidate_update', row_id=row.id) }}">
+                  {{ csrf() }}
+                  <button class="btn btn-sm btn-outline-secondary" name="move" value="-1" title="Passer plus tôt" aria-label="Faire passer {{ c.full_name }} plus tôt" {{ 'disabled' if loop.first }}><i class="bi bi-arrow-up"></i></button>
+                  <button class="btn btn-sm btn-outline-secondary" name="move" value="1" title="Passer plus tard" aria-label="Faire passer {{ c.full_name }} plus tard" {{ 'disabled' if loop.last }}><i class="bi bi-arrow-down"></i></button>
+                  <button class="btn btn-sm btn-outline-danger" name="remove" value="1" title="Retirer du jury" aria-label="Retirer {{ c.full_name }} du jury" data-confirm="Retirer {{ c.full_name }} du jury ? Ses notes de soutenance seront supprimées."><i class="bi bi-x-lg"></i></button>
+                </form>
+              </div></td>
+          </tr>
+        {% else %}<tr><td colspan="6">{{ empty('mortarboard', "Aucun étudiant pour l'instant : chargez des matricules ou une classe.") }}</td></tr>{% endfor %}
+        </tbody>
+      </table></div>
     </div>
   </div>
 </div>
+</div>
 {% endfor %}
 
-<form class="card card-body mb-3" method="post" action="{{ url_for('defense.jury_add', defense_id=defense.id) }}">
-  {{ csrf() }}
-  <h2 class="h6"><i class="bi bi-plus-lg"></i> Ajouter un jury</h2>
-  <div class="row g-2 align-items-end">
-    {{ jury_fields('new') }}
-    <div class="col-md-1"><button class="btn btn-sm btn-primary w-100">Créer</button></div>
+<div class="tab-pane fade {{ 'show active' if not defense.juries }}" id="jury-new" role="tabpanel" aria-labelledby="tab-jury-new">
+<form class="card" method="post" action="{{ url_for('defense.jury_add', defense_id=defense.id) }}#jury-new">
+  <div class="card-header"><i class="bi bi-plus-lg"></i> Ajouter un jury</div>
+  <div class="card-body">
+    {{ csrf() }}
+    <div class="row g-2 align-items-end">{{ jury_fields('new') }}</div>
   </div>
+  <div class="card-footer"><button class="btn btn-primary"><i class="bi bi-plus-lg"></i> Créer le jury</button></div>
 </form>
-
-{% if unassigned %}
-<details class="card"><summary class="card-header"><i class="bi bi-person-exclamation"></i> Étudiants sans jury ({{ unassigned | length }})</summary>
-  <ul class="list-group list-group-flush">
-  {% for c in unassigned %}<li class="list-group-item small"><code>{{ c.matricule }}</code> {{ c.full_name }} <span class="text-muted">· {{ c.sas_class or 'sans classe' }}</span></li>{% endfor %}
-  </ul></details>
-{% endif %}
+</div>
+</div>
 {% endblock %}

@@ -59,15 +59,55 @@
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 {%- endmacro %}
 
-{% macro stat(label, value, icon, href=None) -%}
-  <div class="col-6 col-md-4 col-xl">
+{# progress (0-100): thin bar under the value, for "x / y" shares. compact: smaller value, for long figures. #}
+{% macro stat(label, value, icon, href=None, progress=None, col='col-6 col-md-4 col-xl', compact=False) -%}
+  <div class="{{ col }}">
     <{{ 'a' if href else 'div' }} {% if href %}href="{{ href }}"{% endif %} class="card stat-card h-100 text-decoration-none text-reset">
-      <div class="card-body d-flex justify-content-between align-items-start">
-        <div><div class="stat-value">{{ value }}</div><div class="stat-label">{{ label }}</div></div>
-        <span class="stat-icon"><i class="bi bi-{{ icon }}"></i></span>
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start">
+          <div><div class="stat-value {{ 'is-compact' if compact }}">{{ value }}</div><div class="stat-label">{{ label }}</div></div>
+          <span class="stat-icon"><i class="bi bi-{{ icon }}"></i></span>
+        </div>
+        {% if progress is not none %}{{ bar(progress) }}{% endif %}
       </div>
     </{{ 'a' if href else 'div' }}>
   </div>
+{%- endmacro %}
+
+{% macro bar(percent, label='') -%}
+  {% set p = [[percent | round | int, 0] | max, 100] | min %}
+  <div class="progress {{ 'is-done' if p == 100 }}" role="progressbar" aria-valuenow="{{ p }}" aria-valuemin="0" aria-valuemax="100"
+       {% if label %}aria-label="{{ label }}"{% endif %}><div class="progress-bar" style="width: {{ p }}%"></div></div>
+{%- endmacro %}
+
+{# "label        x / y" over a bar. #}
+{% macro progress(done, total, label) -%}
+  <div class="progress-line"><span>{{ label }}</span><strong>{{ done }} / {{ total }}</strong></div>
+  {{ bar(100 * done / total if total else 0, label) }}
+{%- endmacro %}
+
+{# Page header: {% call page_head('Titre', eyebrow=..., back=url, back_label=...) %}actions{% endcall %}.
+   `subtitle` and `meta` (pre-rendered chips) sit under the title. #}
+{% macro page_head(title, eyebrow=None, back=None, back_label=None, subtitle=None, meta=None) -%}
+  <div class="page-head">
+    <div class="min-w-0">
+      {% if back %}<a class="back" href="{{ back }}"><i class="bi bi-arrow-left"></i> {{ back_label }}</a>{% endif %}
+      {% if eyebrow %}<div class="eyebrow mb-1">{{ eyebrow }}</div>{% endif %}
+      <h1 class="page-title">{{ title }}</h1>
+      {% if subtitle %}<p class="subtitle">{{ subtitle }}</p>{% endif %}
+      {% if meta %}<div class="meta-list">{{ meta }}</div>{% endif %}
+    </div>
+    {% if caller %}<div class="page-head-actions">{{ caller() }}</div>{% endif %}
+  </div>
+{%- endmacro %}
+
+{# Metadata chip; muted (dashed) when the value is still to be set. #}
+{% macro meta(icon, text, muted=False) -%}
+  <span class="meta {{ 'is-muted' if muted }}"><i class="bi bi-{{ icon }}" aria-hidden="true"></i>{{ text }}</span>
+{%- endmacro %}
+
+{% macro empty(icon, text) -%}
+  <div class="empty-state"><i class="bi bi-{{ icon }}" aria-hidden="true"></i><p>{{ text }}</p></div>
 {%- endmacro %}
 
 {% macro timer(session, xl=False) -%}

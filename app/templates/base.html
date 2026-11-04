@@ -10,7 +10,8 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
   {% block head %}{% endblock %}
 </head>
-<body>
+{# Desktop rail state: cookie set by app.js, read here so the first paint is right (no inline script: CSP). #}
+<body class="{{ 'sidebar-collapsed' if request.cookies.get('sidebar') == 'collapsed' }}">
 {% import "_brand.html" as brand %}
 {% from "_macros.html" import avatar %}
 {% if current_user.is_authenticated %}
@@ -19,7 +20,7 @@
   {{- 'active' if request.endpoint == endpoint or (match and request.endpoint and request.endpoint.startswith(match)) -}}
 {%- endmacro %}
 {% macro nav(endpoint, icon, label, match=None) -%}
-  <a class="nav-link {{ is_active(endpoint, match) }}" href="{{ url_for(endpoint) }}"><i class="bi bi-{{ icon }}"></i>{{ label }}</a>
+  <a class="nav-link {{ is_active(endpoint, match) }}" href="{{ url_for(endpoint) }}"><i class="bi bi-{{ icon }}" aria-hidden="true"></i><span class="nav-label">{{ label }}</span></a>
 {%- endmacro %}
 {% macro bnav(endpoint, icon, label, match=None) -%}
   {% set active = is_active(endpoint, match) %}
@@ -27,6 +28,9 @@
     <i class="bi bi-{{ icon }}" aria-hidden="true"></i><span>{{ label }}</span></a>
 {%- endmacro %}
 <header class="app-header d-flex align-items-center px-3 gap-3">
+  {# Desktop: collapses the menu to an icon rail. Mobile / tablet: opens it as a drawer (every role). #}
+  <button type="button" class="sidebar-toggle js-sidebar-toggle" aria-controls="sidebar" aria-expanded="false"
+          aria-label="Afficher ou réduire le menu" title="Menu"><i class="bi bi-layout-sidebar" aria-hidden="true"></i></button>
   <a class="text-decoration-none" href="{{ url_for('dashboard.index') }}" aria-label="Accueil">{{ brand.logo(32) }}</a>
   <span class="app-label d-none d-md-inline">{{ app_name }}</span>
   <div class="ms-auto d-flex align-items-center gap-3">
@@ -79,6 +83,7 @@
         {% endif %}
         {{ nav('campus.incidents', 'exclamation-triangle', 'Problèmes étudiants') }}
       {% else %}
+      {% if role == 'admin' %}<div class="nav-section">Recrutement</div>{% endif %}
       {{ nav('dashboard.index', 'speedometer2', 'Dashboard') }}
       {% if role == 'technical_tester' %}
         {{ nav('candidates.index', 'people', 'Candidats éligibles', 'candidates.') }}
@@ -93,16 +98,17 @@
         {{ nav('technical.rooms', 'grid-3x3-gap', 'Vue des salles') }}
       {% endif %}
       {% if role == 'admin' %}
-        <div class="nav-section">Administration</div>
-        {{ nav('admin.rooms', 'pc-display', 'Salles & ordinateurs') }}
-        {{ nav('kobo.index', 'cloud-arrow-down', 'KoboToolbox', 'kobo.') }}
+        <div class="nav-section">SAS</div>
         {{ nav('admin.sas_list', 'door-open', 'SAS', 'admin.sas') }}
         {{ nav('campus.index', 'house-door', 'Vie du SAS', 'campus.index') }}
         {{ nav('campus.classes', 'people', 'Classes et coachs', 'campus.class') }}
         {{ nav('campus.evaluations', 'clipboard-check', 'Évaluations', 'campus.evaluation') }}
         {{ nav('defense.index', 'easel', 'Soutenances SAS', 'defense.') }}
         {{ nav('infra.index', 'building', 'Infrastructures', 'infra.') }}
-        <a class="nav-link {{ is_active('admin.users', 'admin.user') }}" href="{{ url_for('admin.users') }}"><i class="bi bi-person-gear"></i>Utilisateurs{% if reset_requests %} <span class="badge text-bg-warning ms-auto" title="Demandes de réinitialisation">{{ reset_requests }}</span>{% endif %}</a>
+        <div class="nav-section">Administration</div>
+        {{ nav('admin.rooms', 'pc-display', 'Salles & ordinateurs') }}
+        {{ nav('kobo.index', 'cloud-arrow-down', 'KoboToolbox', 'kobo.') }}
+        <a class="nav-link {{ is_active('admin.users', 'admin.user') }}" href="{{ url_for('admin.users') }}"><i class="bi bi-person-gear" aria-hidden="true"></i><span class="nav-label">Utilisateurs</span>{% if reset_requests %} <span class="badge text-bg-warning ms-auto" title="Demandes de réinitialisation">{{ reset_requests }}<span class="visually-hidden"> demande(s) de réinitialisation</span></span>{% endif %}</a>
         {{ nav('admin.scan', 'qr-code-scan', 'Scanner QR') }}
         {{ nav('admin.imports', 'upload', 'Imports', 'admin.import') }}
         {{ nav('admin.exports', 'download', 'Exports') }}
@@ -110,6 +116,7 @@
         {{ nav('admin.settings', 'gear', 'Paramètres') }}
       {% endif %}
       {% endif %}
+      <div class="nav-section">Mon compte</div>
       {{ nav('jury.index', 'easel2', 'Mes jurys', 'jury.') }}
       {{ nav('auth.profile', 'person-circle', 'Mon profil') }}
       {% endif %}

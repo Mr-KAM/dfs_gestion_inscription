@@ -51,7 +51,9 @@ def index():
     memberships = db.session.scalars(select(JuryMember).join(Defense, Defense.id == JuryMember.defense_id)
                                      .where(JuryMember.user_id == current_user.id)
                                      .order_by(Defense.starts_at.desc(), JuryMember.id.desc())).all()
-    return render_template("jury/index.html", memberships=memberships)
+    rated = {m.jury_id: sum(any(s.user_id == current_user.id for s in row.scores) for row in m.jury.candidates)
+             for m in memberships}  # students I have already rated, per jury
+    return render_template("jury/index.html", memberships=memberships, rated=rated)
 
 
 @bp.route("/signature/<int:user_id>", methods=["GET", "POST"])
