@@ -1,28 +1,48 @@
 {% extends "base.html" %}
-{% from "_macros.html" import avatar, csrf %}
+{% from "_macros.html" import avatar, csrf, meta %}
 {% from "jury/_parts.html" import timer_card, grid, notes, final, note, pts %}
 {% block title %}Soutenance · {{ c.full_name }}{% endblock %}
 {% block content %}
-<div class="d-flex gap-3 small">
-  <a class="text-muted text-decoration-none" href="{{ url_for('jury.jury_page', jury_id=jury.id) }}"><i class="bi bi-arrow-left"></i> {{ jury.name }}</a>
-  {% if current_user.role == 'admin' %}<a class="text-muted text-decoration-none" href="{{ url_for('defense.detail', defense_id=jury.defense_id) }}#jury-{{ jury.id }}"><i class="bi bi-easel"></i> {{ jury.defense.name }}</a>{% endif %}
+{% set count = jury.candidates | length %}
+{% set prev_row = jury.candidates[position - 1] if position > 0 else none %}
+{% set next_row = jury.candidates[position + 1] if position + 1 < count else none %}
+<div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-2">
+  <div class="d-flex gap-3 flex-wrap">
+    <a class="back mb-0" href="{{ url_for('jury.jury_page', jury_id=jury.id) }}"><i class="bi bi-arrow-left"></i> {{ jury.name }}</a>
+    {% if current_user.role == 'admin' %}<a class="back mb-0" href="{{ url_for('defense.detail', defense_id=jury.defense_id) }}#jury-{{ jury.id }}"><i class="bi bi-easel"></i> {{ jury.defense.name }}</a>{% endif %}
+  </div>
+  <nav class="d-flex align-items-center gap-1" aria-label="Étudiants du jury">
+    {% if prev_row %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('jury.sheet', row_id=prev_row.id) }}" title="{{ prev_row.candidate.full_name }}"><i class="bi bi-chevron-left"></i> Précédent</a>
+    {% else %}<span class="btn btn-sm btn-outline-secondary disabled" aria-disabled="true"><i class="bi bi-chevron-left"></i> Précédent</span>{% endif %}
+    <span class="slot px-2">{{ position + 1 }} / {{ count }}</span>
+    {% if next_row %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('jury.sheet', row_id=next_row.id) }}" title="{{ next_row.candidate.full_name }}">Suivant <i class="bi bi-chevron-right"></i></a>
+    {% else %}<span class="btn btn-sm btn-outline-secondary disabled" aria-disabled="true">Suivant <i class="bi bi-chevron-right"></i></span>{% endif %}
+  </nav>
 </div>
-<div class="d-flex justify-content-between align-items-center gap-3 mt-1 mb-3 flex-wrap">
-  <div class="d-flex align-items-center gap-3">
+
+<div class="card mb-3"><div class="card-body d-flex justify-content-between align-items-center gap-3 flex-wrap">
+  <div class="d-flex align-items-center gap-3 min-w-0">
     {{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 72, zoom=True) }}
-    <div>
-      <h1 class="page-title">Fiche globale d'évaluation · Soutenance</h1>
-      <div class="text-muted">{{ c.full_name }} · <code>{{ c.matricule }}</code> · {{ c.sas_class or 'sans classe' }}
-        {% if me %} · vous êtes <strong>{{ me.role_label }}</strong>{% endif %}</div>
+    <div class="min-w-0">
+      <div class="eyebrow mb-1">Fiche globale d'évaluation · Soutenance</div>
+      <h1 class="page-title">{{ c.full_name }}</h1>
+      <div class="d-flex flex-wrap gap-1 mt-2">
+        {{ meta('person-vcard', c.matricule) }}
+        {{ meta('people', c.sas_class or 'Sans classe', muted=not c.sas_class) }}
+        {{ meta('clock', jury.slot(position) | dt or 'Heure à fixer', muted=not jury.slot(position)) }}
+        {% if me %}<span class="status status-primary">Vous êtes {{ me.role_label }}</span>{% endif %}
+      </div>
     </div>
   </div>
-  <div class="text-end">
-    <div class="small text-muted">Soutenance {{ note(res.defense) }} / 100</div>
-    <div class="stat-value">{{ note(res.final) }}<span class="fs-6 text-muted"> / 100</span></div>
-    <div class="small text-muted">note globale</div>
-    {% if current_user.role == 'admin' and not editable %}<a class="btn btn-sm btn-primary mt-1" href="{{ url_for('jury.print_sheet', row_id=row.id) }}" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf"></i> Imprimer / PDF</a>{% endif %}
+  <div class="d-flex gap-2 align-items-stretch flex-wrap">
+    <div class="score-tiles">
+      <div class="score-tile"><div class="v">{{ note(res.defense) }}<small> / 100</small></div><div class="l">Soutenance</div></div>
+      <div class="score-tile is-final"><div class="v">{{ note(res.final) }}<small> / 100</small></div><div class="l">Note globale</div></div>
+    </div>
+    {% if current_user.role == 'admin' and not editable %}<a class="btn btn-primary align-self-center" href="{{ url_for('jury.print_sheet', row_id=row.id) }}" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf"></i> Imprimer / PDF</a>{% endif %}
   </div>
-</div>
+</div></div>
+
 <p class="small text-muted"><i class="bi bi-lock"></i> Chaque membre cote seul les sections de son rôle (évaluateur technique : A ; président et évaluateur présentation : B et C),
   puis le jury consolide. L'étudiant ne voit aucune note avant la validation de la délibération par l'administrateur.</p>
 {% if not editable %}<div class="alert alert-success"><i class="bi bi-check2-circle"></i> Délibération validée le {{ jury.validated_at | dt }} : fiche verrouillée.</div>{% endif %}
@@ -32,70 +52,97 @@
 <form class="card mb-3" method="post" action="{{ url_for('jury.info', row_id=row.id) }}">
   {{ csrf() }}<input type="hidden" name="part" value="header"><fieldset {{ 'disabled' if not editable }}>
   <div class="card-header"><i class="bi bi-person-vcard"></i> Informations de la soutenance</div>
-  <div class="card-body row g-2">
-    <div class="col-md-3"><span class="form-label d-block">Date et heure</span>{{ jury.slot(position) | dt or '—' }}</div>
-    <div class="col-md-3"><span class="form-label d-block">Salle</span>{{ jury.room or '—' }}</div>
-    <div class="col-md-6"><span class="form-label d-block">Jury</span>
-      {% for m in jury.members %}{{ m.role_label }} : {{ m.user.display_name }}{{ ' · ' if not loop.last }}{% else %}—{% endfor %}</div>
-    <div class="col-md-8"><label class="form-label" for="subject">Brief / sujet</label>
-      <input class="form-control" id="subject" name="subject" value="{{ s.subject or '' }}" maxlength="300"></div>
-    <div class="col-md-4"><label class="form-label" for="team">Équipe</label>
-      <input class="form-control" id="team" name="team" value="{{ s.team or '' }}" maxlength="150"></div>
-    <div class="col-6 col-md-2"><label class="form-label" for="talk">Exposé prévu (min)</label>
-      <input class="form-control" id="talk" name="talk_minutes" type="number" min="0" max="600" value="{{ s.talk_minutes if s.talk_minutes is not none }}"></div>
-    <div class="col-6 col-md-2"><label class="form-label" for="questions">Questions (min)</label>
-      <input class="form-control" id="questions" name="questions_minutes" type="number" min="0" max="600" value="{{ s.questions_minutes if s.questions_minutes is not none }}"></div>
-    <div class="col-6 col-md-2"><label class="form-label" for="real">Temps réel (min)</label>
-      <input class="form-control" id="real" name="real_minutes" type="number" min="0" max="600" value="{{ s.real_minutes if s.real_minutes is not none }}"></div>
-    <div class="col-md-6"><span class="form-label d-block">Format</span>
-      <div class="d-flex gap-3 flex-wrap align-items-center">
-        <label class="form-check"><input class="form-check-input" type="radio" name="format" value="individual" {{ 'checked' if s.format == 'individual' }}> Individuelle</label>
-        <label class="form-check"><input class="form-check-input" type="radio" name="format" value="team" {{ 'checked' if s.format == 'team' }}> En équipe</label>
-        <input class="form-control form-control-sm w-auto" name="team_size" type="number" min="0" max="50" value="{{ s.team_size if s.team_size is not none }}" aria-label="Nombre de membres de l'équipe" placeholder="membres">
-      </div></div>
-    <div class="col-12"><span class="form-label d-block">Supports</span>
-      {% for key, label in supports.items() %}<label class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="supports" value="{{ key }}" {{ 'checked' if key in (s.supports or []) }}> {{ label }}</label>{% endfor %}</div>
-    {% if editable %}<div class="col-12"><button class="btn btn-outline-primary btn-sm"><i class="bi bi-save"></i> Enregistrer les informations</button></div>{% endif %}
+  <div class="card-body">
+    <dl class="kv row g-2 mb-3">
+      <div class="col-sm-6 col-lg-3"><dt>Date et heure</dt><dd class="mb-0">{{ jury.slot(position) | dt or '—' }}</dd></div>
+      <div class="col-sm-6 col-lg-3"><dt>Salle</dt><dd class="mb-0">{{ jury.room or '—' }}</dd></div>
+      <div class="col-lg-6"><dt>Jury</dt><dd class="mb-0">
+        {% for m in jury.members %}{{ m.role_label }} : {{ m.user.display_name }}{{ ' · ' if not loop.last }}{% else %}—{% endfor %}</dd></div>
+    </dl>
+    <div class="row g-2">
+      <div class="col-md-8"><label class="form-label" for="subject">Brief / sujet</label>
+        <input class="form-control" id="subject" name="subject" value="{{ s.subject or '' }}" maxlength="300"></div>
+      <div class="col-md-4"><label class="form-label" for="team">Équipe</label>
+        <input class="form-control" id="team" name="team" value="{{ s.team or '' }}" maxlength="150"></div>
+      <div class="col-4 col-md-2"><label class="form-label" for="talk">Exposé prévu (min)</label>
+        <input class="form-control" id="talk" name="talk_minutes" type="number" min="0" max="600" value="{{ s.talk_minutes if s.talk_minutes is not none }}"></div>
+      <div class="col-4 col-md-2"><label class="form-label" for="questions">Questions (min)</label>
+        <input class="form-control" id="questions" name="questions_minutes" type="number" min="0" max="600" value="{{ s.questions_minutes if s.questions_minutes is not none }}"></div>
+      <div class="col-4 col-md-2"><label class="form-label" for="real">Temps réel (min)</label>
+        <input class="form-control" id="real" name="real_minutes" type="number" min="0" max="600" value="{{ s.real_minutes if s.real_minutes is not none }}"></div>
+      <div class="col-md-6"><span class="form-label d-block" id="format-label">Format</span>
+        <div class="d-flex gap-2 flex-wrap align-items-center">
+          <div class="seg seg-wide" role="radiogroup" aria-labelledby="format-label">
+            <input class="btn-check" type="radio" name="format" value="individual" id="format-individual" autocomplete="off" {{ 'checked' if s.format == 'individual' }}>
+            <label class="btn" for="format-individual">Individuelle</label>
+            <input class="btn-check" type="radio" name="format" value="team" id="format-team" autocomplete="off" {{ 'checked' if s.format == 'team' }}>
+            <label class="btn" for="format-team">En équipe</label>
+          </div>
+          <input class="form-control form-control-sm input-narrow" name="team_size" type="number" min="0" max="50" value="{{ s.team_size if s.team_size is not none }}" aria-label="Nombre de membres de l'équipe" placeholder="membres">
+        </div></div>
+      <div class="col-12"><span class="form-label d-block" id="supports-label">Supports</span>
+        <div class="chips" role="group" aria-labelledby="supports-label">
+        {% for key, label in supports.items() %}
+          <input class="btn-check" type="checkbox" name="supports" value="{{ key }}" id="support-{{ key }}" autocomplete="off" {{ 'checked' if key in (s.supports or []) }}>
+          <label class="btn" for="support-{{ key }}">{{ label }}</label>
+        {% endfor %}
+        </div></div>
+    </div>
   </div>
+  {% if editable %}<div class="card-footer"><button class="btn btn-outline-primary btn-sm"><i class="bi bi-save"></i> Enregistrer les informations</button></div>{% endif %}
 </fieldset></form>
 
-<div class="card mb-3"><div class="table-responsive"><table class="table table-sm align-middle mb-0">
-  <thead><tr><th>Cote</th>{% for value, label, _h in scale %}<th>{{ 'N/A' if value == 'na' else value }} · {{ label }}</th>{% endfor %}</tr></thead>
-  <tbody><tr><td class="text-muted small">Repère</td>{% for _v, _l, hint in scale %}<td class="small">{{ hint }}</td>{% endfor %}</tr></tbody>
-</table></div></div>
+<div class="scale-legend mb-3" role="list" aria-label="Échelle de cotation">
+{% for value, label, hint in scale %}
+  <div class="item" role="listitem"><span class="key cote-{{ value }}">{{ 'N/A' if value == 'na' else value }}</span>
+    <div><div class="label">{{ label }}</div><div class="hint">{{ hint }}</div></div></div>
+{% endfor %}
+</div>
 
 {% if me %}
-<form class="card mb-3" id="grille" method="post" action="{{ url_for('jury.score', row_id=row.id) }}">
+{# Live points and subtotals: app.js (initScoring); the values below are the saved ones (no-JS fallback). #}
+{% set total = namespace(points=0, weight=0) %}
+<form class="card mb-3" id="grille" method="post" action="{{ url_for('jury.score', row_id=row.id) }}" data-scoring>
   {{ csrf() }}<fieldset {{ 'disabled' if not editable }}>
-  <div class="card-header"><i class="bi bi-clipboard-check"></i> Ma notation · sections {{ my_sections | join(' et ') }}
-    {% if mine %}<span class="small text-muted">· enregistrée le {{ mine.updated_at | dt }}</span>{% endif %}</div>
-  <div class="table-responsive"><table class="table table-bordered align-middle mb-0">
-    <thead><tr><th>Critère et indicateurs</th><th class="text-center">Poids</th><th class="text-center" title="Non coté">—</th>
-      {% for value, label, _h in scale %}<th class="text-center" title="{{ label }}">{{ 'N/A' if value == 'na' else value }}</th>{% endfor %}
-      <th class="text-center">Points</th><th>Commentaire / fait observé</th></tr></thead>
-    <tbody>
-    {% set ns = namespace(section='') %}
-    {% for section, key, title, indicators, weight in criteria if section in my_sections %}
-      {% if section != ns.section %}{% set ns.section = section %}
-      <tr class="table-light"><th colspan="10" class="text-uppercase small">{{ section }} · {{ sections[section] }} ({{ section_weights[section] }})</th></tr>{% endif %}
-      {% set rating = mine.ratings.get(key, '') if mine else '' %}
-      <tr>
-        <td><strong>{{ title }}</strong><div class="small text-muted">{{ indicators }}</div></td>
-        <td class="text-center fw-bold">{{ weight }}</td>
-        <td class="text-center"><input class="form-check-input" type="radio" name="r_{{ key }}" value="" {{ 'checked' if not rating }} aria-label="{{ title }} : non coté"></td>
-        {% for value, label, _h in scale %}
-        <td class="text-center {{ 'bg-body-secondary' if value == 'na' }}"><input class="form-check-input" type="radio" name="r_{{ key }}" value="{{ value }}" {{ 'checked' if rating == value }} aria-label="{{ title }} : {{ label }}"></td>
-        {% endfor %}
-        <td class="text-center">{{ pts(points(mine.ratings, key, weight)) if mine }}</td>
-        <td><textarea class="form-control form-control-sm" name="e_{{ key }}" rows="2" maxlength="500" aria-label="Commentaire : {{ title }}" placeholder="Fait observé">{{ mine.evidence.get(key, '') if mine }}</textarea></td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table></div>
-  <div class="card-body">
-    <p class="small text-muted mb-2">Points = poids × cote ÷ 4. Une cote 1 ou 4 doit s'appuyer sur un fait cité en commentaire.
-      Modifiable jusqu'à la validation de la délibération par l'administrateur.</p>
-    {% if editable %}<button class="btn btn-primary"><i class="bi bi-save"></i> Enregistrer ma notation</button>{% endif %}
+  <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span><i class="bi bi-clipboard-check"></i> Ma notation · sections {{ my_sections | join(' et ') }}</span>
+    {% if mine %}<span class="small fw-normal text-muted">Enregistrée le {{ mine.updated_at | dt }}</span>{% endif %}</div>
+  {% set ns = namespace(section='') %}
+  {% for section, key, title, indicators, weight in criteria if section in my_sections %}
+    {% if section != ns.section %}{% set ns.section = section %}
+    {% set sp, sw = mine.section(section) if mine else (0, 0) %}{% set total.points = total.points + sp %}{% set total.weight = total.weight + sw %}
+    <div class="crit-section"><span>{{ section }} · {{ sections[section] }} ({{ section_weights[section] }})</span>
+      <span class="subtotal">Sous-total <strong data-subtotal="{{ section }}">{{ pts(sp) }} / {{ sw }}</strong></span></div>
+    {% endif %}
+    {% set rating = mine.ratings.get(key, '') if mine else '' %}
+    {% set p = points(mine.ratings, key, weight) if mine else none %}
+    <div class="crit" data-criterion data-section="{{ section }}" data-weight="{{ weight }}">
+      <div>
+        <div class="crit-title">{{ title }}<span class="crit-weight">Poids {{ weight }}</span></div>
+        <div class="crit-ind">{{ indicators }}</div>
+      </div>
+      <div>
+        <div class="seg" role="radiogroup" aria-label="{{ title }}">
+          <input class="btn-check" type="radio" name="r_{{ key }}" value="" id="r-{{ key }}-none" autocomplete="off" {{ 'checked' if not rating }}>
+          <label class="btn cote-none" for="r-{{ key }}-none" title="Non coté"><span aria-hidden="true">—</span><span class="visually-hidden">Non coté</span></label>
+          {% for value, label, _h in scale %}
+          <input class="btn-check" type="radio" name="r_{{ key }}" value="{{ value }}" id="r-{{ key }}-{{ value }}" autocomplete="off" {{ 'checked' if rating == value }}>
+          <label class="btn cote-{{ value }}" for="r-{{ key }}-{{ value }}" title="{{ label }}">{{ 'N/A' if value == 'na' else value }}<span class="visually-hidden"> · {{ label }}</span></label>
+          {% endfor %}
+        </div>
+        <div class="crit-points"><strong data-points>{{ (pts(p) ~ ' pts') if p is not none else ('Sans objet' if rating == 'na' else '—') }}</strong></div>
+      </div>
+      <div class="crit-fact">
+        <textarea class="form-control form-control-sm" name="e_{{ key }}" rows="2" maxlength="500" aria-label="Commentaire : {{ title }}" placeholder="Fait observé">{{ mine.evidence.get(key, '') if mine }}</textarea>
+        <div class="fact-hint"><i class="bi bi-exclamation-circle"></i> Fait observé requis pour une cote 1 ou 4.</div>
+      </div>
+    </div>
+  {% endfor %}
+  <p class="card-body small text-muted mb-0">Points = poids × cote ÷ 4. Une cote 1 ou 4 doit s'appuyer sur un fait cité en commentaire.
+    Modifiable jusqu'à la validation de la délibération par l'administrateur.</p>
+  <div class="sticky-actions">
+    <span class="small text-muted">Ma note <strong class="text-body" data-total>{{ (pts(total.points) ~ ' / ' ~ total.weight ~ ' pts') if total.weight else '—' }}</strong></span>
+    {% if editable %}<button class="btn btn-primary"><i class="bi bi-save"></i> Enregistrer<span class="d-none d-sm-inline"> ma notation</span></button>{% endif %}
   </div>
 </fieldset></form>
 {% endif %}
@@ -104,11 +151,11 @@
 <div class="card mb-3"><div class="card-header"><i class="bi bi-table"></i> 1. Grille consolidée</div>
   <div class="table-responsive">{{ grid(res, criteria, sections, section_weights, scale) }}</div></div>
 <div class="row g-3 mb-3">
-  <div class="col-lg-6"><div class="card h-100"><div class="card-header"><i class="bi bi-people"></i> 3. Notes du jury</div>
-    <div class="card-body">{{ notes(res, sections, section_weights) }}
-      {% if not res.complete %}<div class="small text-muted"><i class="bi bi-hourglass-split"></i> Notation pas encore complète pour tous les membres.</div>{% endif %}</div></div></div>
-  <div class="col-lg-6"><div class="card h-100"><div class="card-header"><i class="bi bi-calculator"></i> 4. Note globale</div>
-    <div class="card-body">{{ final(res, present, total_hours) }}</div></div></div>
+  <div class="col-xxl-6"><div class="card h-100"><div class="card-header"><i class="bi bi-people"></i> 3. Notes du jury</div>
+    <div class="card-body"><div class="table-responsive">{{ notes(res, sections, section_weights) }}</div>
+      {% if not res.complete %}<div class="small text-muted mt-2"><i class="bi bi-hourglass-split"></i> Notation pas encore complète pour tous les membres.</div>{% endif %}</div></div></div>
+  <div class="col-xxl-6"><div class="card h-100"><div class="card-header"><i class="bi bi-calculator"></i> 4. Note globale</div>
+    <div class="card-body"><div class="table-responsive">{{ final(res, present, total_hours) }}</div></div></div></div>
 </div>
 {% else %}
 <div class="alert alert-info"><i class="bi bi-eye-slash"></i> Les notes des autres membres s'affichent une fois votre propre notation enregistrée.</div>
@@ -117,23 +164,39 @@
 <form class="card mb-3" id="decision" method="post" action="{{ url_for('jury.info', row_id=row.id) }}">
   {{ csrf() }}<input type="hidden" name="part" value="appraisal"><fieldset {{ 'disabled' if not editable }}>
   <div class="card-header"><i class="bi bi-chat-square-text"></i> 2. Observations rapides · 5. Appréciation et décision</div>
-  <div class="card-body row g-3">
-    <div class="col-md-6"><div class="fw-semibold text-success mb-1">Points positifs</div>
-      {% for key, label in positives.items() %}<label class="form-check"><input class="form-check-input" type="checkbox" name="positives" value="{{ key }}" {{ 'checked' if key in (s.positives or []) }}> {{ label }}</label>{% endfor %}
-      <input class="form-control form-control-sm mt-1" name="other_positive" value="{{ s.other_positive or '' }}" maxlength="200" placeholder="Autre" aria-label="Autre point positif"></div>
-    <div class="col-md-6"><div class="fw-semibold text-danger mb-1">Points à corriger</div>
-      {% for key, label in negatives.items() %}<label class="form-check"><input class="form-check-input" type="checkbox" name="negatives" value="{{ key }}" {{ 'checked' if key in (s.negatives or []) }}> {{ label }}</label>{% endfor %}
-      <input class="form-control form-control-sm mt-1" name="other_negative" value="{{ s.other_negative or '' }}" maxlength="200" placeholder="Autre" aria-label="Autre point à corriger"></div>
+  <div class="card-body row g-4">
+    <div class="col-lg-6"><div class="group-label" id="positives-label"><span class="text-success"><i class="bi bi-hand-thumbs-up"></i> Points positifs</span></div>
+      <div class="chips chips-success" role="group" aria-labelledby="positives-label">
+      {% for key, label in positives.items() %}
+        <input class="btn-check" type="checkbox" name="positives" value="{{ key }}" id="positive-{{ key }}" autocomplete="off" {{ 'checked' if key in (s.positives or []) }}>
+        <label class="btn" for="positive-{{ key }}">{{ label }}</label>
+      {% endfor %}
+      </div>
+      <input class="form-control form-control-sm mt-2" name="other_positive" value="{{ s.other_positive or '' }}" maxlength="200" placeholder="Autre" aria-label="Autre point positif"></div>
+    <div class="col-lg-6"><div class="group-label" id="negatives-label"><span class="text-danger"><i class="bi bi-exclamation-diamond"></i> Points à corriger</span></div>
+      <div class="chips chips-danger" role="group" aria-labelledby="negatives-label">
+      {% for key, label in negatives.items() %}
+        <input class="btn-check" type="checkbox" name="negatives" value="{{ key }}" id="negative-{{ key }}" autocomplete="off" {{ 'checked' if key in (s.negatives or []) }}>
+        <label class="btn" for="negative-{{ key }}">{{ label }}</label>
+      {% endfor %}
+      </div>
+      <input class="form-control form-control-sm mt-2" name="other_negative" value="{{ s.other_negative or '' }}" maxlength="200" placeholder="Autre" aria-label="Autre point à corriger"></div>
     <div class="col-md-6"><label class="form-label" for="strengths">Points forts</label>
       <textarea class="form-control" id="strengths" name="strengths" rows="3" maxlength="1500">{{ s.strengths or '' }}</textarea></div>
     <div class="col-md-6"><label class="form-label" for="improvements">Axes de progrès</label>
       <textarea class="form-control" id="improvements" name="improvements" rows="3" maxlength="1500">{{ s.improvements or '' }}</textarea></div>
-    <div class="col-12"><span class="form-label d-block">Décision du jury</span>
-      <div class="d-flex gap-3 flex-wrap align-items-center">
-        {% for key, label in decisions.items() %}<label class="form-check"><input class="form-check-input" type="radio" name="decision" value="{{ key }}" {{ 'checked' if s.decision == key }}> {{ label }}</label>{% endfor %}
+    <div class="col-12"><span class="form-label d-block" id="decision-label">Décision du jury</span>
+      <div class="d-flex gap-2 flex-wrap align-items-center">
+        <div class="seg seg-wide" role="radiogroup" aria-labelledby="decision-label">
+        {% for key, label in decisions.items() %}
+          <input class="btn-check" type="radio" name="decision" value="{{ key }}" id="decision-{{ key }}" autocomplete="off" {{ 'checked' if s.decision == key }}>
+          <label class="btn dec-{{ key }}" for="decision-{{ key }}">{{ label }}</label>
+        {% endfor %}
+        </div>
         <input class="form-control form-control-sm flex-grow-1 w-auto" name="decision_note" value="{{ s.decision_note or '' }}" maxlength="200" placeholder="Réserve ou orientation" aria-label="Réserve ou orientation">
       </div></div>
-    {% if editable %}<div class="col-12"><button class="btn btn-primary"><i class="bi bi-save"></i> Enregistrer</button></div>{% endif %}
   </div>
+  {% if editable %}<div class="sticky-actions"><span class="small text-muted">Appréciation commune du jury</span>
+    <button class="btn btn-primary"><i class="bi bi-save"></i> Enregistrer</button></div>{% endif %}
 </fieldset></form>
 {% endblock %}

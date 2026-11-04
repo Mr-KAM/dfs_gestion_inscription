@@ -121,13 +121,17 @@
     }, 2500);
   });
 
-  // Mobile: side menu shown as a drawer above the bottom navigation.
+  // Side menu. Desktop: the header button collapses it to an icon rail, remembered in a cookie that
+  // base.html reads (no flash on load). Mobile / tablet: a drawer above the bottom navigation.
+  const desktop = window.matchMedia("(min-width: 992px)");
+
   document.addEventListener("click", (e) => {
     const sidebar = document.querySelector(".sidebar");
     if (!sidebar) return;
     const toggle = e.target.closest(".js-sidebar-toggle");
     const isOpen = sidebar.classList.contains("open");
-    if (toggle) setDrawer(sidebar, !isOpen); // "Plus" opens / closes the drawer
+    if (toggle && desktop.matches) setCollapsed(!document.body.classList.contains("sidebar-collapsed"));
+    else if (toggle) setDrawer(sidebar, !isOpen); // header button or "Plus" opens / closes the drawer
     else if (isOpen && !e.target.closest(".sidebar")) setDrawer(sidebar, false); // tap outside closes it
   });
 
@@ -135,6 +139,30 @@
     sidebar.classList.toggle("open", open);
     document.querySelectorAll(".js-sidebar-toggle").forEach((b) => b.setAttribute("aria-expanded", String(open)));
   }
+
+  function setCollapsed(collapsed) {
+    document.body.classList.toggle("sidebar-collapsed", collapsed);
+    document.cookie = "sidebar=" + (collapsed ? "collapsed" : "expanded") + "; path=/; max-age=31536000; SameSite=Lax";
+    syncRail();
+  }
+
+  // Rail: labels are visually hidden, so each icon gets a tooltip (Bootstrap, appended to body: not clipped).
+  function syncRail() {
+    const rail = desktop.matches && document.body.classList.contains("sidebar-collapsed");
+    document.querySelectorAll(".js-sidebar-toggle.sidebar-toggle").forEach((b) => {
+      if (desktop.matches) b.setAttribute("aria-expanded", String(!rail));
+    });
+    if (!window.bootstrap) return;
+    document.querySelectorAll(".sidebar .nav-link").forEach((link) => {
+      const label = link.querySelector(".nav-label");
+      if (!label) return;
+      const tip = bootstrap.Tooltip.getOrCreateInstance(link, { title: label.textContent.trim(), placement: "right",
+                                                               trigger: "hover focus", container: "body" });
+      if (rail) tip.enable();
+      else { tip.hide(); tip.disable(); }
+    });
+  }
+  desktop.addEventListener("change", syncRail);
 
   document.addEventListener("keydown", (e) => {
     const sidebar = document.querySelector(".sidebar.open");
@@ -182,10 +210,72 @@
     if (document.body.hasAttribute("data-autoprint")) window.print();
   });
 
+  // Tabs (Bootstrap data API) follow the URL hash, so a link or a redirect can open one: a redirect without a
+  // fragment keeps the request's, so a form posted to action="…#admission" comes back on that tab.
+  function initTabs() {
+    if (!window.bootstrap) return;
+    const open = (hash) => {
+      const trigger = Array.from(document.querySelectorAll('[data-bs-toggle="tab"]')).find((t) => t.dataset.bsTarget === hash);
+      if (trigger) bootstrap.Tab.getOrCreateInstance(trigger).show();
+      return Boolean(trigger);
+    };
+    const pane = location.hash && open(location.hash) && document.getElementById(location.hash.slice(1));
+    // Back from a form on this tab: the browser scrolls to the pane, so its result message moves there too.
+    if (pane) pane.prepend(...document.querySelectorAll(".main > .alert"));
+    window.addEventListener("hashchange", () => open(location.hash));
+    document.addEventListener("shown.bs.tab", (e) => {
+      const hash = e.target.dataset.bsTarget;
+      if (hash && hash !== location.hash) history.replaceState(null, "", hash);
+    });
+  }
+
+  // Defense sheet: live points while a jury member rates. Mirrors grid_points / DefenseScore.section
+  // (models/defense.py): points = weight x cote / 4, N/A and unrated left out; the server recomputes on save.
+  // A cote 1 or 4 needs an observed fact (same rule as the server, checked before submitting).
+  function initScoring() {
+    const fmt = (n) => String(Math.round(n * 10) / 10);
+    document.querySelectorAll("form[data-scoring]").forEach((form) => {
+      const update = () => {
+        const sections = {};
+        form.querySelectorAll("[data-criterion]").forEach((row) => {
+          const weight = Number(row.dataset.weight);
+          const checked = row.querySelector("input[type=radio]:checked");
+          const rating = checked ? checked.value : "";
+          const points = ["1", "2", "3", "4"].includes(rating) ? weight * Number(rating) / 4 : null;
+          const out = row.querySelector("[data-points]");
+          if (out) out.textContent = points === null ? (rating === "na" ? "Sans objet" : "—") : fmt(points) + " pts";
+          const fact = row.querySelector("textarea");
+          const needsFact = rating === "1" || rating === "4";
+          if (fact) fact.required = needsFact;
+          row.classList.toggle("needs-fact", Boolean(needsFact && fact && !fact.value.trim()));
+          const s = (sections[row.dataset.section] ||= { points: 0, weight: 0 });
+          if (points !== null) { s.points += points; s.weight += weight; }
+        });
+        const total = { points: 0, weight: 0 };
+        Object.entries(sections).forEach(([key, s]) => {
+          form.querySelectorAll("[data-subtotal]").forEach((out) => {
+            if (out.dataset.subtotal === key) out.textContent = fmt(s.points) + " / " + s.weight;
+          });
+          total.points += s.points;
+          total.weight += s.weight;
+        });
+        form.querySelectorAll("[data-total]").forEach((out) => {
+          out.textContent = total.weight ? fmt(total.points) + " / " + total.weight + " pts" : "—";
+        });
+      };
+      form.addEventListener("change", update);
+      form.addEventListener("input", update);
+      update();
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
     initTimers(document);
     setInterval(tick, 1000);
     initPolling();
     initStartForm();
+    syncRail();
+    initTabs();
+    initScoring();
   });
 })();
