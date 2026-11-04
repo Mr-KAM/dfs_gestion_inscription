@@ -1,33 +1,49 @@
 {% extends "base.html" %}
-{% from "_macros.html" import csrf %}
+{% from "_macros.html" import csrf, empty, meta, page_head, progress %}
 {% block title %}Mes jurys{% endblock %}
 {% block content %}
-<h1 class="page-title mb-3">Mes jurys de soutenance</h1>
+{{ page_head('Mes jurys de soutenance', eyebrow='Soutenances SAS',
+             subtitle="Ouvrez l'espace d'un jury pour lancer le minuteur et noter les étudiants dans l'ordre de passage.") }}
 <div class="row g-3">
-  <div class="col-lg-8">
-    <div class="card"><div class="table-responsive"><table class="table align-middle mb-0">
-      <thead><tr><th>Soutenance</th><th>Jury</th><th>Mon rôle</th><th>Début</th><th class="text-end">Étudiants</th><th>État</th></tr></thead>
-      <tbody>
-      {% for m in memberships %}{% set j = m.jury %}
-        <tr>
-          <td>{{ j.defense.name }}<div class="small text-muted">{{ j.defense.sas.name }}</div></td>
-          <td><a class="fw-semibold" href="{{ url_for('jury.jury_page', jury_id=j.id) }}">{{ j.name }}</a>
-            <div class="small text-muted">{{ j.room or 'salle à fixer' }}</div></td>
-          <td>{{ m.role_label }}</td>
-          <td>{{ j.start | dt or '—' }}</td>
-          <td class="text-end">{{ j.candidates | length }}</td>
-          <td>{% if j.validated_at %}<span class="status status-success">Délibéré</span>{% else %}<span class="status status-info">Ouvert</span>{% endif %}</td>
-        </tr>
-      {% else %}<tr><td colspan="6" class="text-muted">Vous n'êtes membre d'aucun jury de soutenance.</td></tr>{% endfor %}
-      </tbody>
-    </table></div></div>
+  <div class="col-xl-8">
+    <div class="row g-3">
+    {% for m in memberships %}{% set j = m.jury %}{% set total = j.candidates | length %}
+      <div class="col-md-6">
+        <div class="card h-100">
+          <div class="card-body d-flex flex-column gap-3">
+            <div>
+              <div class="d-flex justify-content-between align-items-start gap-2">
+                <div class="eyebrow">{{ j.defense.name }}</div>
+                {% if j.validated_at %}<span class="status status-success">Délibéré</span>{% else %}<span class="status status-info">Ouvert</span>{% endif %}
+              </div>
+              <h2 class="card-title-lg mt-1"><a class="text-reset text-decoration-none stretched-link" href="{{ url_for('jury.jury_page', jury_id=j.id) }}">{{ j.name }}</a></h2>
+              <div class="small text-muted">{{ j.defense.sas.name }}</div>
+              <div class="d-flex flex-wrap gap-1 mt-2">
+                {{ meta('person-badge', m.role_label) }}
+                {{ meta('door-open', j.room or 'Salle à fixer', muted=not j.room) }}
+                {{ meta('clock', j.start | dt or 'Heure à fixer', muted=not j.start) }}
+              </div>
+            </div>
+            <div class="mt-auto">{{ progress(rated[j.id], total, 'Ma notation') }}</div>
+          </div>
+          <div class="card-footer d-flex justify-content-between align-items-center">
+            <span class="small text-muted">{{ total }} étudiant(s)</span>
+            <span class="btn btn-sm {{ 'btn-outline-primary' if j.validated_at or rated[j.id] == total else 'btn-primary' }}">
+              {{ 'Consulter' if j.validated_at else 'Ouvrir l’espace jury' }} <i class="bi bi-arrow-right"></i></span>
+          </div>
+        </div>
+      </div>
+    {% else %}
+      <div class="col-12"><div class="card">{{ empty('easel2', "Vous n'êtes membre d'aucun jury de soutenance.") }}</div></div>
+    {% endfor %}
+    </div>
   </div>
-  <div class="col-lg-4">
+  <div class="col-xl-4">
     <div class="card"><div class="card-header"><i class="bi bi-pen"></i> Ma signature numérique</div>
       <div class="card-body">
         {% if current_user.signature_type %}
-          <img class="signature-img mb-2" src="{{ url_for('jury.signature', user_id=current_user.id) }}" alt="Ma signature">
-        {% else %}<p class="small text-warning-emphasis"><i class="bi bi-exclamation-circle"></i> Aucune signature chargée.</p>{% endif %}
+          <div class="signature-box mb-3"><img class="signature-img" src="{{ url_for('jury.signature', user_id=current_user.id) }}" alt="Ma signature"></div>
+        {% else %}<div class="signature-box is-empty mb-3"><span><i class="bi bi-exclamation-circle"></i> Aucune signature chargée.</span></div>{% endif %}
         <form method="post" enctype="multipart/form-data" action="{{ url_for('jury.signature', user_id=current_user.id) }}">
           {{ csrf() }}
           <input class="form-control form-control-sm" type="file" name="signature" accept="image/png,image/jpeg,image/webp" aria-label="Image de la signature">
