@@ -1,0 +1,95 @@
+{% from "_macros.html" import avatar %}
+{% from "jury/_parts.html" import grid, notes, final, note %}
+{% import "_brand.html" as brand %}
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fiche de soutenance · {{ c.full_name }} · DFS</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+{# Opens the print dialog: "Enregistrer au format PDF" saves the file (app.js, data-autoprint). #}
+<body class="bg-white p-3 sheet-print" data-autoprint>
+  {% set president = jury.members | selectattr('role', 'equalto', 'president') | list %}
+  {% set others = jury.members | rejectattr('role', 'equalto', 'president') | list %}
+  {% macro check(on) %}{{ '☑' if on else '☐' }}{% endmacro %}
+  <div class="d-flex justify-content-between align-items-start border-bottom border-3 pb-2 mb-3">
+    {{ brand.logo(40) }}
+    <div class="text-end"><div class="fw-bold">Session d'admission et de sélection</div>
+      <div class="small text-primary">Fiche globale d'évaluation · Soutenance</div></div>
+  </div>
+  <div class="d-flex justify-content-between align-items-start gap-3">
+    <div><h1 class="h4 mb-0">Fiche globale d'évaluation de la soutenance</h1>
+      <div class="small text-primary">{{ jury.defense.sas.name }} · combine le suivi continu et la soutenance devant jury</div></div>
+    <div class="d-flex gap-2 align-items-start">
+      {{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 64) }}
+      <button class="btn btn-primary btn-sm d-print-none" type="button" data-print><i class="bi bi-file-earmark-pdf"></i> Imprimer / PDF</button>
+    </div>
+  </div>
+
+  <table class="table table-sm table-bordered mt-2 sheet-table">
+    <tr><th>Identifiant</th><td><code>{{ c.matricule }}</code></td><th>Nom, prénoms</th><td colspan="3">{{ c.full_name }}</td></tr>
+    <tr><th>Équipe</th><td>{{ s.team or '' }}</td><th>Brief / sujet</th><td colspan="3">{{ s.subject or '' }}</td></tr>
+    <tr><th>Date</th><td>{{ jury.slot(position) | dt('%d/%m/%Y') }}</td><th>Heure</th><td>{{ jury.slot(position) | dt('%H:%M') }}</td>
+      <th>Salle</th><td>{{ jury.room or jury.defense.location or '' }}</td></tr>
+    <tr><th>Temps prévu</th><td colspan="3">Exposé {{ s.talk_minutes if s.talk_minutes is not none else '___' }} min ·
+      Questions {{ s.questions_minutes if s.questions_minutes is not none else '___' }} min</td>
+      <th>Temps réel</th><td>{{ s.real_minutes if s.real_minutes is not none else '___' }} min</td></tr>
+    <tr><th>Jury</th><td colspan="5">{% for m in jury.members %}{{ m.role_label }} : {{ m.user.display_name }}{{ ' · ' if not loop.last }}{% endfor %}</td></tr>
+    <tr><th>Format</th><td colspan="5">{{ check(s.format == 'individual') }} Individuelle {{ check(s.format == 'team') }} En équipe
+      ({{ s.team_size if s.team_size else '__' }} membres) · Supports :
+      {% for key, label in supports.items() %}{{ check(key in (s.supports or [])) }} {{ label }} {% endfor %}</td></tr>
+  </table>
+
+  <table class="table table-sm table-bordered small sheet-table">
+    <tr><th>Cote</th>{% for value, label, _h in scale %}<th>{{ 'N/A' if value == 'na' else value }} · {{ label }}</th>{% endfor %}</tr>
+    <tr><td>Repère</td>{% for _v, _l, hint in scale %}<td>{{ hint }}</td>{% endfor %}</tr>
+  </table>
+
+  <h2 class="h6 mt-3">1. Grille de la soutenance</h2>
+  {{ grid(res, criteria, sections, section_weights, scale) }}
+  <p class="small text-muted">Points = poids × cote ÷ 4 (moyenne des membres qui notent la section). Si un critère est N/A : total ÷ somme des poids applicables × 100.</p>
+
+  <h2 class="h6 mt-3 page-break">2. Observations rapides sur la présentation</h2>
+  <table class="table table-sm table-bordered small sheet-table">
+    <tr><th class="text-success">Points positifs</th><th class="text-danger">Points à corriger</th></tr>
+    <tr><td>{% for key, label in positives.items() %}<span class="me-3 text-nowrap">{{ check(key in (s.positives or [])) }} {{ label }}</span> {% endfor %}
+        <div>Autre : {{ s.other_positive or '' }}</div></td>
+      <td>{% for key, label in negatives.items() %}<span class="me-3 text-nowrap">{{ check(key in (s.negatives or [])) }} {{ label }}</span> {% endfor %}
+        <div>Autre : {{ s.other_negative or '' }}</div></td></tr>
+  </table>
+
+  <h2 class="h6 mt-3">3. Notes du jury</h2>
+  {{ notes(res, sections, section_weights) }}
+
+  <h2 class="h6 mt-3">4. Note globale</h2>
+  {{ final(res, present, total_hours) }}
+
+  <h2 class="h6 mt-3">5. Appréciation et décision</h2>
+  <table class="table table-sm table-bordered sheet-table">
+    <tr><th class="w-25">Points forts</th><td class="pre-line">{{ s.strengths or '' }}</td></tr>
+    <tr><th>Axes de progrès</th><td class="pre-line">{{ s.improvements or '' }}</td></tr>
+    <tr><th>Décision du jury</th><td>{% for key, label in decisions.items() %}{{ check(s.decision == key) }} {{ label }}
+      {% if key == s.decision and s.decision_note %}: {{ s.decision_note }}{% endif %} &nbsp; {% endfor %}</td></tr>
+  </table>
+
+  <table class="table table-bordered sheet-table text-center signatures">
+    <tr><th>Président du jury</th><th>Membres du jury</th><th>Direction pédagogique</th><th>Candidat<div class="small fw-normal">lu et pris connaissance</div></th></tr>
+    <tr>
+      <td>{% for m in president %}<div class="small">{{ m.user.display_name }}</div>
+        {% if m.user.signature_type %}<img class="signature-img" src="{{ url_for('jury.signature', user_id=m.user_id) }}" alt="Signature de {{ m.user.display_name }}">{% endif %}{% endfor %}</td>
+      <td>{% for m in others %}<div class="small">{{ m.user.display_name }} · {{ m.role_label }}</div>
+        {% if m.user.signature_type %}<img class="signature-img" src="{{ url_for('jury.signature', user_id=m.user_id) }}" alt="Signature de {{ m.user.display_name }}">{% endif %}{% endfor %}</td>
+      <td class="small text-muted align-top">Nom et signature</td>
+      <td class="small text-muted align-top">Signature</td>
+    </tr>
+  </table>
+  <div class="small text-muted border-top pt-1">Délibération validée le {{ jury.validated_at | dt }} · édité le {{ printed_at | dt }} ·
+    Chaque membre du jury cote seul, puis le jury consolide. Une cote 1 ou 4 s'appuie sur un fait cité dans la colonne commentaire.</div>
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

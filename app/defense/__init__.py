@@ -43,7 +43,8 @@ def index():
 def detail(defense_id: int):
     defense = db.get_or_404(Defense, defense_id)
     classes = sorted({c.sas_class for c in defense.sas.members if c.sas_class})
-    return render_template("defense/detail.html", defense=defense, roles=JURY_ROLES, classes=classes,
+    results = {row.id: defense_service.results(row) for j in defense.juries for row in j.candidates}
+    return render_template("defense/detail.html", defense=defense, roles=JURY_ROLES, classes=classes, results=results,
                            staff=defense_service.staff_choices(defense), unassigned=defense_service.unassigned(defense))
 
 
@@ -148,3 +149,14 @@ def candidate_update(row_id: int):
     elif request.form.get("move") in ("-1", "1"):
         defense_service.move_candidate(row, int(request.form["move"]))
     return _back(defense_id, jury_id)
+
+
+@bp.post("/juries/<int:jury_id>/validate")
+def jury_validate(jury_id: int):
+    """Validate the deliberation (sheets locked, results shown to the students) or reopen it."""
+    jury = db.get_or_404(Jury, jury_id)
+    reopen = "reopen" in request.form
+    defense_service.validate(jury, current_user, reopen=reopen)
+    flash(f"Jury « {jury.name} » : délibération " + ("rouverte, les membres peuvent modifier leurs notes."
+                                                     if reopen else "validée, résultats publiés."), "success")
+    return _back(jury.defense_id, jury.id)

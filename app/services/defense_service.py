@@ -1,15 +1,19 @@
 """SAS defenses: juries, their members (staff, one jury per person and defense) and the students they hear."""
 import re
+from datetime import timedelta
 
 from sqlalchemy import func, or_, select
 
 from app.extensions import db
-from app.models import Candidate, Defense, Jury, JuryCandidate, JuryMember, Sas, User
-from app.models.defense import JURY_ROLES
-from app.models.user import ROLE_CANDIDATE
-from app.services import audit_service
-from app.services.campus_service import local_datetime
+from app.models import Candidate, Defense, DefenseScore, Jury, JuryCandidate, JuryMember, Sas, User
+from app.models.defense import (DECISIONS, DEFENSE_CRITERIA, DEFENSE_SCALE, DEFENSE_SECTIONS, JURY_ROLES, NEGATIVES,
+                                POSITIVES, ROLE_SECTIONS, SUPPORTS, grid_points)
+from app.models.user import ROLE_ADMIN, ROLE_CANDIDATE
+from app.services import attendance_service, audit_service
+from app.services.account_service import PHOTO_MAX_BYTES, image_type
+from app.services.campus_service import evaluation_of, local_datetime
 from app.services.candidate_service import BusinessError
+from app.utils import utcnow
 
 MIN_DURATION, MAX_DURATION = 5, 480
 
@@ -136,3 +140,170 @@ def unassigned(defense: Defense) -> list[Candidate]:
     return db.session.scalars(select(Candidate).where(Candidate.sas_id == defense.sas_id,
                                                       Candidate.id.not_in(placed))
                               .order_by(Candidate.sas_class, Candidate.full_name)).all()
+
+
+# ---- defense sheet (fiche globale d'évaluation): ratings by role, shared part, results
+
+def can_view(row: JuryCandidate, user) -> bool:
+    """The jury's members and the admin."""
+    return user.role == ROLE_ADMIN or row.jury.member_of(user) is not None
+
+
+def _unlocked(jury: Jury) -> None:
+    if jury.validated_at:
+        raise BusinessError("Délibération validée : la fiche n'est plus modifiable.")
+
+
+def save_score(row: JuryCandidate, user, form) -> DefenseScore:
+    """A member rates the sections of his role only (technical: A; president and presentation: B and C).
+    A 1 or 4 rating needs a written fact, as on the paper grid."""
+    _unlocked(row.jury)
+    member = row.jury.member_of(user)
+    if member is None:
+        raise BusinessError("Seuls les membres du jury notent cette soutenance.")
+    sections, scale = ROLE_SECTIONS.get(member.role, ()), {value for value, _l, _h in DEFENSE_SCALE}
+    ratings, evidence = {}, {}
+    for section, key, _title, _ind, _weight in DEFENSE_CRITERIA:
+        if section in sections:
+            if (rating := form.get(f"r_{key}", "")) in scale:
+                ratings[key] = rating
+            if text := form.get(f"e_{key}", "").strip()[:500]:
+                evidence[key] = text
+    missing = [title for _s, key, title, _i, _w in DEFENSE_CRITERIA if ratings.get(key) in ("1", "4")
+               and not evidence.get(key)]
+    if missing:
+        raise BusinessError("Une cote 1 ou 4 doit s'appuyer sur un fait cité en commentaire : "
+                            + ", ".join(missing) + ".")
+    score = next((s for s in row.scores if s.user_id == user.id), None)
+    if score is None:
+        score = DefenseScore(row=row, user_id=user.id)
+        db.session.add(score)
+    score.ratings, score.evidence, score.updated_at = ratings, evidence, utcnow()
+    audit_service.log("defense_score", row.candidate, {"jury": row.jury.name, "role": member.role, "ratings": ratings})
+    db.session.commit()
+    return score
+
+
+def _minutes(form, key: str) -> int | None:
+    value = form.get(key, type=int)
+    return value if value is not None and 0 <= value <= 600 else None
+
+
+def save_sheet(row: JuryCandidate, user, form) -> None:
+    """Shared part, filled by any jury member or the admin: "header" (subject, times, format, supports)
+    or "appraisal" (quick observations, strengths, improvements, decision)."""
+    _unlocked(row.jury)
+    if not can_view(row, user):
+        raise BusinessError("Seuls les membres du jury remplissent cette fiche.")
+    sheet = dict(row.sheet or {})  # new dict: SQLAlchemy only sees a replaced JSON value
+    if form.get("part") == "header":
+        sheet.update(subject=_text(form, "subject", 300), team=_text(form, "team", 150),
+                     format=form.get("format") if form.get("format") in ("individual", "team") else "",
+                     supports=[k for k in form.getlist("supports") if k in SUPPORTS])
+        sheet.update({k: _minutes(form, k) for k in ("talk_minutes", "questions_minutes", "real_minutes",
+                                                     "team_size")})
+    elif form.get("part") == "appraisal":
+        sheet.update(positives=[k for k in form.getlist("positives") if k in POSITIVES],
+                     negatives=[k for k in form.getlist("negatives") if k in NEGATIVES],
+                     other_positive=_text(form, "other_positive", 200),
+                     other_negative=_text(form, "other_negative", 200),
+                     strengths=form.get("strengths", "").strip()[:1500],
+                     improvements=form.get("improvements", "").strip()[:1500],
+                     decision=form.get("decision") if form.get("decision") in DECISIONS else "",
+                     decision_note=_text(form, "decision_note", 200))
+    row.sheet = sheet
+    audit_service.log("defense_score", row.candidate, {"jury": row.jury.name, "sheet": form.get("part")})
+    db.session.commit()
+
+
+def results(row: JuryCandidate) -> dict:
+    """Section 3 (each member's sections), the jury average per section, the defense score /100, the
+    follow-up score (individual sheet) and the final grade = average of both."""
+    by_user = {s.user_id: s for s in row.scores}
+    lines, per_section, complete = [], {s: [] for s in DEFENSE_SECTIONS}, bool(row.jury.members)
+    for member in row.jury.members:
+        score, parts = by_user.get(member.user_id), {}
+        for section in ROLE_SECTIONS.get(member.role, ()):
+            points, weight = score.section(section) if score else (0, 0)
+            if weight:
+                parts[section] = (points, weight)
+                per_section[section].append((points, weight))
+        keys = {c[1] for c in DEFENSE_CRITERIA if c[0] in ROLE_SECTIONS.get(member.role, ())}
+        complete = complete and score is not None and keys <= set(score.ratings)
+        lines.append((member, parts, sum(p for p, _ in parts.values())))
+    sections = {s: (sum(p for p, _ in v) / len(v), sum(w for _, w in v) / len(v))
+                for s, v in per_section.items() if v}
+    points, weight = sum(p for p, _ in sections.values()), sum(w for _, w in sections.values())
+    defense = round(100 * points / weight) if weight else None
+    follow = evaluation_of(row.candidate).score
+    final = round((defense + follow) / 2, 1) if defense is not None and follow is not None else None
+    talks = [total for _m, parts, total in lines if "B" in parts or "C" in parts]  # same sections: comparable
+    detail = {}  # per criterion: the cotes given, average points, cited facts (consolidated grid)
+    for section, key, _title, _ind, weight in DEFENSE_CRITERIA:
+        raters = [(m, s) for m in row.jury.members if section in ROLE_SECTIONS.get(m.role, ())
+                  and (s := by_user.get(m.user_id))]
+        pts = [p for _m, s in raters if (p := grid_points(s.ratings, key, weight)) is not None]
+        detail[key] = {"cotes": {s.ratings.get(key) for _m, s in raters if s.ratings.get(key)},
+                       "points": sum(pts) / len(pts) if pts else None,
+                       "facts": [(m, s.evidence[key]) for m, s in raters if s.evidence.get(key)]}
+    return {"lines": lines, "sections": sections, "points": points, "weight": weight, "defense": defense,
+            "follow": follow, "final": final, "complete": complete, "detail": detail,
+            "spread": len(talks) > 1 and max(talks) - min(talks) > 15}
+
+
+def attendance(candidate: Candidate) -> tuple[int, int]:
+    """(hours present, hours of the closed roll calls) of the student."""
+    sessions = attendance_service.sessions_for(candidate)
+    total = sum(s.hours for s in sessions if s.is_closed)
+    return total - attendance_service.absence_hours(candidate, sessions), total
+
+
+def published_results(candidate: Candidate) -> list[tuple[JuryCandidate, dict]]:
+    """What the student may see: only after the admin validated the jury's deliberation."""
+    rows = db.session.scalars(select(JuryCandidate).join(Jury).where(
+        JuryCandidate.candidate_id == candidate.id, Jury.validated_at.is_not(None))
+        .order_by(Jury.validated_at.desc())).all()
+    return [(row, results(row)) for row in rows]
+
+
+def validate(jury: Jury, user, reopen: bool = False) -> None:
+    """Admin: validate the deliberation (sheets locked, results published) or reopen it."""
+    jury.validated_at, jury.validated_by = (None, None) if reopen else (utcnow(), user.id)
+    jury.timer_ends_at = jury.timer_left = None
+    audit_service.log("jury_validate", jury.defense, {"jury": jury.name, "reopened": reopen})
+    db.session.commit()
+
+
+def set_timer(jury: Jury, user, action: str, minutes: int | None = None) -> None:
+    """Shared timer of a jury, set by any member (or the admin): start N minutes, pause, resume, reset."""
+    if user.role != ROLE_ADMIN and jury.member_of(user) is None:
+        raise BusinessError("Seuls les membres du jury pilotent le minuteur.")
+    state, left = jury.timer_state()
+    if action == "start":
+        if minutes is None or not 1 <= minutes <= 240:
+            raise BusinessError("Minuteur : entre 1 et 240 minutes.")
+        jury.timer_ends_at, jury.timer_left = utcnow() + timedelta(minutes=minutes), None
+    elif action == "pause" and state == "running":
+        jury.timer_ends_at, jury.timer_left = None, left
+    elif action == "resume" and state == "paused":
+        jury.timer_ends_at, jury.timer_left = utcnow() + timedelta(seconds=left), None
+    elif action == "reset":
+        jury.timer_ends_at = jury.timer_left = None
+    db.session.commit()
+
+
+def save_signature(owner: User, file=None, remove: bool = False) -> None:
+    """A jury member's signature (JPEG / PNG / WebP image, real format checked; no SVG: it can carry scripts)."""
+    if remove:
+        owner.signature = owner.signature_type = None
+    else:
+        data = file.read(PHOTO_MAX_BYTES + 1) if file is not None and file.filename else b""
+        if not data:
+            raise BusinessError("Choisissez l'image de la signature.")
+        if len(data) > PHOTO_MAX_BYTES:
+            raise BusinessError("Signature trop lourde : 2 Mo maximum.")
+        if image_type(data) is None:
+            raise BusinessError("Signature invalide : formats JPEG, PNG ou WebP uniquement.")
+        owner.signature, owner.signature_type = data, image_type(data)
+    audit_service.log("signature_update", owner, {"removed": remove})
+    db.session.commit()

@@ -54,6 +54,9 @@ class User(UserMixin, db.Model):
     phone = db.Column(db.String(30))
     photo = db.deferred(db.Column(db.LargeBinary))
     photo_type = db.Column(db.String(20))
+    # Digital signature (jury member), printed on the defense sheets. Seen only by its owner and the admin.
+    signature = db.deferred(db.Column(db.LargeBinary))
+    signature_type = db.Column(db.String(20))
     updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow,
                            server_default=db.func.now())
     # Coach: the classes he teaches, as "sas_id:class name" strings.

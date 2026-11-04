@@ -216,3 +216,11 @@ a.stat-card:hover { border-color: var(--dfs-blue); }
 .md-fallback { white-space: pre-line; }
 .toastui-editor-contents img { max-width: 100%; height: auto; }
 .toastui-editor-contents { font-size: 1rem; }
+
+/* Defense sheets: signatures, compact print tables */
+.signature-img { display: block; max-height: 70px; max-width: 220px; margin: .25rem auto; object-fit: contain; }
+.timer-minutes { width: 5.5rem; }
+.pre-line { white-space: pre-line; }
+.sheet-print .sheet-table { font-size: .82rem; }
+.sheet-print .signatures td { height: 110px; }
+@media print { .page-break { break-before: page; } .sheet-print { padding: 0 !important; } }

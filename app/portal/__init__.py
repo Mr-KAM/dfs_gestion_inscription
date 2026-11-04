@@ -5,7 +5,7 @@ from flask_login import current_user, login_required, login_user
 from app.auth import _safe_next, login_attempt
 from app.extensions import db
 from app.models import ClassInvitation, Exercise
-from app.services import account_service, attendance_service, audit_service, campus_service
+from app.services import account_service, attendance_service, audit_service, campus_service, defense_service
 from app.services.candidate_service import BusinessError
 from app.utils import allow_camera
 
@@ -67,7 +67,8 @@ def home():
     return render_template("portal/home.html", c=candidate, pending=pending,
                            absence_hours=attendance_service.absence_hours(candidate, sessions, marks),
                            notifications=campus_service.notifications_for(candidate, limit=3),
-                           invitations=campus_service.pending_invitations(candidate))
+                           invitations=campus_service.pending_invitations(candidate),
+                           defenses=defense_service.published_results(candidate))  # after the deliberation only
 
 
 @bp.get("/notifications")

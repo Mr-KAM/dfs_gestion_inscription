@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "_macros.html" import avatar %}
+{% from "jury/_parts.html" import timer_card, note %}
+{% block title %}{{ jury.name }} · {{ jury.defense.name }}{% endblock %}
+{% block content %}
+<a class="small text-muted text-decoration-none" href="{{ url_for('defense.detail', defense_id=jury.defense_id) if current_user.role == 'admin' else url_for('jury.index') }}"><i class="bi bi-arrow-left"></i> {{ 'Soutenance' if current_user.role == 'admin' else 'Mes jurys' }}</a>
+<h1 class="page-title mt-1">{{ jury.name }}</h1>
+<div class="text-muted mb-3">{{ jury.defense.name }} · {{ jury.defense.sas.name }} · {{ jury.room or 'salle à fixer' }} · {{ jury.start | dt or 'heure à fixer' }}
+  · {{ jury.duration }} min / étudiant{% if me %} · vous êtes <strong>{{ me.role_label }}</strong>{% endif %}</div>
+{% if jury.validated_at %}<div class="alert alert-success"><i class="bi bi-check2-circle"></i> Délibération validée le {{ jury.validated_at | dt }} : fiches verrouillées.</div>{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-4">
+    {% if not jury.validated_at %}{{ timer_card(jury, jury.duration) }}{% endif %}
+    <div class="card"><div class="card-header"><i class="bi bi-people"></i> Membres</div>
+      <ul class="list-group list-group-flush">
+      {% for m in jury.members %}<li class="list-group-item">{{ m.user.display_name }} <span class="small text-muted d-block">{{ m.role_label }}</span></li>
+      {% else %}<li class="list-group-item text-muted small">Aucun membre.</li>{% endfor %}
+      </ul></div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card"><div class="card-header"><i class="bi bi-list-ol"></i> Ordre de passage ({{ jury.candidates | length }})</div>
+      <div class="table-responsive"><table class="table align-middle mb-0">
+        <thead><tr><th>Heure</th><th></th><th>Étudiant</th><th>Ma notation</th><th class="text-end">Soutenance</th><th class="text-end">Globale</th><th></th></tr></thead>
+        <tbody>
+        {% for row in jury.candidates %}{% set c = row.candidate %}{% set r = results[row.id] %}
+          {% set mine = row.scores | selectattr('user_id', 'equalto', current_user.id) | first %}
+          <tr>
+            <td class="small text-nowrap">{{ jury.slot(loop.index0) | dt('%H:%M') or loop.index }}</td>
+            <td>{{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 32, zoom=True) }}</td>
+            <td>{{ c.full_name }}<div class="small text-muted"><code>{{ c.matricule }}</code> · {{ c.sas_class or 'sans classe' }}</div></td>
+            <td>{% if not me %}—{% elif mine %}<span class="status status-success">Noté</span>{% else %}<span class="status status-warning">À noter</span>{% endif %}</td>
+            <td class="text-end">{{ note(r.defense) }}</td>
+            <td class="text-end fw-semibold">{{ note(r.final) }}</td>
+            <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('jury.sheet', row_id=row.id) }}"><i class="bi bi-clipboard-check"></i> Fiche</a></td>
+          </tr>
+        {% else %}<tr><td colspan="7" class="text-muted">Aucun étudiant dans ce jury.</td></tr>{% endfor %}
+        </tbody>
+      </table></div></div>
+  </div>
+</div>
+{% endblock %}

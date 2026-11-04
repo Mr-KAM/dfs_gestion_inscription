@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}Mes jurys{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Mes jurys de soutenance</h1>
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card"><div class="table-responsive"><table class="table align-middle mb-0">
+      <thead><tr><th>Soutenance</th><th>Jury</th><th>Mon rôle</th><th>Début</th><th class="text-end">Étudiants</th><th>État</th></tr></thead>
+      <tbody>
+      {% for m in memberships %}{% set j = m.jury %}
+        <tr>
+          <td>{{ j.defense.name }}<div class="small text-muted">{{ j.defense.sas.name }}</div></td>
+          <td><a class="fw-semibold" href="{{ url_for('jury.jury_page', jury_id=j.id) }}">{{ j.name }}</a>
+            <div class="small text-muted">{{ j.room or 'salle à fixer' }}</div></td>
+          <td>{{ m.role_label }}</td>
+          <td>{{ j.start | dt or '—' }}</td>
+          <td class="text-end">{{ j.candidates | length }}</td>
+          <td>{% if j.validated_at %}<span class="status status-success">Délibéré</span>{% else %}<span class="status status-info">Ouvert</span>{% endif %}</td>
+        </tr>
+      {% else %}<tr><td colspan="6" class="text-muted">Vous n'êtes membre d'aucun jury de soutenance.</td></tr>{% endfor %}
+      </tbody>
+    </table></div></div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card"><div class="card-header"><i class="bi bi-pen"></i> Ma signature numérique</div>
+      <div class="card-body">
+        {% if current_user.signature_type %}
+          <img class="signature-img mb-2" src="{{ url_for('jury.signature', user_id=current_user.id) }}" alt="Ma signature">
+        {% else %}<p class="small text-warning-emphasis"><i class="bi bi-exclamation-circle"></i> Aucune signature chargée.</p>{% endif %}
+        <form method="post" enctype="multipart/form-data" action="{{ url_for('jury.signature', user_id=current_user.id) }}">
+          {{ csrf() }}
+          <input class="form-control form-control-sm" type="file" name="signature" accept="image/png,image/jpeg,image/webp" aria-label="Image de la signature">
+          <div class="form-text">Image PNG, JPEG ou WebP (2 Mo max.), imprimée sur les fiches de soutenance validées.
+            Visible par vous et l'administrateur seulement.</div>
+          <div class="d-flex gap-2 mt-2"><button class="btn btn-sm btn-primary"><i class="bi bi-upload"></i> Enregistrer</button>
+          {% if current_user.signature_type %}<button class="btn btn-sm btn-outline-danger" name="remove" value="1" data-confirm="Supprimer votre signature ?"><i class="bi bi-trash"></i> Supprimer</button>{% endif %}</div>
+        </form>
+      </div></div>
+  </div>
+</div>
+{% endblock %}
