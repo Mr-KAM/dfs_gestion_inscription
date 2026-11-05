@@ -72,6 +72,35 @@
       <div class="form-text">L'invitation apparaît sur la page de l'étudiant, qui l'accepte ou la refuse.</div>
       <div><button class="btn btn-primary mt-2"><i class="bi bi-send"></i> Inviter</button></div>
     </form>
+    <div class="card mb-3" id="coachs"><div class="card-header d-flex justify-content-between align-items-center">
+      <span><i class="bi bi-person-workspace"></i> Coachs de la classe</span>
+      <a class="small" href="{{ url_for('campus.lessons', **{'class': k.key}) }}"><i class="bi bi-calendar3"></i> Calendrier de la classe</a></div>
+      <ul class="list-group list-group-flush">
+      {% for u in coaches %}
+        <li class="list-group-item d-flex justify-content-between align-items-center gap-2">
+          <span>{{ u.display_name }} <span class="small text-muted">· {{ u.role_label }}</span></span>
+          {% if can_invite and u.role == 'trade_coach' %}
+          <form method="post" action="{{ url_for('campus.class_coaches', class_id=k.id) }}" data-confirm="Retirer {{ u.display_name }} de la classe ?">
+            {{ csrf() }}<button class="btn btn-sm btn-outline-danger" name="remove" value="{{ u.id }}" title="Retirer de la classe"><i class="bi bi-person-dash"></i></button></form>
+          {% endif %}
+        </li>
+      {% else %}<li class="list-group-item small text-muted">Aucun coach.</li>{% endfor %}
+      {% for inv in coach_invitations if inv.status != 'accepted' %}
+        <li class="list-group-item d-flex justify-content-between align-items-center gap-2 small">
+          <span>{{ inv.user.display_name }} <span class="text-muted">· coach métier invité le {{ inv.created_at | dt }}</span></span>
+          {{ status(inv.badge) }}</li>
+      {% endfor %}
+      </ul>
+      {% if can_invite %}
+      <form class="card-body d-flex gap-2 flex-wrap" method="post" action="{{ url_for('campus.class_coaches', class_id=k.id) }}">
+        {{ csrf() }}
+        <select class="form-select form-select-sm w-auto flex-grow-1" name="user_id" required aria-label="Coach métier à inviter">
+          <option value="">Inviter un coach métier…</option>
+          {% for u in trade_coaches %}<option value="{{ u.id }}">{{ u.display_name }}</option>{% endfor %}</select>
+        <button class="btn btn-sm btn-outline-primary" {{ 'disabled' if not trade_coaches }}><i class="bi bi-send"></i> Inviter</button>
+      </form>
+      {% endif %}
+    </div>
   </div>
 </div>
 

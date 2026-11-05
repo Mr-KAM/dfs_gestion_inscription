@@ -8,20 +8,20 @@ from markupsafe import Markup
 from sqlalchemy import and_, false, or_, select
 
 from app.extensions import db
-from app.models import (AttendanceSession, Candidate, Evaluation, Exercise, ExerciseSubmission, Incident, Notification,
-                        Sas, SasClass, Visit)
+from app.models import (AttendanceSession, Candidate, CoachInvitation, Evaluation, Exercise, ExerciseSubmission,
+                        Incident, Lesson, Notification, Sas, SasClass, Visit)
 from app.models.attendance import HOURS_CHOICES, METHOD_LABELS
-from app.models.campus import (ACTIVITY_CATEGORIES, EVAL_CRITERIA, EVAL_SCALE, ID_TYPES, INCIDENT_CATEGORIES, REJECTED,
-                               VALIDATED, VISIT_KINDS)
-from app.models.user import CAMPUS_ROLES, ROLE_ADMIN, ROLE_COACH, ROLE_RECEPTION
-from app.services import attendance_service, audit_service, campus_service
+from app.models.campus import (ACTIVITY_CATEGORIES, EVAL_CRITERIA, EVAL_SCALE, ID_TYPES, INCIDENT_CATEGORIES,
+                               LESSON_STATUSES, REJECTED, VALIDATED, VISIT_KINDS)
+from app.models.user import CAMPUS_ROLES, COACH_ROLES, ROLE_ADMIN, ROLE_COACH, ROLE_RECEPTION
+from app.services import attendance_service, audit_service, campus_service, pedagogy_service
 from app.services.candidate_service import BusinessError
 from app.utils import allow_camera, as_utc, roles_required, utcnow
 
 bp = Blueprint("campus", __name__, url_prefix="/campus")
 DESK_ROLES = (ROLE_ADMIN, ROLE_RECEPTION)  # site register, every incident
-CLASS_ROLES = (ROLE_ADMIN, ROLE_COACH)  # create classes, join QR codes, invitations
-EXERCISE_ROLES = (ROLE_ADMIN, ROLE_COACH, ROLE_RECEPTION)  # may write exercise statements (and upload their images)
+CLASS_ROLES = (ROLE_ADMIN, *COACH_ROLES)  # class pages, join QR codes, invitations (creation: admin + ROLE_COACH)
+EXERCISE_ROLES = (ROLE_ADMIN, *COACH_ROLES, ROLE_RECEPTION)  # may write exercise statements (and upload their images)
 
 
 @bp.before_request
@@ -41,7 +41,7 @@ def _require_desk() -> None:
 
 
 def _require_students_role() -> None:
-    if current_user.role not in DESK_ROLES + (ROLE_COACH,):
+    if current_user.role not in DESK_ROLES + COACH_ROLES:
         abort(403)
 
 
@@ -63,7 +63,11 @@ def index():
                if campus_service.can_manage(current_user, c["sas"].id, c["class_name"])]
     recent = db.session.scalars(select(AttendanceSession).order_by(AttendanceSession.opened_at.desc()).limit(100))
     sessions = [s for s in recent if campus_service.can_manage(current_user, s.sas_id, s.class_name)]
-    return render_template("campus/index.html", classes=classes, sessions=sessions[:30],
+    upcoming = db.session.scalars(campus_service.visible_query(Lesson, current_user)
+                                  .where(Lesson.starts_at >= utcnow()).order_by(Lesson.starts_at).limit(5)).all() \
+        if current_user.role in CLASS_ROLES else []
+    return render_template("campus/index.html", classes=classes, sessions=sessions[:30], upcoming=upcoming,
+                           coach_invites=pedagogy_service.pending_coach_invitations(current_user),
                            targets=campus_service.targets(current_user), **attendance_form_context())
 
 
@@ -377,7 +381,10 @@ def class_page(class_id: int):
     report = campus_service.class_report(klass)
     filters = {k: request.args.get(k, "").strip() for k in CLASS_FILTERS}
     _filter_class_report(report, filters)
-    return render_template("campus/class.html", k=klass, join_url=join_url, qr=qr, filters=filters, **report)
+    can_invite = current_user.role in (ROLE_ADMIN, ROLE_COACH)  # a coach métier invites no other coach
+    return render_template("campus/class.html", k=klass, join_url=join_url, qr=qr, filters=filters,
+                           coach_invitations=pedagogy_service.class_coach_invitations(klass), can_invite=can_invite,
+                           trade_coaches=pedagogy_service.trade_coaches_for(klass) if can_invite else [], **report)
 
 
 # class page filters: students (q, state, done, abs, sex), exercises (eq, est), roll calls (cq, cst)
@@ -467,7 +474,7 @@ def students():
     _require_students_role()
     args = {k: request.args.get(k, "").strip() for k in ("q", "sas", "class", "gender")}
     stmt = select(Candidate).where(Candidate.sas_id.is_not(None)).order_by(Candidate.full_name)
-    if current_user.role == ROLE_COACH:
+    if current_user.role in COACH_ROLES:
         stmt = stmt.where(_coach_students())
     if args["q"]:
         like = f"%{args['q']}%"
@@ -517,7 +524,7 @@ def student(candidate_id: int):
 def student_notify(candidate_id: int):
     """Notification to this student only (seen on his space, like the class ones)."""
     c = db.get_or_404(Candidate, candidate_id)
-    if current_user.role not in (*DESK_ROLES, ROLE_COACH):
+    if current_user.role not in (*DESK_ROLES, *COACH_ROLES):
         abort(403)
     try:
         campus_service.send_individual_notification(current_user, c, request.form.get("title", ""),
@@ -576,3 +583,118 @@ def evaluations():
         select(Evaluation).where(Evaluation.candidate_id.in_([c.id for c in page.items])))}
     return render_template("campus/evaluations.html", page=page, args=args, grids=grids,
                            classes=campus_service.class_choices(), can_manage=campus_service.can_manage)
+
+
+# ------------------------------------------------------------------ coaches métier: invitations into a class
+
+@bp.post("/classes/<int:class_id>/coaches")
+def class_coaches(class_id: int):
+    """A coach technique of the class (or the admin) invites a coach métier, or withdraws one ("remove")."""
+    klass = _klass(class_id)
+    try:
+        if "remove" in request.form:
+            coach = pedagogy_service.remove_coach(klass, current_user, request.form.get("remove", type=int))
+            flash(f"{coach.display_name} n'intervient plus dans la classe.", "success")
+        else:
+            invitation = pedagogy_service.invite_coach(klass, current_user, request.form.get("user_id", type=int))
+            flash(f"Invitation envoyée à {invitation.user.display_name} : elle apparaît sur sa page Vie du SAS.",
+                  "success")
+    except BusinessError as exc:
+        db.session.rollback()
+        flash(str(exc), "danger")
+    return redirect(url_for("campus.class_page", class_id=klass.id) + "#coachs")
+
+
+@bp.post("/coach-invitations/<int:invitation_id>")
+def coach_invitation_answer(invitation_id: int):
+    invitation = db.get_or_404(CoachInvitation, invitation_id)
+    accept = request.form.get("accept") == "1"
+    try:
+        pedagogy_service.answer_coach_invitation(invitation, current_user, accept)
+        flash(f"Vous intervenez maintenant dans la classe {invitation.klass.name}." if accept
+              else "Invitation refusée.", "success")
+    except BusinessError as exc:
+        flash(str(exc), "danger")
+    return redirect(url_for("campus.index"))
+
+
+# ------------------------------------------------------------------ program calendar and follow-up
+
+@bp.route("/calendar", methods=["GET", "POST"])
+def lessons():
+    """Month calendar of the lessons of the user's classes (all of them for the admin), with follow-up figures."""
+    _require_class_role()
+    if request.method == "POST":
+        try:
+            lesson = pedagogy_service.save_lesson(current_user, request.form)
+            copies = pedagogy_service.repeat_lesson(lesson, request.form.get("repeat", 0, type=int))
+            more = f", et les {copies} semaines suivantes." if copies else "."
+            flash(f"Cours « {lesson.title} » programmé{more}", "success")
+            return redirect(url_for("campus.lessons", month=pedagogy_service.local_day(lesson.starts_at)
+                                    .strftime("%Y-%m")))
+        except BusinessError as exc:
+            db.session.rollback()
+            flash(str(exc), "danger")
+    args = {k: request.args.get(k, "").strip() for k in ("month", "class", "coach")}
+    first, start, end = pedagogy_service.month_bounds(args["month"])
+    stmt = (campus_service.visible_query(Lesson, current_user)
+            .where(Lesson.starts_at >= start, Lesson.starts_at < end).order_by(Lesson.starts_at))
+    sas_id, _, name = args["class"].partition(":")
+    if sas_id.isdigit() and name:
+        stmt = stmt.where(Lesson.sas_id == int(sas_id), Lesson.class_name == name)
+    if args["coach"] == "me":
+        stmt = stmt.where(Lesson.coach_id == current_user.id)
+    elif args["coach"].isdigit():
+        stmt = stmt.where(Lesson.coach_id == int(args["coach"]))
+    items = db.session.scalars(stmt).all()
+    targets = [t for t in campus_service.targets(current_user) if not t["key"].endswith(":")]  # classes only
+    return render_template("campus/lessons.html", lessons=items, first=first, args=args, targets=targets,
+                           coaches=pedagogy_service.all_coaches(), statuses=LESSON_STATUSES,
+                           now_input=campus_service.local_now_input(), **pedagogy_service.month_view(items, first))
+
+
+def _lesson(lesson_id: int) -> Lesson:
+    _require_class_role()
+    lesson = db.get_or_404(Lesson, lesson_id)
+    if not pedagogy_service.can_teach(current_user, lesson):
+        abort(403)
+    return lesson
+
+
+@bp.route("/lessons/<int:lesson_id>", methods=["GET", "POST"])
+def lesson(lesson_id: int):
+    """One lesson: planning (date, duration, content, coach) and follow-up (status, report), roll call."""
+    item = _lesson(lesson_id)
+    month = pedagogy_service.local_day(item.starts_at).strftime("%Y-%m")
+    if request.method == "POST":
+        if "delete" in request.form:
+            audit_service.log("lesson_update", item, {"deleted": item.title, "class": item.class_name})
+            db.session.delete(item)
+            db.session.commit()
+            flash("Cours supprimé du calendrier.", "success")
+            return redirect(url_for("campus.lessons", month=month))
+        try:
+            pedagogy_service.save_lesson(current_user, request.form, item)
+            flash("Cours enregistré.", "success")
+        except BusinessError as exc:
+            db.session.rollback()
+            flash(str(exc), "danger")
+        return redirect(url_for("campus.lesson", lesson_id=item.id))
+    return render_template("campus/lesson.html", lesson=item, month=month, statuses=LESSON_STATUSES,
+                           coaches=pedagogy_service.class_coaches(item), hours_choices=HOURS_CHOICES,
+                           default_hours=pedagogy_service.default_hours(item))
+
+
+@bp.post("/lessons/<int:lesson_id>/attendance")
+def lesson_attendance(lesson_id: int):
+    """Roll call for this lesson (opened once, then reopened from the lesson page)."""
+    item = _lesson(lesson_id)
+    try:
+        session = pedagogy_service.open_roll_call(item, current_user, request.form.get("minutes", 15, type=int),
+                                                  request.form.get("hours", type=int)
+                                                  or pedagogy_service.default_hours(item))
+    except BusinessError as exc:
+        db.session.rollback()
+        flash(str(exc), "danger")
+        return redirect(url_for("campus.lesson", lesson_id=item.id))
+    return redirect(url_for("campus.attendance", session_id=session.id))

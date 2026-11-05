@@ -61,7 +61,8 @@
         {{ nav('portal.profile', 'person-circle', 'Mon profil') }}
         {{ nav('portal.password', 'key', 'Mot de passe') }}
       {% else %}
-      {% if role in ('coach', 'reception', 'residence') %}
+      {% if role in ('partner', 'cme') %}{# jury space only: "Mes jurys" + profile below #}
+      {% elif role in ('coach', 'trade_coach', 'reception', 'residence') %}
         {{ nav('campus.index', 'house-door', 'Vie du SAS') }}
         {% if role == 'residence' %}
           {{ nav('infra.index', 'building', 'Infrastructures', 'infra.index') }}
@@ -69,12 +70,13 @@
           {{ nav('infra.consumables', 'box-seam', 'Consommables', 'infra.consumable') }}
           {{ nav('admin.sas_list', 'door-open', 'Chambres SAS', 'admin.sas') }}
         {% endif %}
-        {% if role == 'coach' %}
+        {% if role in ('coach', 'trade_coach') %}
           {{ nav('campus.classes', 'people', 'Classes', 'campus.class') }}
           {{ nav('campus.students', 'mortarboard', 'Mes étudiants', 'campus.student') }}
           {{ nav('campus.notifications', 'megaphone', 'Notifications') }}
           {{ nav('campus.exercises', 'journal-code', 'Exercices', 'campus.exercise') }}
           {{ nav('campus.evaluations', 'clipboard-check', 'Évaluations', 'campus.evaluation') }}
+          {{ nav('campus.lessons', 'calendar3', 'Calendrier pédagogique', 'campus.lesson') }}
         {% endif %}
         {% if role == 'reception' %}
           {{ nav('campus.students', 'mortarboard', 'Étudiants SAS', 'campus.student') }}
@@ -103,6 +105,7 @@
         {{ nav('campus.index', 'house-door', 'Vie du SAS', 'campus.index') }}
         {{ nav('campus.classes', 'people', 'Classes et coachs', 'campus.class') }}
         {{ nav('campus.evaluations', 'clipboard-check', 'Évaluations', 'campus.evaluation') }}
+        {{ nav('campus.lessons', 'calendar3', 'Calendrier pédagogique', 'campus.lesson') }}
         {{ nav('defense.index', 'easel', 'Soutenances SAS', 'defense.') }}
         {{ nav('infra.index', 'building', 'Infrastructures', 'infra.') }}
         <div class="nav-section">Administration</div>
@@ -141,9 +144,12 @@
     {{ bnav('portal.exercises', 'journal-code', 'Exercices') }}
     {{ bnav('portal.notifications', 'megaphone', 'Notifs') }}
     {{ bnav('portal.profile', 'person-circle', 'Profil') }}
-  {% elif role in ('coach', 'reception', 'residence') %}
+  {% elif role in ('partner', 'cme') %}
+    {{ bnav('jury.index', 'easel2', 'Mes jurys', 'jury.') }}
+    {{ bnav('auth.profile', 'person-circle', 'Profil') }}
+  {% elif role in ('coach', 'trade_coach', 'reception', 'residence') %}
     {{ bnav('campus.index', 'house-door', 'SAS') }}
-    {% if role == 'coach' %}{{ bnav('campus.exercises', 'journal-code', 'Exercices', 'campus.exercise') }}{{ bnav('campus.notifications', 'megaphone', 'Notifs') }}{% endif %}
+    {% if role in ('coach', 'trade_coach') %}{{ bnav('campus.exercises', 'journal-code', 'Exercices', 'campus.exercise') }}{{ bnav('campus.notifications', 'megaphone', 'Notifs') }}{% endif %}
     {% if role == 'reception' %}{{ bnav('campus.students', 'mortarboard', 'Étudiants', 'campus.student') }}{{ bnav('campus.visits', 'person-badge', 'Passages') }}{% endif %}
     {% if role == 'residence' %}{{ bnav('infra.index', 'building', 'Infra', 'infra.index') }}{{ bnav('infra.equipment_list', 'pc-display', 'Matériel', 'infra.equipment') }}{{ bnav('infra.consumables', 'box-seam', 'Stock', 'infra.consumable') }}{% endif %}
     {{ bnav('campus.incidents', 'exclamation-triangle', 'Problèmes') }}

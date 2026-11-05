@@ -8,7 +8,7 @@ from app.auth import _safe_next
 from app.extensions import db
 from app.models import Candidate, Room
 from app.models.candidate import FILE_STATUSES
-from app.models.user import CAMPUS_ROLES, RECRUITMENT_ROLES, MOTIVATION_ROLES, ROLE_ADMIN, ROLE_MOTIVATION, ROLE_TECHNICAL, TECHNICAL_ROLES  # noqa: E501
+from app.models.user import CAMPUS_ROLES, JURY_ONLY_ROLES, RECRUITMENT_ROLES, MOTIVATION_ROLES, ROLE_ADMIN, ROLE_MOTIVATION, ROLE_TECHNICAL, TECHNICAL_ROLES  # noqa: E501
 from app.services import account_service, attendance_service, audit_service, candidate_service, settings_service
 from app.utils import norm_email, norm_phone, roles_required
 
@@ -146,7 +146,7 @@ def delete(candidate_id: int):
 
 
 @bp.get("/<int:candidate_id>/photo")
-@roles_required(*RECRUITMENT_ROLES, *CAMPUS_ROLES)
+@roles_required(*RECRUITMENT_ROLES, *CAMPUS_ROLES, *JURY_ONLY_ROLES)  # jury pages show the students
 def photo(candidate_id: int):
     return account_service.photo_response(get_visible_candidate(candidate_id))
 

@@ -9,14 +9,15 @@
 </div>
 
 <div class="d-flex gap-2 flex-wrap mb-3">
-  {% if role in ('admin', 'coach', 'reception') %}
+  {% if role in ('admin', 'coach', 'trade_coach', 'reception') %}
   <a class="btn btn-outline-primary" href="{{ url_for('campus.notifications') }}"><i class="bi bi-megaphone"></i> Notifications</a>
   {% endif %}
-  {% if role in ('admin', 'coach') %}
+  {% if role in ('admin', 'coach', 'trade_coach') %}
   <a class="btn btn-outline-primary" href="{{ url_for('campus.classes') }}"><i class="bi bi-people"></i> Classes</a>
   {% endif %}
-  {% if role in ('admin', 'coach') %}
+  {% if role in ('admin', 'coach', 'trade_coach') %}
   <a class="btn btn-outline-primary" href="{{ url_for('campus.exercises') }}"><i class="bi bi-journal-code"></i> Exercices</a>
+  <a class="btn btn-outline-primary" href="{{ url_for('campus.lessons') }}"><i class="bi bi-calendar3"></i> Calendrier pédagogique</a>
   {% endif %}
   {% if role in ('admin', 'reception') %}
   <a class="btn btn-outline-primary" href="{{ url_for('campus.students') }}"><i class="bi bi-mortarboard"></i> Étudiants SAS</a>
@@ -31,17 +32,41 @@
   {% endif %}
 </div>
 
+{% for inv in coach_invites %}
+<div class="alert alert-warning d-flex justify-content-between align-items-center flex-wrap gap-2" role="status">
+  <span><i class="bi bi-envelope-paper"></i> {{ inv.inviter.display_name if inv.inviter else "L'administration" }} vous invite à intervenir dans la classe
+    <strong>{{ inv.klass.name }}</strong> ({{ inv.klass.sas.name }}).</span>
+  <form class="d-flex gap-2" method="post" action="{{ url_for('campus.coach_invitation_answer', invitation_id=inv.id) }}">
+    {{ csrf() }}<button class="btn btn-sm btn-success" name="accept" value="1"><i class="bi bi-check-lg"></i> Accepter</button>
+    <button class="btn btn-sm btn-outline-secondary" name="accept" value="0">Refuser</button></form>
+</div>
+{% endfor %}
+
+{% if upcoming %}
+<div class="card mb-3"><div class="card-header d-flex justify-content-between"><span><i class="bi bi-calendar3"></i> Prochains cours</span>
+  <a class="small" href="{{ url_for('campus.lessons') }}">Calendrier</a></div>
+  <ul class="list-group list-group-flush">
+  {% for l in upcoming %}
+    <li class="list-group-item d-flex justify-content-between flex-wrap gap-2">
+      <a href="{{ url_for('campus.lesson', lesson_id=l.id) }}"><strong>{{ l.title }}</strong></a>
+      <span class="small text-muted">{{ l.starts_at | dt }} · {{ l.class_name }} · {{ l.coach.display_name if l.coach else 'coach à définir' }}</span></li>
+  {% endfor %}
+  </ul></div>
+{% endif %}
+
 {% if targets %}
 <div class="card mb-3"><div class="card-header"><i class="bi bi-calendar-check"></i> Programmer un appel (pointage)</div>
   <div class="card-body">{% include "campus/_attendance_form.html" %}</div></div>
 {% elif role == 'coach' %}
-<div class="alert alert-info">Aucune classe ne vous est encore attribuée : demandez à l'administrateur de vous associer à vos classes.</div>
+<div class="alert alert-info">Aucune classe ne vous est encore attribuée : créez-en une ou demandez à l'administrateur de vous associer à vos classes.</div>
+{% elif role == 'trade_coach' %}
+<div class="alert alert-info">Vous n'intervenez encore dans aucune classe : un coach technique doit vous y inviter.</div>
 {% endif %}
 
 <div class="row g-3">
   {% if classes %}
   <div class="col-lg-5">
-    <div class="card"><div class="card-header"><i class="bi bi-people"></i> {{ 'Mes classes' if role == 'coach' else 'Classes' }}</div>
+    <div class="card"><div class="card-header"><i class="bi bi-people"></i> {{ 'Mes classes' if role in ('coach', 'trade_coach') else 'Classes' }}</div>
       <ul class="list-group list-group-flush">
       {% for c in classes %}
         <li class="list-group-item d-flex justify-content-between"><span>{{ c.sas.name }} — <strong>{{ c.class_name }}</strong></span>

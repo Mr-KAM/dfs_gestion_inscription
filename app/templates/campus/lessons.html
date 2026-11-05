@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, status %}
+{% block title %}Calendrier pédagogique{% endblock %}
+{% block content %}
+{% set MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'] %}
+{% set keep = {'class': args['class'], 'coach': args.coach} %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <div><div class="eyebrow mb-1">Programmation et suivi pédagogique</div>
+    <h1 class="page-title">Calendrier pédagogique</h1></div>
+  <div class="d-flex align-items-center gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('campus.lessons', month=prev, **keep) }}" aria-label="Mois précédent"><i class="bi bi-chevron-left"></i></a>
+    <span class="fw-semibold text-capitalize">{{ MONTHS[first.month - 1] }} {{ first.year }}</span>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('campus.lessons', month=next, **keep) }}" aria-label="Mois suivant"><i class="bi bi-chevron-right"></i></a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('campus.lessons', **keep) }}">Aujourd'hui</a>
+  </div>
+</div>
+
+<form class="row g-2 mb-3" method="get">
+  <input type="hidden" name="month" value="{{ first.strftime('%Y-%m') }}">
+  <div class="col-md-5"><select class="form-select form-select-sm" name="class" aria-label="Classe" data-autosubmit>
+    <option value="">Toutes mes classes</option>
+    {% for t in targets %}<option value="{{ t.key }}" {{ 'selected' if args['class'] == t.key }}>{{ t.label }}</option>{% endfor %}</select></div>
+  <div class="col-md-4"><select class="form-select form-select-sm" name="coach" aria-label="Coach" data-autosubmit>
+    <option value="">Tous les coachs</option>
+    {% if current_user.is_coach %}<option value="me" {{ 'selected' if args.coach == 'me' }}>Mes cours</option>{% endif %}
+    {% for u in coaches %}<option value="{{ u.id }}" {{ 'selected' if args.coach == u.id | string }}>{{ u.display_name }} · {{ u.role_label }}</option>{% endfor %}</select></div>
+</form>
+
+<div class="row g-2 mb-3">
+  {% for key, (kind, label) in statuses.items() %}
+  <div class="col-6 col-md"><div class="card card-body py-2"><div class="small text-muted">{{ label }}</div><div class="fs-5 fw-semibold">{{ counts[key] }}</div></div></div>
+  {% endfor %}
+  <div class="col-12 col-md"><div class="card card-body py-2"><div class="small text-muted">Heures réalisées / programmées</div>
+    <div class="fs-5 fw-semibold">{{ '%g' % hours_done }} h / {{ '%g' % hours_planned }} h</div></div></div>
+</div>
+
+{# Month grid (tablet / desktop) #}
+<div class="card mb-3 d-none d-md-block"><div class="table-responsive"><table class="table table-bordered mb-0 lesson-calendar">
+  <thead><tr>{% for d in ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'] %}<th class="text-center small">{{ d }}</th>{% endfor %}</tr></thead>
+  <tbody>
+  {% for week in weeks %}<tr>
+    {% for day in week %}
+    <td class="{{ 'text-muted bg-body-tertiary' if day.month != first.month }} {{ 'is-today' if day == today }}">
+      <div class="small fw-semibold">{{ day.day }}</div>
+      {% for l in by_day.get(day, []) %}
+      <a class="lesson-chip status-{{ l.badge[0] }}" href="{{ url_for('campus.lesson', lesson_id=l.id) }}" title="{{ l.class_name }} · {{ l.badge[1] }}">
+        <span class="fw-semibold">{{ l.starts_at | dt('%H:%M') }}</span> {{ l.title }}<span class="d-block small opacity-75">{{ l.class_name }}</span></a>
+      {% endfor %}
+    </td>
+    {% endfor %}
+  </tr>{% endfor %}
+  </tbody>
+</table></div></div>
+
+{# Agenda list (phone) #}
+<div class="card mb-3 d-md-none"><ul class="list-group list-group-flush">
+{% for l in lessons %}
+  <li class="list-group-item"><a class="d-flex justify-content-between gap-2 text-decoration-none" href="{{ url_for('campus.lesson', lesson_id=l.id) }}">
+    <span><strong>{{ l.title }}</strong><span class="d-block small text-muted">{{ l.starts_at | dt('%d/%m %H:%M') }} · {{ l.class_name }}</span></span>
+    {{ status(l.badge) }}</a></li>
+{% else %}<li class="list-group-item text-muted">Aucun cours ce mois-ci.</li>{% endfor %}
+</ul></div>
+
+{% if targets %}
+<details class="card mb-3" {{ 'open' if not lessons }}><summary class="card-header"><i class="bi bi-plus-lg"></i> Programmer un cours</summary>
+  <form class="card-body row g-2" method="post">
+    {{ csrf() }}
+    <div class="col-md-4"><label class="form-label" for="target">Classe</label>
+      <select class="form-select" id="target" name="target" required>
+        {% for t in targets %}<option value="{{ t.key }}" {{ 'selected' if args['class'] == t.key }}>{{ t.label }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><label class="form-label" for="starts_at">Date et heure</label>
+      <input class="form-control" id="starts_at" name="starts_at" type="datetime-local" value="{{ now_input }}" required></div>
+    <div class="col-6 col-md-2"><label class="form-label" for="duration">Durée (min)</label>
+      <input class="form-control" id="duration" name="duration" type="number" min="15" max="600" step="15" value="120" required></div>
+    <div class="col-6 col-md-3"><label class="form-label" for="repeat">Répéter chaque semaine</label>
+      <select class="form-select" id="repeat" name="repeat">
+        <option value="0">Non</option>{% for n in range(1, 13) %}<option value="{{ n }}">{{ n }} semaine(s) de plus</option>{% endfor %}</select></div>
+    <div class="col-md-6"><label class="form-label" for="title">Intitulé du cours</label>
+      <input class="form-control" id="title" name="title" maxlength="150" required placeholder="Lecture d'images NDVI"></div>
+    <div class="col-md-3"><label class="form-label" for="module">Module / compétence</label>
+      <input class="form-control" id="module" name="module" maxlength="150"></div>
+    <div class="col-md-3"><label class="form-label" for="coach_id">Animé par</label>
+      <select class="form-select" id="coach_id" name="coach_id">
+        <option value="">{{ 'Moi' if current_user.is_coach else 'À définir' }}</option>
+        {% for u in coaches if u.id != current_user.id %}<option value="{{ u.id }}">{{ u.display_name }}</option>{% endfor %}</select></div>
+    <div class="col-12"><label class="form-label" for="objectives">Objectifs pédagogiques et contenu prévu</label>
+      <textarea class="form-control" id="objectives" name="objectives" rows="3" maxlength="3000"></textarea></div>
+    <div class="col-12"><button class="btn btn-primary"><i class="bi bi-calendar-plus"></i> Programmer</button></div>
+  </form></details>
+{% endif %}
+{% endblock %}

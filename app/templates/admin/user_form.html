@@ -21,7 +21,7 @@
     </select>
   </div>
   <fieldset class="mb-3">
-    <legend class="form-label">Classes du coach <span class="text-muted small">(rôle « Coach technique » uniquement)</span></legend>
+    <legend class="form-label">Classes du coach <span class="text-muted small">(coachs technique et métier)</span></legend>
     {% set chosen = f.getlist('coach_classes') if f else (user.coach_classes or []) %}
     {% for c in class_choices %}
     <div class="form-check"><input class="form-check-input" type="checkbox" name="coach_classes" value="{{ c.key }}" id="cc{{ loop.index }}" {{ 'checked' if c.key in chosen }}>

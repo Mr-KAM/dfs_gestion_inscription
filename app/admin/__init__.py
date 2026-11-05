@@ -20,7 +20,7 @@ from app.extensions import db
 from app.models import (AuditLog, Candidate, KoboSubmission, PasswordResetRequest, Room, Sas,
                         TechnicalTestSession, User, Workstation)
 from app.models.candidate import FILE_MISSING, FILE_NOT_FOUND, FILE_STATUSES
-from app.models.user import ROLE_ADMIN, ROLE_CANDIDATE, ROLE_COACH, ROLE_RESIDENCE, ROLES
+from app.models.user import COACH_ROLES, ROLE_ADMIN, ROLE_CANDIDATE, ROLE_RESIDENCE, ROLES
 from app.services import (account_service, attendance_service, audit_service, campus_service, candidate_service,
                           import_service, sas_service, settings_service)
 from app.services.audit_service import ACTION_LABELS
@@ -100,7 +100,7 @@ def _user_from_form(user: User, creating: bool) -> None:
         raise candidate_service.BusinessError("Un utilisateur utilise déjà cet email.")
     user.email, user.role = email, role
     user.full_name = request.form.get("full_name", "").strip()[:200]
-    user.coach_classes = sorted(set(request.form.getlist("coach_classes"))) if role == ROLE_COACH else []
+    user.coach_classes = sorted(set(request.form.getlist("coach_classes"))) if role in COACH_ROLES else []
     password = request.form.get("password", "")
     if creating or password:
         if len(password) < MIN_PASSWORD:

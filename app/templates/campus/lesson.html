@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, status %}
+{% block title %}{{ lesson.title }}{% endblock %}
+{% block content %}
+<a class="small text-muted text-decoration-none" href="{{ url_for('campus.lessons', month=month) }}"><i class="bi bi-arrow-left"></i> Calendrier pédagogique</a>
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mt-1 mb-3">
+  <div><h1 class="page-title">{{ lesson.title }} {{ status(lesson.badge) }}</h1>
+    <div class="text-muted">{{ lesson.sas.name }} · {{ lesson.class_name }} · {{ lesson.starts_at | dt }} – {{ lesson.ends_at | dt('%H:%M') }}
+      · {{ lesson.coach.display_name if lesson.coach else 'coach à définir' }}</div></div>
+  {% if lesson.attendance_session %}
+    <a class="btn btn-outline-primary" href="{{ url_for('campus.attendance', session_id=lesson.attendance_session_id) }}"><i class="bi bi-clipboard-check"></i>
+      Appel : {{ lesson.attendance_session.marks | length }} présent(s)</a>
+  {% else %}
+    <form class="d-flex gap-2 align-items-center flex-wrap" method="post" action="{{ url_for('campus.lesson_attendance', lesson_id=lesson.id) }}">
+      {{ csrf() }}
+      <div class="input-group input-group-sm w-auto"><span class="input-group-text">Pointage ouvert</span>
+        <input class="form-control timer-minutes" type="number" name="minutes" min="1" max="240" value="15" aria-label="Minutes pour marquer sa présence"><span class="input-group-text">min</span></div>
+      <select class="form-select form-select-sm w-auto" name="hours" aria-label="Heures d'absence comptées">
+        {% for h in hours_choices %}<option value="{{ h }}" {{ 'selected' if h == default_hours }}>{{ h }} h</option>{% endfor %}</select>
+      <button class="btn btn-primary btn-sm"><i class="bi bi-qr-code"></i> Faire l'appel</button>
+    </form>
+  {% endif %}
+</div>
+
+<form class="card mb-3" method="post">
+  {{ csrf() }}
+  <div class="card-header"><i class="bi bi-journal-check"></i> Suivi du cours</div>
+  <div class="card-body row g-2">
+    <div class="col-12"><span class="form-label d-block">État</span>
+      {% for key, (kind, label) in statuses.items() %}<label class="form-check form-check-inline"><input class="form-check-input" type="radio" name="status" value="{{ key }}" {{ 'checked' if lesson.status == key }}> {{ label }}</label>{% endfor %}</div>
+    <div class="col-12"><label class="form-label" for="report">Compte rendu : contenu réalisé, difficultés, suite à donner</label>
+      <textarea class="form-control" id="report" name="report" rows="4" maxlength="5000">{{ lesson.report }}</textarea></div>
+  </div>
+  <div class="card-header border-top"><i class="bi bi-calendar-event"></i> Programmation</div>
+  <div class="card-body row g-2">
+    <div class="col-md-6"><label class="form-label" for="title">Intitulé</label>
+      <input class="form-control" id="title" name="title" value="{{ lesson.title }}" maxlength="150" required></div>
+    <div class="col-md-6"><label class="form-label" for="module">Module / compétence</label>
+      <input class="form-control" id="module" name="module" value="{{ lesson.module }}" maxlength="150"></div>
+    <div class="col-md-4"><label class="form-label" for="starts_at">Date et heure</label>
+      <input class="form-control" id="starts_at" name="starts_at" type="datetime-local" value="{{ lesson.starts_at | dt('%Y-%m-%dT%H:%M') }}" required></div>
+    <div class="col-md-3"><label class="form-label" for="duration">Durée (min)</label>
+      <input class="form-control" id="duration" name="duration" type="number" min="15" max="600" step="15" value="{{ lesson.duration }}" required></div>
+    <div class="col-md-5"><label class="form-label" for="coach_id">Animé par</label>
+      <select class="form-select" id="coach_id" name="coach_id">
+        <option value="">{{ 'Moi' if current_user.is_coach else 'À définir' }}</option>
+        {% for u in coaches %}<option value="{{ u.id }}" {{ 'selected' if lesson.coach_id == u.id }}>{{ u.display_name }} · {{ u.role_label }}</option>{% endfor %}</select></div>
+    <div class="col-12"><label class="form-label" for="objectives">Objectifs pédagogiques et contenu prévu</label>
+      <textarea class="form-control" id="objectives" name="objectives" rows="3" maxlength="3000">{{ lesson.objectives }}</textarea></div>
+    <div class="col-12 d-flex justify-content-between flex-wrap gap-2">
+      <button class="btn btn-primary"><i class="bi bi-save"></i> Enregistrer</button>
+      <button class="btn btn-outline-danger" name="delete" value="1" formnovalidate data-confirm="Supprimer ce cours du calendrier ?"><i class="bi bi-trash"></i> Supprimer</button>
+    </div>
+  </div>
+</form>
+{% endblock %}

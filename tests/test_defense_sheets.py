@@ -92,3 +92,14 @@ def test_jury_rates_deliberates_and_prints(app, db, client, admin):
     portal_login(client, c.email)
     html = client.get("/candidat/").get_data(as_text=True)
     assert "Résultat de soutenance" in html and "77.5" in html and "Admis" in html
+
+
+def test_jury_only_profiles(app, db, client, admin):
+    for role in ("partner", "cme"):
+        user = make_user(role, f"{role}@test.ci")
+        login(client, user)
+        assert client.get("/").headers["Location"].endswith("/jury/")
+        html = client.get("/jury/").get_data(as_text=True)
+        assert "Mes jurys" in html and "/candidates/" not in html  # no recruitment menu
+        assert client.get("/candidates/").status_code == 403 and client.get("/campus/").status_code == 403
+        client.post("/logout")

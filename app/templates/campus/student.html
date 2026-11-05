@@ -2,7 +2,7 @@
 {% from "_macros.html" import avatar, csrf, status %}
 {% block title %}{{ c.full_name }}{% endblock %}
 {% block content %}
-<a class="small text-muted text-decoration-none" href="{{ url_for('campus.students') }}"><i class="bi bi-arrow-left"></i> {{ 'Mes étudiants' if current_user.role == 'coach' else 'Étudiants du SAS' }}</a>
+<a class="small text-muted text-decoration-none" href="{{ url_for('campus.students') }}"><i class="bi bi-arrow-left"></i> {{ 'Mes étudiants' if current_user.is_coach else 'Étudiants du SAS' }}</a>
 <div class="d-flex align-items-center gap-3 mt-1 mb-3 flex-wrap">
   {{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 96, zoom=True) }}
   <div>

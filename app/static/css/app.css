@@ -408,3 +408,9 @@ td > .empty-state { white-space: normal; }
 .stat-value.is-compact { font-size: 1.5rem; padding-top: .35rem; }
 @media (min-width: 992px) { .sticky-lg .timer-xl { font-size: clamp(2rem, 4.2vw, 3.6rem); white-space: nowrap; } }
 .tab-pane { scroll-margin-top: 80px; }
+
+/* Coaches program calendar */
+.lesson-calendar { table-layout: fixed; }
+.lesson-calendar td { height: 7rem; vertical-align: top; padding: .3rem; }
+.lesson-calendar td.is-today { box-shadow: inset 0 0 0 2px var(--dfs-blue); }
+.lesson-chip { display: block; margin-top: .25rem; padding: .15rem .35rem; border: 1px solid; border-radius: .35rem; font-size: .75rem; line-height: 1.2; text-decoration: none; overflow: hidden; text-overflow: ellipsis; }

@@ -9,10 +9,10 @@ from sqlalchemy import func, or_, select, update
 
 from app.extensions import db
 from app.models import (AttendanceSession, Candidate, ClassInvitation, Evaluation, Exercise, ExerciseAnswer,
-                        ExerciseSubmission, Incident, Media, Notification, Sas, SasClass, User, Visit)
+                        ExerciseSubmission, Incident, Lesson, Media, Notification, Sas, SasClass, User, Visit)
 from app.models.campus import (EVAL_CRITERIA, EVAL_SCALE, INCIDENT_CATEGORIES, INVITE_ACCEPTED, INVITE_DECLINED,
                                INVITE_PENDING, KIND_VISIT, REJECTED, SUBMITTED, VALIDATED, VISIT_KINDS)
-from app.models.user import ROLE_ADMIN, ROLE_COACH, ROLE_RECEPTION
+from app.models.user import COACH_ROLES, ROLE_ADMIN, ROLE_COACH, ROLE_RECEPTION
 from app.services import account_service, audit_service, settings_service
 from app.services.candidate_service import BusinessError
 from app.utils import as_utc, utcnow
@@ -35,10 +35,10 @@ def class_choices() -> list[dict]:
 
 
 def can_manage(user, sas_id: int, class_name: str) -> bool:
-    """Admin and reception: everything. Coach: his own classes (not a whole SAS)."""
+    """Admin and reception: everything. Coach (technique or métier): his own classes (not a whole SAS)."""
     if user.role in (ROLE_ADMIN, ROLE_RECEPTION):
         return True
-    return user.role == ROLE_COACH and bool(class_name) and f"{sas_id}:{class_name}" in (user.coach_classes or [])
+    return user.role in COACH_ROLES and bool(class_name) and f"{sas_id}:{class_name}" in (user.coach_classes or [])
 
 
 def targets(user) -> list[dict]:
@@ -69,9 +69,9 @@ def _for_candidate(model, candidate: Candidate):
 def visible_query(model, user):
     """Notifications / exercises the staff member may see: all for admin & reception, own classes for a coach."""
     stmt = select(model)
-    if user.role not in (ROLE_ADMIN, ROLE_RECEPTION, ROLE_COACH):
+    if user.role not in (ROLE_ADMIN, ROLE_RECEPTION, *COACH_ROLES):
         return stmt.where(model.id < 0)
-    if user.role == ROLE_COACH:
+    if user.role in COACH_ROLES:
         keys = user.coach_classes or []
         stmt = stmt.where(or_(*[(model.sas_id == int(k.split(":", 1)[0])) & (model.class_name == k.split(":", 1)[1])
                                 for k in keys])) if keys else stmt.where(model.id < 0)
@@ -444,11 +444,11 @@ def rename_class(klass: SasClass, user, name: str) -> None:
         raise BusinessError(f"La classe « {name} » existe déjà dans {klass.sas.name}.")
     db.session.execute(update(Candidate).where(Candidate.sas_id == klass.sas_id, Candidate.sas_class == old)
                        .values(sas_class=name))
-    for model in (Exercise, AttendanceSession, Notification):
+    for model in (Exercise, AttendanceSession, Notification, Lesson):
         db.session.execute(update(model).where(model.sas_id == klass.sas_id, model.class_name == old)
                            .values(class_name=name))
     old_key, new_key = f"{klass.sas_id}:{old}", f"{klass.sas_id}:{name}"
-    for coach in db.session.scalars(select(User).where(User.role == ROLE_COACH)):
+    for coach in db.session.scalars(select(User).where(User.role.in_(COACH_ROLES))):
         if old_key in (coach.coach_classes or []):  # new list: JSON change tracked
             coach.coach_classes = sorted({*(k for k in coach.coach_classes if k != old_key), new_key})
     klass.name = name
@@ -549,7 +549,8 @@ def answer_invitation(invitation: ClassInvitation, candidate: Candidate, accept:
 def coaches_by_class() -> dict[str, list[User]]:
     """'sas_id:class' -> coaches teaching it (from each coach's classes)."""
     out: dict[str, list[User]] = {}
-    for coach in db.session.scalars(select(User).where(User.role == ROLE_COACH).order_by(User.full_name, User.email)):
+    for coach in db.session.scalars(select(User).where(User.role.in_(COACH_ROLES))
+                                    .order_by(User.full_name, User.email)):
         for key in coach.coach_classes or []:
             out.setdefault(key, []).append(coach)
     return out

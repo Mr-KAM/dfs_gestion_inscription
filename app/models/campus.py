@@ -1,5 +1,7 @@
 """SAS campus life: notifications and exercises for a class, reception visits, student incidents.
 A target class is (sas_id, class_name); class_name '' = the whole SAS."""
+from datetime import timedelta
+
 from app.extensions import db
 from app.utils import as_utc, utcnow
 
@@ -287,3 +289,65 @@ class Evaluation(db.Model):
         """Score out of 100 = points / observed weights x 100 (N/O and unrated criteria are left out)."""
         points, weight = self.totals
         return round(100 * points / weight) if weight else None
+
+
+class CoachInvitation(db.Model):
+    """A coach technique (or the admin) invites a coach métier into his class; once accepted, the class joins the
+    coach métier's coach_classes (same rights as a coach technique there, except creating classes)."""
+    __tablename__ = "coach_invitations"
+
+    id = db.Column(db.Integer, primary_key=True)
+    class_id = db.Column(db.Integer, db.ForeignKey("sas_classes.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    invited_by = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    status = db.Column(db.String(20), nullable=False, default=INVITE_PENDING)
+    responded_at = db.Column(db.DateTime(timezone=True))
+
+    klass = db.relationship("SasClass")
+    user = db.relationship("User", foreign_keys=[user_id])
+    inviter = db.relationship("User", foreign_keys=[invited_by])
+
+    __table_args__ = (db.UniqueConstraint("class_id", "user_id", name="uq_coach_invitations_class_user"),)
+
+    @property
+    def badge(self) -> tuple[str, str]:
+        return INVITE_BADGES.get(self.status, ("secondary", self.status))
+
+
+LESSON_PLANNED, LESSON_DONE = "planned", "done"
+LESSON_STATUSES = {LESSON_PLANNED: ("info", "Prévu"), LESSON_DONE: ("success", "Réalisé"),
+                   "postponed": ("warning", "Reporté"), "cancelled": ("secondary", "Annulé")}
+
+
+class Lesson(db.Model):
+    """One session of a class's teaching program (coaches' calendar): planned, then followed up
+    (done / postponed / cancelled, with a report). May carry the roll call opened for it."""
+    __tablename__ = "lessons"
+
+    id = db.Column(db.Integer, primary_key=True)
+    sas_id = db.Column(db.Integer, db.ForeignKey("sas.id", ondelete="CASCADE"), nullable=False, index=True)
+    class_name = db.Column(db.String(50), nullable=False)
+    coach_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    starts_at = db.Column(db.DateTime(timezone=True), nullable=False, index=True)
+    duration = db.Column(db.Integer, nullable=False, default=120)  # minutes
+    title = db.Column(db.String(150), nullable=False)
+    module = db.Column(db.String(150), nullable=False, default="")  # module / competence of the program
+    objectives = db.Column(db.Text, nullable=False, default="")
+    status = db.Column(db.String(20), nullable=False, default=LESSON_PLANNED)
+    report = db.Column(db.Text, nullable=False, default="")  # follow-up: what was done, difficulties, next steps
+    attendance_session_id = db.Column(db.Integer, db.ForeignKey("attendance_sessions.id", ondelete="SET NULL"))
+    created_by = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow)
+
+    sas = db.relationship("Sas")
+    coach = db.relationship("User", foreign_keys=[coach_id])
+    attendance_session = db.relationship("AttendanceSession")
+
+    @property
+    def ends_at(self):
+        return as_utc(self.starts_at) + timedelta(minutes=self.duration)
+
+    @property
+    def badge(self) -> tuple[str, str]:
+        return LESSON_STATUSES.get(self.status, ("secondary", self.status))

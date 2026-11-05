@@ -14,6 +14,9 @@ ROLE_SUPERVISOR = "supervisor"
 ROLE_COACH = "coach"            # permanent instructor: roll calls, notifications, exercises for his classes
 ROLE_RECEPTION = "reception"    # reception: visits, absences, problems with students
 ROLE_RESIDENCE = "residence"    # residence: bedrooms and equipment
+ROLE_TRADE_COACH = "trade_coach"  # coach métier: like a coach in the classes he is invited to, creates none
+ROLE_PARTNER = "partner"          # external partner: jury member only
+ROLE_CME = "cme"                  # conseiller médiation emploi: jury member only
 ROLES = {
     ROLE_ADMIN: "Administrateur",
     ROLE_SUPERVISOR: "Superviseur",
@@ -22,12 +25,18 @@ ROLES = {
     ROLE_COACH: "Coach technique",
     ROLE_RECEPTION: "Responsable accueil",
     ROLE_RESIDENCE: "Responsable de cité",
+    ROLE_TRADE_COACH: "Coach métier",
+    ROLE_PARTNER: "Partenaire",
+    ROLE_CME: "Conseiller médiation emploi (CME)",
 }
 # Who may do what. The supervisor combines both tester profiles, without any admin right.
 MOTIVATION_ROLES = (ROLE_ADMIN, ROLE_SUPERVISOR, ROLE_MOTIVATION)
 TECHNICAL_ROLES = (ROLE_ADMIN, ROLE_SUPERVISOR, ROLE_TECHNICAL)
 RECRUITMENT_ROLES = (ROLE_ADMIN, ROLE_SUPERVISOR, ROLE_MOTIVATION, ROLE_TECHNICAL)  # candidate list / files
-CAMPUS_ROLES = (ROLE_ADMIN, ROLE_COACH, ROLE_RECEPTION, ROLE_RESIDENCE)  # SAS life (/campus)
+CAMPUS_ROLES = (ROLE_ADMIN, ROLE_COACH, ROLE_TRADE_COACH, ROLE_RECEPTION, ROLE_RESIDENCE)  # SAS life (/campus)
+COACH_ROLES = (ROLE_COACH, ROLE_TRADE_COACH)  # teach in their classes (coach_classes); only ROLE_COACH creates them
+# ponytail: jury space + profile only, until their own pages are defined.
+JURY_ONLY_ROLES = (ROLE_PARTNER, ROLE_CME)
 
 # Candidates log in to their own space only; never part of ROLES / ALL_ROLES.
 ROLE_CANDIDATE = "candidate"
@@ -90,6 +99,11 @@ class User(UserMixin, db.Model):
     @property
     def is_candidate(self) -> bool:
         return self.role == ROLE_CANDIDATE
+
+    @property
+    def is_coach(self) -> bool:
+        """Coach technique or coach métier."""
+        return self.role in COACH_ROLES
 
     @property
     def display_name(self) -> str:
