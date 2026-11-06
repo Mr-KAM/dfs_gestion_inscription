@@ -14,6 +14,7 @@
   {{ meta('geo-alt', defense.location or 'Lieu à fixer', muted=not defense.location) }}
 {% endset %}
 {% call page_head(defense.name, eyebrow='Soutenance · ' ~ defense.sas.name, back=url_for('defense.index'), back_label='Soutenances', meta=head_meta) %}
+  <a class="btn btn-primary" href="{{ url_for('defense.global_jury', defense_id=defense.id) }}"><i class="bi bi-award"></i> Lancer le jury global</a>
   <button class="btn btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#edit-defense" aria-expanded="false" aria-controls="edit-defense"><i class="bi bi-pencil"></i> Modifier</button>
   <form method="post" action="{{ url_for('defense.delete', defense_id=defense.id) }}"
         data-confirm="Supprimer la soutenance « {{ defense.name }} », ses jurys et leurs listes ?">

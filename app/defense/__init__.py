@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from app.extensions import db
 from app.models import Defense, Jury, JuryCandidate, JuryMember, Sas
-from app.models.defense import JURY_ROLES
+from app.models.defense import DECISIONS, JURY_ROLES
 from app.models.user import ROLE_ADMIN
 from app.services import audit_service, defense_service
 from app.services.candidate_service import BusinessError
@@ -58,6 +58,22 @@ def update(defense_id: int):
         db.session.rollback()
         flash(str(exc), "danger")
     return _back(defense.id)
+
+
+@bp.route("/<int:defense_id>/jury-global", methods=["GET", "POST"])
+def global_jury(defense_id: int):
+    """Results of all the defense's students (individual evaluation coef. 2, defense coef. 1) and the decisions."""
+    defense = db.get_or_404(Defense, defense_id)
+    if request.method == "POST":
+        try:
+            defense_service.save_decisions(defense, request.form)
+            flash("Décisions du jury global enregistrées.", "success")
+        except BusinessError as exc:
+            db.session.rollback()
+            flash(str(exc), "danger")
+        return redirect(url_for("defense.global_jury", defense_id=defense.id))
+    return render_template("defense/global.html", defense=defense, rows=defense_service.global_results(defense),
+                           decisions=DECISIONS, waiting=defense_service.open_juries(defense))
 
 
 @bp.post("/<int:defense_id>/delete")

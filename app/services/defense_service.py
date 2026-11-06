@@ -190,7 +190,7 @@ def _minutes(form, key: str) -> int | None:
 
 def save_sheet(row: JuryCandidate, user, form) -> None:
     """Shared part, filled by any jury member or the admin: "header" (subject, times, format, supports)
-    or "appraisal" (quick observations, strengths, improvements, decision)."""
+    or "appraisal" (quick observations, strengths, improvements). The decision: global jury, save_decisions."""
     _unlocked(row.jury)
     if not can_view(row, user):
         raise BusinessError("Seuls les membres du jury remplissent cette fiche.")
@@ -207,9 +207,7 @@ def save_sheet(row: JuryCandidate, user, form) -> None:
                      other_positive=_text(form, "other_positive", 200),
                      other_negative=_text(form, "other_negative", 200),
                      strengths=form.get("strengths", "").strip()[:1500],
-                     improvements=form.get("improvements", "").strip()[:1500],
-                     decision=form.get("decision") if form.get("decision") in DECISIONS else "",
-                     decision_note=_text(form, "decision_note", 200))
+                     improvements=form.get("improvements", "").strip()[:1500])
     row.sheet = sheet
     audit_service.log("defense_score", row.candidate, {"jury": row.jury.name, "sheet": form.get("part")})
     db.session.commit()
@@ -217,7 +215,7 @@ def save_sheet(row: JuryCandidate, user, form) -> None:
 
 def results(row: JuryCandidate) -> dict:
     """Section 3 (each member's sections), the jury average per section, the defense score /100, the
-    follow-up score (individual sheet) and the final grade = average of both."""
+    follow-up score (individual sheet) and the final grade = (2 x follow-up + defense) / 3."""
     by_user = {s.user_id: s for s in row.scores}
     lines, per_section, complete = [], {s: [] for s in DEFENSE_SECTIONS}, bool(row.jury.members)
     keys = {c[1] for c in DEFENSE_CRITERIA}
@@ -235,7 +233,7 @@ def results(row: JuryCandidate) -> dict:
     points, weight = sum(p for p, _ in sections.values()), sum(w for _, w in sections.values())
     defense = round(100 * points / weight) if weight else None
     follow = evaluation_of(row.candidate).score
-    final = round((defense + follow) / 2, 1) if defense is not None and follow is not None else None
+    final = round((2 * follow + defense) / 3, 1) if defense is not None and follow is not None else None
     # Comparable: members who rated every section, each total out of 100 (N/A criteria left out).
     totals = [100 * total / sum(w for _p, w in parts.values()) for _m, parts, total in lines
               if len(parts) == len(DEFENSE_SECTIONS)]
@@ -271,6 +269,34 @@ def validate(jury: Jury, user, reopen: bool = False) -> None:
     jury.validated_at, jury.validated_by = (None, None) if reopen else (utcnow(), user.id)
     jury.timer_ends_at = jury.timer_left = None
     audit_service.log("jury_validate", jury.defense, {"jury": jury.name, "reopened": reopen})
+    db.session.commit()
+
+
+def global_results(defense: Defense) -> list[tuple[JuryCandidate, dict]]:
+    """Global jury: every student of the defense with his results, best final grade first, ungraded last."""
+    rows = [(row, results(row)) for jury in defense.juries for row in jury.candidates]
+    return sorted(rows, key=lambda r: (r[1]["final"] is None, -(r[1]["final"] or 0), r[0].candidate.full_name))
+
+
+def open_juries(defense: Defense) -> list[Jury]:
+    """Juries with students whose deliberation is still to validate: their notes can still change."""
+    return [jury for jury in defense.juries if jury.candidates and not jury.validated_at]
+
+
+def save_decisions(defense: Defense, form) -> None:
+    """Global jury (admin only): the decision on each student, once every jury has deliberated."""
+    waiting = open_juries(defense)
+    if waiting:
+        raise BusinessError("Délibération à valider d'abord : " + ", ".join(j.name for j in waiting) + ".")
+    decisions = {}
+    for jury in defense.juries:
+        for row in jury.candidates:
+            decision = form.get(f"decision_{row.id}", "")
+            decision = decision if decision in DECISIONS else ""
+            row.sheet = {**(row.sheet or {}), "decision": decision,  # new dict: see save_sheet
+                         "decision_note": _text(form, f"note_{row.id}", 200)}
+            decisions[row.candidate.matricule] = decision
+    audit_service.log("defense_update", defense, {"global_jury": decisions})
     db.session.commit()
 
 

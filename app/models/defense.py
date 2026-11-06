@@ -135,7 +135,8 @@ class JuryCandidate(db.Model):
     candidate_id = db.Column(db.Integer, db.ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False,
                              index=True)
     position = db.Column(db.Integer, nullable=False, default=0)
-    # Shared part of the defense sheet: subject, times, format, observations, appraisal, decision.
+    # Shared part of the defense sheet: subject, times, format, observations, appraisal;
+    # decision and decision_note are set by the admin only, in the global jury.
     sheet = db.Column(db.JSON, nullable=False, default=dict, server_default="{}")
 
     jury = db.relationship("Jury", back_populates="candidates")

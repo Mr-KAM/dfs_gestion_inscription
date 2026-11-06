@@ -3,7 +3,7 @@ import io
 
 from app.models import Defense, DefenseScore, Evaluation, Jury, JuryCandidate, JuryMember, Sas
 from app.models.campus import EVAL_CRITERIA
-from tests.conftest import login, make_user
+from tests.conftest import login, make_candidate, make_user
 from tests.test_portal import _logged_candidate, portal_login
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 64
@@ -28,8 +28,9 @@ def test_jury_rates_deliberates_and_prints(app, db, client, admin):
     db.session.flush()
     db.session.add_all([JuryMember(jury=j, defense_id=d.id, user=u, role=r) for u, r in
                         ((tech, "technical"), (pres, "president"), (pp, "presentation"))])
+    bravo = make_candidate(email="b@test.ci", cni="B", phone="0202020202", full_name="BRAVO", sas=sas, sas_class="Web")
     row = JuryCandidate(jury=j, defense_id=d.id, candidate=c, position=1)
-    db.session.add(row)
+    db.session.add_all([row, JuryCandidate(jury=j, defense_id=d.id, candidate=bravo, position=0)])  # passes first
     db.session.commit()
     sheet = f"/jury/sheets/{row.id}"
 
@@ -62,16 +63,23 @@ def test_jury_rates_deliberates_and_prints(app, db, client, admin):
     assert "une fois votre propre notation" in client.get(sheet).get_data(as_text=True)  # rates alone first
     client.post(f"{sheet}/score", data={**{f"r_{k}": "2" for k in (*BC, *(a[2:] for a in A))}, "r_listening": "na"})
     # A (45 + 33.75 + 22.5) / 3 · B (26.25 + 26.25 + 17.5) / 3 · C (15 + 15 + 7.5) / 3 over (20 + 20 + 15) / 3
-    # -> 69.58 / 98.33 -> 71; final (71 + 75) / 2
+    # -> 69.58 / 98.33 -> 71; final (2 x 75 + 71) / 3
     html = client.get(sheet).get_data(as_text=True)
-    assert "73 / 100" in html and "Plus de 15 points" in html  # 86.25 / 100 vs 50 / 100
+    assert "73.7 / 100" in html and "Plus de 15 points" in html  # 86.25 / 100 vs 50 / 100
     assert "÷ 98.3 poids applicables" in html
+    assert '<fieldset class="col-12" disabled' in html  # the decision is not theirs
     db.session.expire_all()
     assert row.sheet["subject"] == "Drone et NDVI" and row.sheet["supports"] == ["slides"]
+    assert row.sheet["strengths"] == "Clair" and "decision" not in row.sheet  # the posted decision is ignored
 
     client.post("/logout")
     login(client, outsider)
     assert client.get(sheet).status_code == 403 and client.get(f"/jury/signature/{tech.id}").status_code == 403
+    client.post("/logout")
+    login(client, pres)
+    global_jury = f"/soutenances/{d.id}/jury-global"
+    decide = {f"decision_{row.id}": "admitted", f"note_{row.id}": "Stage terrain"}
+    assert client.get(global_jury).status_code == 403 and client.post(global_jury, data=decide).status_code == 403
     client.post("/logout")
     portal_login(client, c.email)
     assert "Résultat de soutenance" not in client.get("/candidat/").get_data(as_text=True)  # not deliberated yet
@@ -82,9 +90,15 @@ def test_jury_rates_deliberates_and_prints(app, db, client, admin):
     assert client.get(f"{sheet}/print").status_code == 302  # validate first
     client.post(f"/jury/signature/{pres.id}", data={"signature": (io.BytesIO(PNG), "p.png"), "defense_id": d.id},
                 content_type="multipart/form-data")
+    html = client.post(global_jury, data=decide, follow_redirects=True).get_data(as_text=True)
+    assert "Délibération à valider" in html  # the juries' notes can still change
+    db.session.expire_all()
+    assert "decision" not in row.sheet
     client.post(f"/soutenances/juries/{j.id}/validate")
+    html = client.post(global_jury, data=decide, follow_redirects=True).get_data(as_text=True)
+    assert "73.7" in html and html.index("ALPHA") < html.index("BRAVO")  # by grade, not by passage order
     html = client.get(f"{sheet}/print").get_data(as_text=True)
-    assert "73 / 100" in html and "Drone et NDVI" in html and f"/jury/signature/{pres.id}" in html
+    assert "73.7 / 100" in html and "Drone et NDVI" in html and f"/jury/signature/{pres.id}" in html
     assert "☑ Diaporama" in html and "☑ Admis" in html
     client.post("/logout")
     login(client, tech)
@@ -94,7 +108,7 @@ def test_jury_rates_deliberates_and_prints(app, db, client, admin):
     client.post("/logout")
     portal_login(client, c.email)
     html = client.get("/candidat/").get_data(as_text=True)
-    assert "Résultat de soutenance" in html and "73 / 100" in html and "Admis" in html
+    assert "Résultat de soutenance" in html and "73.7 / 100" in html and "Admis : Stage terrain" in html
 
 
 def test_jury_only_profiles(app, db, client, admin):

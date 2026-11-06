@@ -185,7 +185,7 @@
       <textarea class="form-control" id="strengths" name="strengths" rows="3" maxlength="1500">{{ s.strengths or '' }}</textarea></div>
     <div class="col-md-6"><label class="form-label" for="improvements">Axes de progrès</label>
       <textarea class="form-control" id="improvements" name="improvements" rows="3" maxlength="1500">{{ s.improvements or '' }}</textarea></div>
-    <div class="col-12"><span class="form-label d-block" id="decision-label">Décision du jury</span>
+    <fieldset class="col-12" disabled aria-describedby="decision-help"><span class="form-label d-block" id="decision-label">Décision du jury</span>
       <div class="d-flex gap-2 flex-wrap align-items-center">
         <div class="seg seg-wide" role="radiogroup" aria-labelledby="decision-label">
         {% for key, label in decisions.items() %}
@@ -194,7 +194,8 @@
         {% endfor %}
         </div>
         <input class="form-control form-control-sm flex-grow-1 w-auto" name="decision_note" value="{{ s.decision_note or '' }}" maxlength="200" placeholder="Réserve ou orientation" aria-label="Réserve ou orientation">
-      </div></div>
+      </div>
+      <div class="form-text" id="decision-help"><i class="bi bi-lock"></i> Décision prise par l'administrateur lors du jury global.</div></fieldset>
   </div>
   {% if editable %}<div class="sticky-actions"><span class="small text-muted">Appréciation commune du jury</span>
     <button class="btn btn-primary"><i class="bi bi-save"></i> Enregistrer</button></div>{% endif %}

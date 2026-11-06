@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% from "_macros.html" import avatar, csrf, empty, page_head %}
+{% from "jury/_parts.html" import note %}
+{% block title %}Jury global · {{ defense.name }}{% endblock %}
+{% block content %}
+{{ page_head('Jury global', eyebrow=defense.name ~ ' · ' ~ defense.sas.name, back=url_for('defense.detail', defense_id=defense.id), back_label='Soutenance',
+             subtitle="Note finale = (évaluation individuelle × 2 + soutenance × 1) ÷ 3. Étudiants classés de la meilleure note à la plus faible.") }}
+{% if waiting %}<div class="alert alert-warning"><i class="bi bi-exclamation-triangle"></i> Les décisions s'ouvrent une fois toutes les délibérations validées. Reste à valider : {{ waiting | map(attribute='name') | join(', ') }}.</div>{% endif %}
+<form class="card" method="post" data-confirm="Enregistrer ces décisions ? Elles seront aussitôt visibles par les étudiants.">
+  {{ csrf() }}<fieldset {{ 'disabled' if waiting or not rows }}>
+  <div class="table-responsive"><table class="table table-hover align-middle mb-0">
+    <thead><tr><th><span class="visually-hidden">Photo</span></th><th>Étudiant</th><th>Jury</th>
+      <th class="text-end">Évaluation individuelle <span class="small fw-normal text-muted">coef. 2</span></th>
+      <th class="text-end">Soutenance <span class="small fw-normal text-muted">coef. 1</span></th>
+      <th class="text-end">Note finale</th><th>Décision</th><th>Réserve ou orientation</th></tr></thead>
+    <tbody>
+    {% for row, r in rows %}{% set c = row.candidate %}{% set s = row.sheet or {} %}
+      <tr>
+        <td>{{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 32, zoom=True) }}</td>
+        <td><a class="fw-semibold" href="{{ url_for('jury.sheet', row_id=row.id) }}">{{ c.full_name }}</a>
+          <div class="small text-muted"><code>{{ c.matricule }}</code> · {{ c.sas_class or 'sans classe' }}</div></td>
+        <td>{{ row.jury.name }}</td>
+        <td class="text-end">{{ note(r.follow) }}</td>
+        <td class="text-end">{{ note(r.defense) }}</td>
+        <td class="text-end fw-bold">{{ note(r.final) }}</td>
+        <td><select class="form-select form-select-sm" name="decision_{{ row.id }}" aria-label="Décision pour {{ c.full_name }}">
+          <option value="">—</option>
+          {% for key, label in decisions.items() %}<option value="{{ key }}" {{ 'selected' if s.decision == key }}>{{ label }}</option>{% endfor %}</select></td>
+        <td><input class="form-control form-control-sm" name="note_{{ row.id }}" value="{{ s.decision_note or '' }}" maxlength="200" aria-label="Réserve ou orientation pour {{ c.full_name }}"></td>
+      </tr>
+    {% else %}<tr><td colspan="8">{{ empty('mortarboard', 'Aucun étudiant dans les jurys de cette soutenance.') }}</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  {% if rows and not waiting %}<div class="sticky-actions"><span class="small text-muted">Décisions visibles par les étudiants dès l'enregistrement</span>
+    <button class="btn btn-primary"><i class="bi bi-save"></i> Enregistrer les décisions</button></div>{% endif %}
+</fieldset></form>
+{% endblock %}

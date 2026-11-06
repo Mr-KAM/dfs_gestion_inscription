@@ -76,17 +76,17 @@
   les membres du jury : le jury en discute avant de valider la moyenne.</div>{% endif %}
 {%- endmacro %}
 
-{# 4. Final grade = average of the follow-up score (individual sheet) and the defense score. #}
+{# 4. Final grade: follow-up score (individual sheet) coefficient 2, defense score coefficient 1. #}
 {% macro final(res, present, total_hours) -%}
 <table class="table table-sm table-bordered align-middle sheet-table">
-  <thead><tr><th>Composante</th><th>Source</th><th class="text-center">Note /100</th><th class="text-center">Pondération</th>
-    <th class="text-center">Note pondérée</th></tr></thead>
+  <thead><tr><th>Composante</th><th>Source</th><th class="text-center">Note /100</th><th class="text-center">Coefficient</th>
+    <th class="text-center">Points</th></tr></thead>
   <tbody>
     <tr><th>Suivi continu</th><td class="small">Fiche individuelle de suivi (score /100)</td><td class="text-center">{{ note(res.follow) }}</td>
-      <td class="text-center">50 %</td><td class="text-center">{{ note((res.follow / 2) | round(1)) if res.follow is not none else '—' }}</td></tr>
+      <td class="text-center">2</td><td class="text-center">{{ note(res.follow * 2) if res.follow is not none else '—' }}</td></tr>
     <tr><th>Soutenance</th><td class="small">Moyenne du jury (section 3)</td><td class="text-center">{{ note(res.defense) }}</td>
-      <td class="text-center">50 %</td><td class="text-center">{{ note((res.defense / 2) | round(1)) if res.defense is not none else '—' }}</td></tr>
-    <tr class="table-success"><th>Note globale</th><td class="small">Somme des notes pondérées</td><td></td><th class="text-center">100 %</th>
+      <td class="text-center">1</td><td class="text-center">{{ note(res.defense) }}</td></tr>
+    <tr class="table-success"><th>Note globale</th><td class="small">Somme des points ÷ 3</td><td></td><th class="text-center">3</th>
       <th class="text-center fs-5">{{ note(res.final) }} / 100</th></tr>
   </tbody>
 </table>
