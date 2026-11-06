@@ -24,6 +24,7 @@ FIELDS = {
     "full_name": ("Nom et prénoms", ["nometprenoms", "nometprenom", "nomprenoms", "nomprenom", "nomsetprenoms",
                                      "nomcomplet", "fullname", "nom"]),
     "birth_date": ("Date de naissance", ["datedenaissance", "datenaissance", "naissance", "birthdate"]),
+    "birth_place": ("Lieu de naissance", ["lieudenaissance", "lieunaissance", "birthplace"]),
     "gender": ("Sexe", ["sexe", "genre", "gender"]),
     "email": ("Email", ["email", "mail", "adresseemail", "adressemail", "courriel"]),
     "phone": ("Téléphone", ["telephone", "tel", "phone", "contact", "numerotelephone", "numerodetelephone"]),
@@ -130,6 +131,7 @@ def build_rows(df: pd.DataFrame, mapping: dict[str, str]) -> list[ImportRow]:
         v["email"] = norm_email(raw.get("email"))[:255]
         v["phone"] = norm_phone(raw.get("phone")) or raw.get("phone", "")[:30]
         v["city"] = raw.get("city", "")[:120]
+        v["birth_place"] = raw.get("birth_place", "")[:120]
         v["cni"] = raw.get("cni", "").strip().upper()[:50]
         v["gender"] = _gender(raw.get("gender", ""))
 
@@ -202,7 +204,7 @@ def preview(path: str, mapping: dict[str, str] | None = None) -> dict:
 
 
 UPDATABLE = ["candidate_number", "group_name", "scheduled_date", "scheduled_time", "passage_order",
-             "full_name", "birth_date", "gender", "email", "phone", "city", "cni"]
+             "full_name", "birth_date", "birth_place", "gender", "email", "phone", "city", "cni"]
 
 
 def apply(path: str, mapping: dict[str, str], actions: dict[int, str], filename: str) -> dict:

@@ -31,14 +31,18 @@
       <label class="form-label" for="birth_date">Date de naissance</label>
       <input class="form-control" id="birth_date" name="birth_date" type="date" value="{{ request.form.get('birth_date', '') }}" autocomplete="bday">
     </div>
-    <div class="col-6 col-sm-3">
+    <div class="col-sm-6">
+      <label class="form-label" for="birth_place">Lieu de naissance</label>
+      <input class="form-control" id="birth_place" name="birth_place" maxlength="120" value="{{ request.form.get('birth_place', '') }}">
+    </div>
+    <div class="col-6">
       <label class="form-label" for="gender">Sexe</label>
       <select class="form-select" id="gender" name="gender">
         <option value="">—</option>
         {% for g in ['M', 'F'] %}<option {{ 'selected' if request.form.get('gender') == g }}>{{ g }}</option>{% endfor %}
       </select>
     </div>
-    <div class="col-6 col-sm-3">
+    <div class="col-6">
       <label class="form-label" for="city">Ville</label>
       <input class="form-control" id="city" name="city" value="{{ request.form.get('city', '') }}" autocomplete="address-level2">
     </div>

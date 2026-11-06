@@ -9,7 +9,8 @@ PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
 
 
 def _post(client, photo: bytes | None = None, name="moi.png", **form):
-    data = {"phone": "0101010101", "city": "Bouaké", "birth_date": "2001-02-03", "gender": "F", **form}
+    data = {"phone": "0101010101", "city": "Bouaké", "birth_date": "2001-02-03", "birth_place": "Man", "gender": "F",
+            **form}
     if photo is not None:
         data["photo"] = (io.BytesIO(photo), name)
     return client.post("/candidat/profil", data=data, content_type="multipart/form-data", follow_redirects=True)
@@ -24,6 +25,7 @@ def test_candidate_updates_profile_and_photo(app, db, client):
     db.session.expire_all()
     c = db.session.get(Candidate, c.id)
     assert (c.phone, c.city, c.birth_date.isoformat(), c.gender) == ("0101010101", "Bouaké", "2001-02-03", "F")
+    assert c.birth_place == "Man"
     assert c.full_name == "KOUAME Aya" and c.cni == "CI001" and c.email == "aya@test.ci"  # identity: DFS only
     resp = client.get("/candidat/photo")
     assert resp.data == PNG and resp.mimetype == "image/png" and "private" in resp.headers["Cache-Control"]

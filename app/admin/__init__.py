@@ -374,13 +374,15 @@ def sas_students_export(sas_id: int):
     if fmt == "pdf":
         return render_template("admin/sas_print.html", sas=sas, members=members, hours=hours,
                                stats=sas_service.sas_figures(sas), printed_at=utcnow())
-    rows = [{"Matricule": c.matricule, "Nom et prénoms": c.full_name, "Sexe": c.gender or "", "Email": c.email or "",
+    rows = [{"Matricule": c.matricule, "Nom et prénoms": c.full_name, "Sexe": c.gender or "",
+             "Date de naissance": c.birth_date.strftime("%d/%m/%Y") if c.birth_date else "",
+             "Lieu de naissance": c.birth_place or "", "Email": c.email or "",
              "Téléphone": c.phone or "", "Classe": c.sas_class or "", "Chambre": c.sas_bedroom or "",
              "Matériel": c.sas_equipment or "", "Admis le": c.sas_admitted_at.strftime("%d/%m/%Y")
              if c.sas_admitted_at else "", "Heures d'absence": hours.get(c.id, 0)} for c in members]
     buffer = io.BytesIO()
-    columns = ["Matricule", "Nom et prénoms", "Sexe", "Email", "Téléphone", "Classe", "Chambre", "Matériel",
-               "Admis le", "Heures d'absence"]
+    columns = ["Matricule", "Nom et prénoms", "Sexe", "Date de naissance", "Lieu de naissance", "Email", "Téléphone",
+               "Classe", "Chambre", "Matériel", "Admis le", "Heures d'absence"]
     with pd.ExcelWriter(buffer) as writer:
         pd.DataFrame([{k: _neutralize(v) for k, v in r.items()} for r in rows], columns=columns).to_excel(
             writer, index=False, sheet_name="Admis")

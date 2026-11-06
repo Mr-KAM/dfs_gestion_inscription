@@ -35,6 +35,10 @@
       <input class="form-control" id="birth_date" name="birth_date" type="date" value="{{ request.form.get('birth_date', c.birth_date.isoformat() if c.birth_date else '') }}" autocomplete="bday">
     </div>
     <div class="col-md-6">
+      <label class="form-label" for="birth_place">Lieu de naissance</label>
+      <input class="form-control" id="birth_place" name="birth_place" maxlength="120" value="{{ request.form.get('birth_place', c.birth_place or '') }}">
+    </div>
+    <div class="col-md-6">
       <label class="form-label" for="gender">Sexe</label>
       {% set gender = request.form.get('gender', c.gender or '') %}
       <select class="form-select" id="gender" name="gender">

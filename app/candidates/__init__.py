@@ -85,6 +85,7 @@ def _apply_form(candidate: Candidate, form) -> None:
     candidate.scheduled_time = form.get("scheduled_time", "").strip()[:30] or None
     candidate.passage_order = int(order) if order else None
     candidate.birth_date = _parse_date(form.get("birth_date", ""))
+    candidate.birth_place = form.get("birth_place", "").strip()[:120] or None
     candidate.gender = form.get("gender") if form.get("gender") in ("M", "F") else None
     candidate.email = norm_email(form.get("email"))[:255] or None
     candidate.phone = norm_phone(form.get("phone")) or None

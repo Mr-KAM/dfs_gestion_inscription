@@ -173,6 +173,7 @@ def register(form) -> User:
     candidate = Candidate(
         full_name=full_name, email=email, phone=phone, cni=cni or None,
         birth_date=_parse_birth_date(form.get("birth_date", "")),
+        birth_place=form.get("birth_place", "").strip()[:120] or None,
         gender=form.get("gender") if form.get("gender") in ("M", "F") else None,
         city=form.get("city", "").strip()[:120] or None,
     )
@@ -225,6 +226,7 @@ def update_profile(candidate: Candidate, form, photo=None) -> None:
         raise BusinessError("Ce numéro de téléphone est déjà utilisé par un autre dossier.")
     candidate.phone = phone
     candidate.birth_date = _parse_birth_date(form.get("birth_date", ""))
+    candidate.birth_place = form.get("birth_place", "").strip()[:120] or None
     candidate.gender = form.get("gender") if form.get("gender") in ("M", "F") else None
     candidate.city = form.get("city", "").strip()[:120] or None
     _apply_photo(candidate, form, data)

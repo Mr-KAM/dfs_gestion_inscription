@@ -1,5 +1,6 @@
 """SAS (next recruitment stage): admin creates a SAS, admits candidates, assigns bedroom + equipment; candidates see it."""
 import io
+from datetime import date
 
 from app.models import Sas
 from tests.conftest import login
@@ -94,14 +95,22 @@ def test_stats_and_students_export(app, db, client, admin):
     sas = _sas(client)
     a, b, _ = _admitted(db, sas, [("ALPHA", "F"), ("=BETA", "M"), ("GAMMA", "M")])
     a.sas_class = "Classe A"
+    a.birth_date, a.birth_place, a.phone = date(2001, 2, 3), "Bouaké", "0101010101"
+    b.birth_place = "=Korhogo"  # filled by the candidate: neutralised like the other cells
     db.session.commit()
     html = client.get(f"/admin/sas/{sas.id}").get_data(as_text=True)
     assert "3 · 1 F / 2 M" in html and "Taux de présence" in html and "avatar" in html and "students-export" in html
+    full = pd.read_excel(io.BytesIO(client.get(f"/admin/sas/{sas.id}/students-export?format=xlsx").data), dtype=str)
+    alpha = full[full["Nom et prénoms"] == "ALPHA"].iloc[0]
+    assert (alpha["Date de naissance"], alpha["Lieu de naissance"]) == ("03/02/2001", "Bouaké")
+    assert alpha["Email"] == a.email and alpha["Téléphone"] == "0101010101"
+    assert "'=Korhogo" in list(full["Lieu de naissance"])
     sheet = pd.read_excel(io.BytesIO(client.get(f"/admin/sas/{sas.id}/students-export?format=xlsx&gender=M").data),
                           dtype=str)
     assert list(sheet["Nom et prénoms"]) == ["'=BETA", "GAMMA"] and "Heures d'absence" in sheet  # filters applied
     html = client.get(f"/admin/sas/{sas.id}/students-export?format=pdf&class=Classe+A").get_data(as_text=True)
     assert "data-autoprint" in html and "ALPHA" in html and "GAMMA" not in html
+    assert "Bouaké" in html and "03/02/2001" in html and "0101010101" in html and a.email in html
 
 
 def test_csv_template_and_import(app, db, client, admin):

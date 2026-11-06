@@ -36,6 +36,7 @@
         <dt class="col-5">Nom et prénoms</dt><dd class="col-7">{{ c.full_name }}</dd>
         <dt class="col-5">Sexe</dt><dd class="col-7">{{ c.gender or '—' }}</dd>
         <dt class="col-5">Date de naissance</dt><dd class="col-7">{{ c.birth_date | d or '—' }}</dd>
+        <dt class="col-5">Lieu de naissance</dt><dd class="col-7">{{ c.birth_place or '—' }}</dd>
         <dt class="col-5">Ville</dt><dd class="col-7">{{ c.city or '—' }}</dd>
         <dt class="col-5">CNI</dt><dd class="col-7">{{ c.cni or '—' }}</dd>
       </dl></div></div>

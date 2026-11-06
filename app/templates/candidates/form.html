@@ -20,6 +20,7 @@
     {{ field('scheduled_time', 'Heure', c.scheduled_time) }}
     {{ field('passage_order', 'Ordre', c.passage_order, 'number') }}
     {{ field('birth_date', 'Date de naissance', c.birth_date.isoformat() if c.birth_date else '', 'date') }}
+    {{ field('birth_place', 'Lieu de naissance', c.birth_place) }}
     <div class="col-md-4">
       <label class="form-label" for="gender">Sexe</label>
       <select class="form-select" id="gender" name="gender">

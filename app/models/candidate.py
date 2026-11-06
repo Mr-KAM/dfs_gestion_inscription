@@ -37,6 +37,7 @@ class Candidate(db.Model):
 
     full_name = db.Column(db.String(200), nullable=False, index=True)
     birth_date = db.Column(db.Date)
+    birth_place = db.Column(db.String(120))
     gender = db.Column(db.String(1))  # M / F
     email = db.Column(db.String(255), index=True)
     phone = db.Column(db.String(30), index=True)
