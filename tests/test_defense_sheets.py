@@ -1,4 +1,4 @@
-"""Defense sheet: each member rates the sections of his role, shared timer, signatures, deliberation, print."""
+"""Defense sheet: each member rates the whole grid, shared timer, signatures, deliberation, print."""
 import io
 
 from app.models import Defense, DefenseScore, Evaluation, Jury, JuryCandidate, JuryMember, Sas
@@ -22,7 +22,8 @@ def test_jury_rates_deliberates_and_prints(app, db, client, admin):
     db.session.add(Evaluation(candidate_id=c.id, ratings={k: "3" for _s, k, *_r in EVAL_CRITERIA}, evidence={}))  # 75
     d = Defense(sas=sas, name="Soutenance finale")
     j = Jury(defense=d, name="Jury 1", duration=20)
-    tech, pres, pp, outsider = (make_user("coach", f"{n}@test.ci") for n in ("tech", "pres", "pp", "out"))
+    tech, pres, outsider = (make_user("coach", f"{n}@test.ci") for n in ("tech", "pres", "out"))
+    pp = make_user("partner", "pp@test.ci")  # any profile rates, not just coaches
     db.session.add_all([d, j])
     db.session.flush()
     db.session.add_all([JuryMember(jury=j, defense_id=d.id, user=u, role=r) for u, r in
@@ -40,9 +41,9 @@ def test_jury_rates_deliberates_and_prints(app, db, client, admin):
     html = client.post(f"{sheet}/score", data=A, follow_redirects=True).get_data(as_text=True)
     assert "fait cité en commentaire" in html and DefenseScore.query.count() == 0  # a 4 needs a fact
     html = client.get(sheet).get_data(as_text=True)
-    assert "Compréhension du brief" in html and "Structure et clarté" not in html  # only section A to rate
-    client.post(f"{sheet}/score", data={**A, **A_FACTS, "r_structure": "1"})
-    assert DefenseScore.query.one().ratings == {k[2:]: "4" for k in A}  # section B ignored for him
+    assert "Compréhension du brief" in html and "Structure et clarté" in html  # the whole grid, whatever the role
+    client.post(f"{sheet}/score", data={**A, **A_FACTS, **{f"r_{k}": "3" for k in BC}})
+    assert DefenseScore.query.one().ratings == {**{k[2:]: "4" for k in A}, **{k: "3" for k in BC}}
     client.post(f"/jury/{j.id}/timer", data={"action": "start", "minutes": "20"})
     client.post(f"/jury/{j.id}/timer", data={"action": "pause"})
     assert "En pause" in client.get(f"/jury/{j.id}/timer").get_data(as_text=True)
@@ -51,7 +52,7 @@ def test_jury_rates_deliberates_and_prints(app, db, client, admin):
 
     client.post("/logout")
     login(client, pres)
-    client.post(f"{sheet}/score", data={f"r_{k}": "3" for k in (*BC, "brief")})  # A not his
+    client.post(f"{sheet}/score", data={f"r_{k}": "3" for k in (*BC, *(a[2:] for a in A))})
     client.post(f"{sheet}/info", data={"part": "header", "subject": "Drone et NDVI", "format": "individual",
                                        "supports": ["slides", "hack"], "talk_minutes": "10"})
     client.post(f"{sheet}/info", data={"part": "appraisal", "decision": "admitted", "strengths": "Clair",
@@ -59,10 +60,12 @@ def test_jury_rates_deliberates_and_prints(app, db, client, admin):
     client.post("/logout")
     login(client, pp)
     assert "une fois votre propre notation" in client.get(sheet).get_data(as_text=True)  # rates alone first
-    client.post(f"{sheet}/score", data={**{f"r_{k}": "2" for k in BC}, "r_listening": "na"})
-    # A 45/45 · B (26.25 + 17.5) / 2 · C (15 + 7.5) / 2 over (20 + 15) / 2 -> 78.125 / 97.5 -> 80; final (80 + 75) / 2
+    client.post(f"{sheet}/score", data={**{f"r_{k}": "2" for k in (*BC, *(a[2:] for a in A))}, "r_listening": "na"})
+    # A (45 + 33.75 + 22.5) / 3 · B (26.25 + 26.25 + 17.5) / 3 · C (15 + 15 + 7.5) / 3 over (20 + 20 + 15) / 3
+    # -> 69.58 / 98.33 -> 71; final (71 + 75) / 2
     html = client.get(sheet).get_data(as_text=True)
-    assert "77.5" in html and "Plus de 15 points" in html  # B+C: 41.25 vs 25
+    assert "73 / 100" in html and "Plus de 15 points" in html  # 86.25 / 100 vs 50 / 100
+    assert "÷ 98.3 poids applicables" in html
     db.session.expire_all()
     assert row.sheet["subject"] == "Drone et NDVI" and row.sheet["supports"] == ["slides"]
 
@@ -81,7 +84,7 @@ def test_jury_rates_deliberates_and_prints(app, db, client, admin):
                 content_type="multipart/form-data")
     client.post(f"/soutenances/juries/{j.id}/validate")
     html = client.get(f"{sheet}/print").get_data(as_text=True)
-    assert "77.5" in html and "Drone et NDVI" in html and f"/jury/signature/{pres.id}" in html
+    assert "73 / 100" in html and "Drone et NDVI" in html and f"/jury/signature/{pres.id}" in html
     assert "☑ Diaporama" in html and "☑ Admis" in html
     client.post("/logout")
     login(client, tech)
@@ -91,7 +94,7 @@ def test_jury_rates_deliberates_and_prints(app, db, client, admin):
     client.post("/logout")
     portal_login(client, c.email)
     html = client.get("/candidat/").get_data(as_text=True)
-    assert "Résultat de soutenance" in html and "77.5" in html and "Admis" in html
+    assert "Résultat de soutenance" in html and "73 / 100" in html and "Admis" in html
 
 
 def test_jury_only_profiles(app, db, client, admin):

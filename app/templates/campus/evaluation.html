@@ -4,7 +4,7 @@
 {% block content %}
 <div class="d-flex gap-3 small d-print-none">
   <a class="text-muted text-decoration-none" href="{{ url_for('campus.evaluations') }}"><i class="bi bi-arrow-left"></i> Évaluations</a>
-  {% if editable %}
+  {% if in_class %}
   <a class="text-muted text-decoration-none" href="{{ url_for('campus.student', candidate_id=c.id) }}"><i class="bi bi-person"></i> Fiche de l'étudiant</a>
   <a class="text-muted text-decoration-none" href="{{ url_for('campus.class_page', class_id=klass.id) }}"><i class="bi bi-people"></i> Classe {{ klass.name }}</a>
   {% endif %}
@@ -23,8 +23,8 @@
     <button class="btn btn-sm btn-outline-secondary mt-1 d-print-none" type="button" data-print><i class="bi bi-printer"></i> Imprimer</button>
   </div>
 </div>
-<p class="small text-muted d-print-none"><i class="bi bi-lock"></i> Fiche interne, jamais montrée à l'étudiant. Modifiable par les coachs de la classe et l'admin, lisible par les autres coachs.</p>
-{% if not editable %}<div class="alert alert-info d-print-none"><i class="bi bi-eye"></i> Lecture seule : cet étudiant n'est pas dans l'une de vos classes.</div>{% endif %}
+<p class="small text-muted d-print-none"><i class="bi bi-lock"></i> Fiche interne, jamais montrée à l'étudiant. Modifiable par les coachs techniques de la classe et l'admin, lisible par les autres coachs.</p>
+{% if not editable %}<div class="alert alert-info d-print-none"><i class="bi bi-eye"></i> Lecture seule : seuls les coachs techniques de la classe et l'admin modifient cette fiche.</div>{% endif %}
 
 <div class="card mb-3"><div class="table-responsive"><table class="table table-sm align-middle mb-0">
   <thead><tr><th>Échelle de cote</th>{% for value, label, _hint in scale %}<th>{{ 'N/O' if value == 'na' else value }} · {{ label }}</th>{% endfor %}</tr></thead>

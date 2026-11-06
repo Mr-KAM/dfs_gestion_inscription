@@ -41,6 +41,11 @@ def can_manage(user, sas_id: int, class_name: str) -> bool:
     return user.role in COACH_ROLES and bool(class_name) and f"{sas_id}:{class_name}" in (user.coach_classes or [])
 
 
+def can_evaluate(user, sas_id: int, class_name: str) -> bool:
+    """Individual follow-up evaluation: the admin and the class's coachs techniques (not a coach métier)."""
+    return user.role in (ROLE_ADMIN, ROLE_COACH) and can_manage(user, sas_id, class_name)
+
+
 def targets(user) -> list[dict]:
     """Classes (and whole SAS for admin / reception) the user may address: [{key, label}]."""
     out = []

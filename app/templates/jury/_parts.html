@@ -57,7 +57,7 @@
 </table>
 {%- endmacro %}
 
-{# 3. Each member's notes (only the sections of his role) and the jury average. #}
+{# 3. Each member's notes and the jury average. #}
 {% macro notes(res, sections, section_weights) -%}
 <table class="table table-sm table-bordered align-middle sheet-table">
   <thead><tr><th>Membre du jury</th>{% for s, label in sections.items() %}<th class="text-center">{{ s }} · {{ {'A': 'Contenu', 'B': 'Présentation', 'C': 'Échanges'}[s] }} /{{ section_weights[s] }}</th>{% endfor %}<th class="text-center">Total</th></tr></thead>
@@ -73,7 +73,7 @@
   </tbody>
 </table>
 {% if res.spread %}<div class="alert alert-warning py-2 small"><i class="bi bi-exclamation-triangle"></i> Plus de 15 points d'écart entre
-  le président et l'évaluateur présentation (sections B + C) : le jury en discute avant de valider la moyenne.</div>{% endif %}
+  les membres du jury : le jury en discute avant de valider la moyenne.</div>{% endif %}
 {%- endmacro %}
 
 {# 4. Final grade = average of the follow-up score (individual sheet) and the defense score. #}

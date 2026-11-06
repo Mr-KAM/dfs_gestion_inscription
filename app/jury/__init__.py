@@ -8,7 +8,7 @@ from sqlalchemy import select
 from app.extensions import db
 from app.models import Defense, Jury, JuryCandidate, JuryMember, User
 from app.models.defense import (DECISIONS, DEFENSE_CRITERIA, DEFENSE_SCALE, DEFENSE_SECTIONS, JURY_ROLES, NEGATIVES,
-                                POSITIVES, ROLE_SECTIONS, SECTION_WEIGHTS, SUPPORTS, grid_points)
+                                POSITIVES, SECTION_WEIGHTS, SUPPORTS, grid_points)
 from app.models.user import ROLE_ADMIN
 from app.services import defense_service
 from app.services.candidate_service import BusinessError
@@ -113,9 +113,8 @@ def sheet(row_id: int):
     row = _row(row_id)
     me = row.jury.member_of(current_user)
     mine = next((s for s in row.scores if me and s.user_id == me.user_id), None)
-    return render_template("jury/sheet.html", **_sheet_context(row), me=me,
-                           my_sections=ROLE_SECTIONS.get(me.role, ()) if me else (),
-                           mine=mine, editable=row.jury.validated_at is None)
+    return render_template("jury/sheet.html", **_sheet_context(row), me=me, mine=mine,
+                           editable=row.jury.validated_at is None)
 
 
 @bp.post("/sheets/<int:row_id>/score")

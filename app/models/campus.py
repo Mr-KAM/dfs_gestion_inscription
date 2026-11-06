@@ -257,7 +257,7 @@ EVAL_SCALE = (("1", "Insuffisant", "Attendu non atteint, même avec appui"),
 
 
 class Evaluation(db.Model):
-    """Individual SAS evaluation of a student (one per student), filled by a coach or an admin.
+    """Individual SAS evaluation of a student (one per student), filled by a coach technique or an admin.
     Never shown to the candidate. ratings / evidence: {criterion key: "1".."4" | "na"} / {key: text}."""
     __tablename__ = "evaluations"
 
@@ -293,7 +293,8 @@ class Evaluation(db.Model):
 
 class CoachInvitation(db.Model):
     """A coach technique (or the admin) invites a coach métier into his class; once accepted, the class joins the
-    coach métier's coach_classes (same rights as a coach technique there, except creating classes)."""
+    coach métier's coach_classes (same rights as a coach technique there, except creating classes, inviting
+    coaches and changing the individual evaluations)."""
     __tablename__ = "coach_invitations"
 
     id = db.Column(db.Integer, primary_key=True)

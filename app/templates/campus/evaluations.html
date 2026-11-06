@@ -3,7 +3,7 @@
 {% block title %}Évaluations individuelles{% endblock %}
 {% block content %}
 <h1 class="page-title mb-1">Évaluations individuelles</h1>
-<p class="small text-muted"><i class="bi bi-lock"></i> Fiches internes, jamais montrées aux étudiants. Vous modifiez celles de vos classes ; les autres sont en lecture seule.</p>
+<p class="small text-muted"><i class="bi bi-lock"></i> Fiches internes, jamais montrées aux étudiants. Seuls les coachs techniques de la classe et l'admin les modifient ; les autres coachs les consultent.</p>
 <form class="card card-body mb-3 row g-2 align-items-center mx-0" method="get">
   <div class="col-12 col-md-4"><input class="form-control form-control-sm" type="search" name="q" value="{{ args.q }}"
     placeholder="Nom, matricule…" aria-label="Rechercher"></div>
@@ -20,7 +20,7 @@
 <div class="card"><div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
   <thead><tr><th><span class="visually-hidden">Photo</span></th><th>Nom et prénoms</th><th>Matricule</th><th>SAS · classe</th><th>Score</th><th>Mise à jour</th><th></th></tr></thead>
   <tbody>
-  {% for c in page.items %}{% set e = grids.get(c.id) %}{% set mine = can_manage(current_user, c.sas_id, c.sas_class) %}
+  {% for c in page.items %}{% set e = grids.get(c.id) %}{% set mine = can_evaluate(current_user, c.sas_id, c.sas_class) %}
     <tr>
       <td>{{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 32, zoom=True) }}</td>
       <td>{{ c.full_name }}</td>

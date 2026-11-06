@@ -25,7 +25,6 @@ DEFENSE_CRITERIA = (
     ("C", "listening", "Écoute et réactivité", "Comprend la question, accepte la critique, rebondit", 5),
 )
 SECTION_WEIGHTS = {s: sum(c[4] for c in DEFENSE_CRITERIA if c[0] == s) for s in DEFENSE_SECTIONS}
-ROLE_SECTIONS = {"technical": ("A",), "president": ("B", "C"), "presentation": ("B", "C")}
 NOT_APPLICABLE = "na"
 DEFENSE_SCALE = (("1", "Insuffisant", "Attendu non atteint"),
                  ("2", "À renforcer", "Atteint en partie, lacunes visibles"),
@@ -147,7 +146,7 @@ class JuryCandidate(db.Model):
 
 
 class DefenseScore(db.Model):
-    """One jury member's ratings for one student: only the sections of his role count (ROLE_SECTIONS)."""
+    """One jury member's ratings for one student, on the whole grid whatever his role in the jury."""
     __tablename__ = "defense_scores"
 
     id = db.Column(db.Integer, primary_key=True)

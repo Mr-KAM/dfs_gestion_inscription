@@ -384,7 +384,8 @@ def class_page(class_id: int):
     can_invite = current_user.role in (ROLE_ADMIN, ROLE_COACH)  # a coach métier invites no other coach
     return render_template("campus/class.html", k=klass, join_url=join_url, qr=qr, filters=filters,
                            coach_invitations=pedagogy_service.class_coach_invitations(klass), can_invite=can_invite,
-                           trade_coaches=pedagogy_service.trade_coaches_for(klass) if can_invite else [], **report)
+                           trade_coaches=pedagogy_service.trade_coaches_for(klass) if can_invite else [],
+                           can_evaluate=campus_service.can_evaluate(current_user, klass.sas_id, klass.name), **report)
 
 
 # class page filters: students (q, state, done, abs, sex), exercises (eq, est), roll calls (cq, cst)
@@ -517,6 +518,7 @@ def student(candidate_id: int):
                                   .order_by(Notification.created_at.desc()).limit(20)).all()
     return render_template("campus/student.html", c=c, sessions=sessions[:30], marks=marks, visits=visits,
                            incidents=incidents, submissions=submissions, evaluation=evaluation, personal=personal,
+                           can_evaluate=campus_service.can_evaluate,
                            absence_hours=attendance_service.absence_hours(c, sessions, marks))
 
 
@@ -538,12 +540,13 @@ def student_notify(candidate_id: int):
 @bp.route("/students/<int:candidate_id>/evaluation", methods=["GET", "POST"])
 def evaluation(candidate_id: int):
     """Individual SAS evaluation grid of a student who joined a class: every coach and the admin read it,
-    only the coaches of his class and the admin change it (never the candidate, nor the reception)."""
+    only the coachs techniques of his class and the admin change it (not a coach métier, the reception or
+    the candidate)."""
     _require_class_role()
     c = db.get_or_404(Candidate, candidate_id)
     if not (c.sas_id and c.sas_class):
         abort(404)
-    editable = campus_service.can_manage(current_user, c.sas_id, c.sas_class)
+    editable = campus_service.can_evaluate(current_user, c.sas_id, c.sas_class)
     grid = campus_service.evaluation_of(c)
     if request.method == "POST":
         if not editable:
@@ -557,7 +560,8 @@ def evaluation(candidate_id: int):
             flash("Fiche d'évaluation enregistrée.", "success")
             return redirect(url_for("campus.evaluation", candidate_id=c.id))
     return render_template("campus/evaluation.html", c=c, grid=grid, criteria=EVAL_CRITERIA, scale=EVAL_SCALE,
-                           klass=campus_service.get_class(c.sas_id, c.sas_class), editable=editable)
+                           klass=campus_service.get_class(c.sas_id, c.sas_class), editable=editable,
+                           in_class=campus_service.can_manage(current_user, c.sas_id, c.sas_class))
 
 
 @bp.get("/evaluations")
@@ -582,7 +586,7 @@ def evaluations():
     grids = {e.candidate_id: e for e in db.session.scalars(
         select(Evaluation).where(Evaluation.candidate_id.in_([c.id for c in page.items])))}
     return render_template("campus/evaluations.html", page=page, args=args, grids=grids,
-                           classes=campus_service.class_choices(), can_manage=campus_service.can_manage)
+                           classes=campus_service.class_choices(), can_evaluate=campus_service.can_evaluate)
 
 
 # ------------------------------------------------------------------ coaches métier: invitations into a class

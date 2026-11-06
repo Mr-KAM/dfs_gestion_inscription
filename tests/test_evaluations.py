@@ -1,4 +1,4 @@
-"""Individual SAS evaluation: grid filled by the class coaches or the admin, never seen by the candidate."""
+"""Individual SAS evaluation: grid filled by the class's coachs techniques or the admin, never seen by the candidate."""
 from app.models import Evaluation, Sas
 from app.services import campus_service
 from tests.conftest import login, make_candidate, make_user

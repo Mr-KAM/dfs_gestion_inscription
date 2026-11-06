@@ -7,7 +7,7 @@ LESSON = {"starts_at": "2026-12-07T09:00", "duration": "120", "title": "Lecture 
           "objectives": "Lire une carte NDVI", "repeat": "2"}
 
 
-def test_trade_coach_invited_rates_and_programs(app, db, client, admin):
+def test_trade_coach_invited_programs_but_does_not_evaluate(app, db, client, admin):
     sas = Sas(name="SAS 2026")
     db.session.add(sas)
     db.session.commit()
@@ -34,8 +34,11 @@ def test_trade_coach_invited_rates_and_programs(app, db, client, admin):
     client.post(f"/campus/coach-invitations/{invitation.id}", data={"accept": "1"})
     db.session.expire_all()
     assert trade.coach_classes == [key] and client.get(f"/campus/classes/{k.id}").status_code == 200
-    client.post(f"/campus/students/{a.id}/evaluation", data={"r_technicity": "3"})
-    assert Evaluation.query.one().ratings == {"technicity": "3"}  # evaluates the students of his class
+    evaluation = f"/campus/students/{a.id}/evaluation"
+    assert "Lecture seule" in client.get(evaluation).get_data(as_text=True)  # even in his class: coach technique only
+    assert client.post(evaluation, data={"r_technicity": "3"}).status_code == 403 and Evaluation.query.count() == 0
+    assert "Évaluer" not in client.get(f"/campus/classes/{k.id}").get_data(as_text=True)
+    assert "Évaluer" not in client.get(f"/campus/students/{a.id}").get_data(as_text=True)
     other = make_user("trade_coach", "tc2@test.ci")
     html = client.post(f"/campus/classes/{k.id}/coaches", data={"user_id": other.id},
                        follow_redirects=True).get_data(as_text=True)

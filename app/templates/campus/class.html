@@ -132,7 +132,7 @@
       <td>{{ r.validated }} / {{ exercises | length }}</td>
       <td>{{ pct(r.presence) }}</td>
       <td>{% if not r.member %}—{% elif r.absent_hours %}<strong class="text-danger">{{ r.absent_hours }} h</strong>{% else %}0 h{% endif %}</td>
-      <td>{% if r.member %}{% set ev = r.evaluation %}<a href="{{ url_for('campus.evaluation', candidate_id=r.candidate.id) }}">{{ ((ev.score ~ ' / 100') if ev.score is not none else 'N/O') if ev else 'Évaluer' }}</a>{% else %}—{% endif %}</td>
+      <td>{% if r.member %}{% set ev = r.evaluation %}<a href="{{ url_for('campus.evaluation', candidate_id=r.candidate.id) }}">{{ ((ev.score ~ ' / 100') if ev.score is not none else 'N/O') if ev else ('Évaluer' if can_evaluate else 'Non évalué') }}</a>{% else %}—{% endif %}</td>
     </tr>
   {% else %}<tr><td colspan="10" class="text-muted">{{ 'Aucun résultat pour ces filtres.' if totals.roster else "Personne pour l'instant." }}</td></tr>{% endfor %}
   </tbody>

@@ -43,7 +43,7 @@
   </div>
 </div></div>
 
-<p class="small text-muted"><i class="bi bi-lock"></i> Chaque membre cote seul les sections de son rôle (évaluateur technique : A ; président et évaluateur présentation : B et C),
+<p class="small text-muted"><i class="bi bi-lock"></i> Chaque membre cote seul toute la grille (sections A, B et C), quel que soit son rôle,
   puis le jury consolide. L'étudiant ne voit aucune note avant la validation de la délibération par l'administrateur.</p>
 {% if not editable %}<div class="alert alert-success"><i class="bi bi-check2-circle"></i> Délibération validée le {{ jury.validated_at | dt }} : fiche verrouillée.</div>{% endif %}
 
@@ -105,10 +105,10 @@
 <form class="card mb-3" id="grille" method="post" action="{{ url_for('jury.score', row_id=row.id) }}" data-scoring>
   {{ csrf() }}<fieldset {{ 'disabled' if not editable }}>
   <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-    <span><i class="bi bi-clipboard-check"></i> Ma notation · sections {{ my_sections | join(' et ') }}</span>
+    <span><i class="bi bi-clipboard-check"></i> Ma notation</span>
     {% if mine %}<span class="small fw-normal text-muted">Enregistrée le {{ mine.updated_at | dt }}</span>{% endif %}</div>
   {% set ns = namespace(section='') %}
-  {% for section, key, title, indicators, weight in criteria if section in my_sections %}
+  {% for section, key, title, indicators, weight in criteria %}
     {% if section != ns.section %}{% set ns.section = section %}
     {% set sp, sw = mine.section(section) if mine else (0, 0) %}{% set total.points = total.points + sp %}{% set total.weight = total.weight + sw %}
     <div class="crit-section"><span>{{ section }} · {{ sections[section] }} ({{ section_weights[section] }})</span>

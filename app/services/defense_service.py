@@ -7,7 +7,7 @@ from sqlalchemy import func, or_, select
 from app.extensions import db
 from app.models import Candidate, Defense, DefenseScore, Jury, JuryCandidate, JuryMember, Sas, User
 from app.models.defense import (DECISIONS, DEFENSE_CRITERIA, DEFENSE_SCALE, DEFENSE_SECTIONS, JURY_ROLES, NEGATIVES,
-                                POSITIVES, ROLE_SECTIONS, SUPPORTS, grid_points)
+                                POSITIVES, SUPPORTS, grid_points)
 from app.models.user import ROLE_ADMIN, ROLE_CANDIDATE
 from app.services import attendance_service, audit_service
 from app.services.account_service import PHOTO_MAX_BYTES, image_type
@@ -155,21 +155,20 @@ def _unlocked(jury: Jury) -> None:
 
 
 def save_score(row: JuryCandidate, user, form) -> DefenseScore:
-    """A member rates the sections of his role only (technical: A; president and presentation: B and C).
+    """A member rates the whole grid, whatever his role in the jury.
     A 1 or 4 rating needs a written fact, as on the paper grid."""
     _unlocked(row.jury)
     member = row.jury.member_of(user)
     if member is None:
         raise BusinessError("Seuls les membres du jury notent cette soutenance.")
-    sections, scale = ROLE_SECTIONS.get(member.role, ()), {value for value, _l, _h in DEFENSE_SCALE}
+    scale = {value for value, _l, _h in DEFENSE_SCALE}
     ratings, evidence = {}, {}
-    for section, key, _title, _ind, _weight in DEFENSE_CRITERIA:
-        if section in sections:
-            if (rating := form.get(f"r_{key}", "")) in scale:
-                ratings[key] = rating
-            if text := form.get(f"e_{key}", "").strip()[:500]:
-                evidence[key] = text
-    missing = [title for _s, key, title, _i, _w in DEFENSE_CRITERIA if ratings.get(key) in ("1", "4")
+    for _section, key, _title, _ind, _weight in DEFENSE_CRITERIA:
+        if (rating := form.get(f"r_{key}", "")) in scale:
+            ratings[key] = rating
+        if text := form.get(f"e_{key}", "").strip()[:500]:
+            evidence[key] = text
+    missing =[title for _s, key, title, _i, _w in DEFENSE_CRITERIA if ratings.get(key) in ("1", "4")
                and not evidence.get(key)]
     if missing:
         raise BusinessError("Une cote 1 ou 4 doit s'appuyer sur un fait cité en commentaire : "
@@ -221,14 +220,14 @@ def results(row: JuryCandidate) -> dict:
     follow-up score (individual sheet) and the final grade = average of both."""
     by_user = {s.user_id: s for s in row.scores}
     lines, per_section, complete = [], {s: [] for s in DEFENSE_SECTIONS}, bool(row.jury.members)
+    keys = {c[1] for c in DEFENSE_CRITERIA}
     for member in row.jury.members:
         score, parts = by_user.get(member.user_id), {}
-        for section in ROLE_SECTIONS.get(member.role, ()):
+        for section in DEFENSE_SECTIONS:
             points, weight = score.section(section) if score else (0, 0)
             if weight:
                 parts[section] = (points, weight)
                 per_section[section].append((points, weight))
-        keys = {c[1] for c in DEFENSE_CRITERIA if c[0] in ROLE_SECTIONS.get(member.role, ())}
         complete = complete and score is not None and keys <= set(score.ratings)
         lines.append((member, parts, sum(p for p, _ in parts.values())))
     sections = {s: (sum(p for p, _ in v) / len(v), sum(w for _, w in v) / len(v))
@@ -237,18 +236,19 @@ def results(row: JuryCandidate) -> dict:
     defense = round(100 * points / weight) if weight else None
     follow = evaluation_of(row.candidate).score
     final = round((defense + follow) / 2, 1) if defense is not None and follow is not None else None
-    talks = [total for _m, parts, total in lines if "B" in parts or "C" in parts]  # same sections: comparable
+    # Comparable: members who rated every section, each total out of 100 (N/A criteria left out).
+    totals = [100 * total / sum(w for _p, w in parts.values()) for _m, parts, total in lines
+              if len(parts) == len(DEFENSE_SECTIONS)]
     detail = {}  # per criterion: the cotes given, average points, cited facts (consolidated grid)
-    for section, key, _title, _ind, weight in DEFENSE_CRITERIA:
-        raters = [(m, s) for m in row.jury.members if section in ROLE_SECTIONS.get(m.role, ())
-                  and (s := by_user.get(m.user_id))]
-        pts = [p for _m, s in raters if (p := grid_points(s.ratings, key, weight)) is not None]
+    for _section, key, _title, _ind, criterion_weight in DEFENSE_CRITERIA:
+        raters = [(m, s) for m in row.jury.members if (s := by_user.get(m.user_id))]
+        pts = [p for _m, s in raters if (p := grid_points(s.ratings, key, criterion_weight)) is not None]
         detail[key] = {"cotes": {s.ratings.get(key) for _m, s in raters if s.ratings.get(key)},
                        "points": sum(pts) / len(pts) if pts else None,
                        "facts": [(m, s.evidence[key]) for m, s in raters if s.evidence.get(key)]}
     return {"lines": lines, "sections": sections, "points": points, "weight": weight, "defense": defense,
             "follow": follow, "final": final, "complete": complete, "detail": detail,
-            "spread": len(talks) > 1 and max(talks) - min(talks) > 15}
+            "spread": len(totals) > 1 and max(totals) - min(totals) > 15}
 
 
 def attendance(candidate: Candidate) -> tuple[int, int]:
