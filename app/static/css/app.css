@@ -238,18 +238,24 @@ a.stat-card:hover { border-color: var(--dfs-blue); }
 .timer-minutes { width: 5.5rem; }
 .pre-line { white-space: pre-line; }
 /* Same width on screen and on paper (A4 - 16 mm of margins): app.js measures the height to hold on one sheet. */
-.sheet-print { width: 194mm; margin: 0 auto; font-size: .72rem; line-height: 1.2; background-image: none; }
+.sheet-print { font-size: .72rem; line-height: 1.2; background-image: none; }
+.sheet-page { width: 194mm; margin: 0 auto; }
+.sheet-page + .sheet-page { break-before: page; }
+.sheet-minutes .table tr, .minutes-signature { break-inside: avoid; }
+.sheet-minutes .h6 { break-after: avoid; }
+.minutes-signatures { break-inside: avoid; margin-top: .8rem; }
+.minutes-signature { height: 100%; min-height: 76px; padding: .2rem; }
 .sheet-print td > strong + .small { display: inline; margin-left: .3rem; }
 .sheet-print .fs-5 { font-size: .8rem !important; }
 .sheet-print .sheet-table { font-size: .68rem; margin-bottom: .3rem; }
 .sheet-print .table > :not(caption) > * > * { padding: .06rem .25rem; }
 .sheet-print .table td { white-space: normal; }
 .sheet-print .table td.pre-line { white-space: pre-line; }
-.sheet-print .table thead th { font-size: .6rem; letter-spacing: .02em; }
+.sheet-print .table thead th { font-size: .6rem; letter-spacing: .02em; white-space: normal; }
 .sheet-print .h6 { font-size: .75rem; margin: .3rem 0 .15rem !important; }
 .sheet-print p { margin-bottom: .2rem; font-size: .62rem; }
 .sheet-print .signatures td { height: 52px; }
-.sheet-print .signature-img { max-height: 34px; max-width: 110px; margin: 0 auto; }
+.sheet-print .signature-img { max-height: 34px; max-width: 110px; margin: .15rem auto 0; }
 
 /* ---- Shared page components ---- */
 .sidebar .nav > .nav-section:first-child { padding-top: .5rem; }
@@ -329,6 +335,9 @@ td > .empty-state { white-space: normal; }
 .cote-na { --seg-c: #5a6075; }
 .dec-admitted { --seg-c: var(--dfs-green-dark); }
 .dec-reserved { --seg-c: #c77700; }
+.dec-waitlist { --seg-c: var(--dfs-navy); }
+.decision-select { min-width: 11rem; }
+.decision-note { min-width: 9rem; }
 .dec-rejected { --seg-c: #c62f3e; }
 
 /* Segmented control: radios (.btn-check) + labels; same form fields as plain radios */

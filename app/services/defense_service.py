@@ -283,15 +283,78 @@ def open_juries(defense: Defense) -> list[Jury]:
     return [jury for jury in defense.juries if jury.candidates and not jury.validated_at]
 
 
+def filter_global(rows: list, args) -> list:
+    """Global jury page: search and filters from the query string.
+    ponytail: filtered in Python, a defense holds a few hundred students at most."""
+    q = args.get("q", "").strip().lower()
+    min_final, min_follow = args.get("min_final", type=float), args.get("min_follow", type=float)
+    kept = []
+    for row, res in rows:
+        c, decision = row.candidate, (row.sheet or {}).get("decision") or ""
+        if ((not q or q in " ".join((c.full_name, c.matricule, c.email or "")).lower())
+                and args.get("gender", "") in ("", c.gender)
+                and args.get("jury", "") in ("", str(row.jury_id))
+                and args.get("class", "") in ("", c.sas_class)
+                and args.get("decision", "") in ("", decision or "none")
+                and (min_final is None or (res["final"] is not None and res["final"] >= min_final))
+                and (min_follow is None or (res["follow"] is not None and res["follow"] >= min_follow))):
+            kept.append((row, res))
+    return kept
+
+
+DECISION_RANK = {key: rank for rank, key in enumerate(DECISIONS)}
+GLOBAL_SORTS = {"name": lambda row, _r: row.candidate.full_name.lower(), "gender": lambda row, _r: row.candidate.gender,
+                "jury": lambda row, _r: row.jury.name, "follow": lambda _row, r: r["follow"],
+                "defense": lambda _row, r: r["defense"], "final": lambda _row, r: r["final"],
+                "decision": lambda row, _r: DECISION_RANK.get((row.sheet or {}).get("decision"))}
+
+
+def sort_global(rows: list, sort: str, descending: bool) -> list:
+    """Whichever the direction, students without a value stay last."""
+    key = GLOBAL_SORTS.get(sort)
+    if key is None:
+        return rows
+    filled = [r for r in rows if key(*r) not in (None, "")]
+    return sorted(filled, key=lambda r: key(*r), reverse=descending) + [r for r in rows if key(*r) in (None, "")]
+
+
+def decision_groups(rows: list) -> list[tuple[str, list]]:
+    """General minutes: the students under each decision, then those still without one."""
+    groups = [(label, [r for r in rows if (r[0].sheet or {}).get("decision") == key])
+              for key, label in DECISIONS.items()]
+    undecided = [r for r in rows if (r[0].sheet or {}).get("decision") not in DECISIONS]
+    return groups + ([("Sans décision", undecided)] if undecided else [])
+
+
+def participants(defense: Defense) -> list[JuryMember]:
+    """Everyone who sat on a jury of the defense (one jury per person, a unique constraint), presidents first."""
+    return sorted((m for jury in defense.juries for m in jury.members), key=lambda m: m.role != "president")
+
+
+def minutes_problem(defense: Defense) -> str | None:
+    """Why the minutes cannot be printed yet: grades may still change, or there is no student."""
+    if waiting := open_juries(defense):
+        return "Délibération à valider d'abord : " + ", ".join(j.name for j in waiting) + "."
+    return None if any(jury.candidates for jury in defense.juries) else "Aucun étudiant dans les jurys."
+
+
 def save_decisions(defense: Defense, form) -> None:
-    """Global jury (admin only): the decision on each student, once every jury has deliberated."""
+    """Global jury (admin only): the decision on each student shown on the page (a student filtered out is not in
+    the form and keeps his decision), once every jury has deliberated. "apply_bulk": one decision on the ticked ones."""
     waiting = open_juries(defense)
     if waiting:
         raise BusinessError("Délibération à valider d'abord : " + ", ".join(j.name for j in waiting) + ".")
+    bulk, ticked = None, set()
+    if "apply_bulk" in form:
+        bulk, ticked = form.get("bulk_decision"), set(form.getlist("selected", type=int))
+        if bulk not in DECISIONS or not ticked:
+            raise BusinessError("Cochez au moins un étudiant et choisissez la décision à leur attribuer.")
     decisions = {}
     for jury in defense.juries:
         for row in jury.candidates:
-            decision = form.get(f"decision_{row.id}", "")
+            if f"decision_{row.id}" not in form:
+                continue
+            decision = bulk if row.id in ticked else form[f"decision_{row.id}"]
             decision = decision if decision in DECISIONS else ""
             row.sheet = {**(row.sheet or {}), "decision": decision,  # new dict: see save_sheet
                          "decision_note": _text(form, f"note_{row.id}", 200)}

@@ -10,7 +10,7 @@ from app.models import Defense, Jury, JuryCandidate, JuryMember, User
 from app.models.defense import (DECISIONS, DEFENSE_CRITERIA, DEFENSE_SCALE, DEFENSE_SECTIONS, JURY_ROLES, NEGATIVES,
                                 POSITIVES, SECTION_WEIGHTS, SUPPORTS, grid_points)
 from app.models.user import ROLE_ADMIN
-from app.services import defense_service
+from app.services import audit_service, defense_service
 from app.services.candidate_service import BusinessError
 from app.utils import utcnow
 
@@ -99,13 +99,15 @@ def timer(jury_id: int):
     return redirect(url_for("jury.sheet", row_id=row_id) if row_id else url_for("jury.jury_page", jury_id=jury.id))
 
 
+SHEET_LABELS = {"criteria": DEFENSE_CRITERIA, "sections": DEFENSE_SECTIONS, "section_weights": SECTION_WEIGHTS,
+                "scale": DEFENSE_SCALE, "supports": SUPPORTS, "positives": POSITIVES, "negatives": NEGATIVES,
+                "decisions": DECISIONS, "roles": JURY_ROLES, "points": grid_points}
+
+
 def _sheet_context(row: JuryCandidate) -> dict:
     present, total = defense_service.attendance(row.candidate)
     return {"row": row, "jury": row.jury, "c": row.candidate, "s": row.sheet or {}, "res": defense_service.results(row),
-            "present": present, "total_hours": total, "criteria": DEFENSE_CRITERIA, "sections": DEFENSE_SECTIONS,
-            "section_weights": SECTION_WEIGHTS, "scale": DEFENSE_SCALE, "supports": SUPPORTS,
-            "positives": POSITIVES, "negatives": NEGATIVES, "decisions": DECISIONS, "roles": JURY_ROLES,
-            "points": grid_points, "position": row.jury.candidates.index(row)}
+            "present": present, "total_hours": total, "position": row.jury.candidates.index(row), **SHEET_LABELS}
 
 
 @bp.get("/sheets/<int:row_id>")
@@ -151,4 +153,22 @@ def print_sheet(row_id: int):
     if row.jury.validated_at is None:
         flash("Validez d'abord la délibération du jury.", "warning")
         return redirect(url_for("defense.detail", defense_id=row.defense_id) + f"#jury-{row.jury_id}")
-    return render_template("jury/print.html", **_sheet_context(row), printed_at=utcnow())
+    return render_template("jury/print.html", sheets=[_sheet_context(row)], **SHEET_LABELS, printed_at=utcnow(),
+                           doc_title=f"Procès-verbal de soutenance · {row.candidate.full_name}")
+
+
+@bp.get("/soutenances/<int:defense_id>/proces-verbaux")
+def print_all(defense_id: int):
+    """Every student's minutes in one document, one sheet each, by name: admin only, once all is validated."""
+    if current_user.role != ROLE_ADMIN:
+        abort(403)
+    defense = db.get_or_404(Defense, defense_id)
+    problem = defense_service.minutes_problem(defense)
+    if problem:
+        flash(problem, "warning")
+        return redirect(url_for("defense.global_jury", defense_id=defense.id))
+    rows = sorted((row for jury in defense.juries for row in jury.candidates), key=lambda r: r.candidate.full_name)
+    audit_service.log("export", defense, {"kind": "defense_all_minutes", "rows": len(rows)})
+    db.session.commit()
+    return render_template("jury/print.html", sheets=[_sheet_context(row) for row in rows], **SHEET_LABELS,
+                           printed_at=utcnow(), doc_title=f"Procès-verbaux individuels · {defense.name}")

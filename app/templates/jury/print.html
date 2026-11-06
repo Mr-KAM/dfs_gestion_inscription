@@ -6,18 +6,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Procès-verbal de soutenance · {{ c.full_name }} · DFS</title>
+  <title>{{ doc_title }} · DFS</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
   <style>@page { size: A4 portrait; margin: 8mm; }</style>
 </head>
-{# Opens the print dialog: "Enregistrer au format PDF" saves the file; data-fit-page holds it on one sheet (app.js). #}
-<body class="bg-white sheet-print" data-autoprint data-fit-page>
+{# Opens the print dialog: "Enregistrer au format PDF" saves the file; data-fit-page holds each student on one sheet (app.js). #}
+<body class="bg-white sheet-print" data-autoprint>
+  {% macro check(on) %}{{ '☑' if on else '☐' }}{% endmacro %}
+  <div class="text-end p-2 d-print-none"><button class="btn btn-primary btn-sm" type="button" data-print><i class="bi bi-file-earmark-pdf"></i> Imprimer / PDF</button></div>
+  {% for sheet in sheets %}
+  {% set c, s, res, jury, position, present, total_hours = sheet.c, sheet.s, sheet.res, sheet.jury, sheet.position, sheet.present, sheet.total_hours %}
   {% set president = jury.members | selectattr('role', 'equalto', 'president') | list %}
   {% set others = jury.members | rejectattr('role', 'equalto', 'president') | list %}
-  {% macro check(on) %}{{ '☑' if on else '☐' }}{% endmacro %}
+  <section class="sheet-page" data-fit-page>
   <div class="d-flex justify-content-between align-items-start border-bottom border-3 pb-1 mb-1">
     {{ brand.logo(26) }}
     <div class="text-end fw-bold">Session d'admission et de sélection</div>
@@ -25,10 +29,7 @@
   <div class="d-flex justify-content-between align-items-start gap-3">
     <div><h1 class="h4 mb-0">Procès-verbal de jury de soutenance</h1>
       <div class="small text-primary">{{ jury.defense.sas.name }} · combine le suivi continu et la soutenance devant jury</div></div>
-    <div class="d-flex gap-2 align-items-start">
-      {{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 44) }}
-      <button class="btn btn-primary btn-sm d-print-none" type="button" data-print><i class="bi bi-file-earmark-pdf"></i> Imprimer / PDF</button>
-    </div>
+    {{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 44) }}
   </div>
 
   <table class="table table-sm table-bordered mt-1 sheet-table">
@@ -87,8 +88,9 @@
       <td class="small text-muted align-top">Nom et signature</td>
     </tr>
   </table>
-  <div class="small text-muted border-top pt-1">Délibération validée le {{ jury.validated_at | dt }} · édité le {{ printed_at | dt }} ·
-    Chaque membre du jury cote seul, puis le jury consolide.</div>
+  <div class="small text-muted border-top pt-1">Délibération validée le {{ jury.validated_at | dt }} · édité le {{ printed_at | dt }}</div>
+  </section>
+  {% endfor %}
   <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>

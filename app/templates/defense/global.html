@@ -1,37 +1,77 @@
 {% extends "base.html" %}
-{% from "_macros.html" import avatar, csrf, empty, page_head %}
+{% from "_macros.html" import avatar, csrf, empty, page_head, sort_th %}
 {% from "jury/_parts.html" import note %}
 {% block title %}Jury global · {{ defense.name }}{% endblock %}
 {% block content %}
-{{ page_head('Jury global', eyebrow=defense.name ~ ' · ' ~ defense.sas.name, back=url_for('defense.detail', defense_id=defense.id), back_label='Soutenance',
-             subtitle="Note finale = (évaluation individuelle × 2 + soutenance × 1) ÷ 3. Étudiants classés de la meilleure note à la plus faible.") }}
-{% if waiting %}<div class="alert alert-warning"><i class="bi bi-exclamation-triangle"></i> Les décisions s'ouvrent une fois toutes les délibérations validées. Reste à valider : {{ waiting | map(attribute='name') | join(', ') }}.</div>{% endif %}
+{% call page_head('Jury global', eyebrow=defense.name ~ ' · ' ~ defense.sas.name, back=url_for('defense.detail', defense_id=defense.id), back_label='Soutenance',
+             subtitle="Note finale = (évaluation individuelle × 2 + soutenance × 1) ÷ 3. Étudiants classés de la meilleure note à la plus faible par défaut.") %}
+  {% if total and not waiting %}
+  <a class="btn btn-primary" href="{{ url_for('defense.minutes', defense_id=defense.id) }}" target="_blank" rel="noopener"><i class="bi bi-file-earmark-text"></i> Procès-verbal du jury</a>
+  <a class="btn btn-outline-primary" href="{{ url_for('jury.print_all', defense_id=defense.id) }}" target="_blank" rel="noopener"><i class="bi bi-files"></i> Tous les PV individuels</a>
+  {% endif %}
+{% endcall %}
+{% if waiting %}<div class="alert alert-warning"><i class="bi bi-exclamation-triangle"></i> Les décisions et les procès-verbaux s'ouvrent une fois toutes les délibérations validées. Reste à valider : {{ waiting | map(attribute='name') | join(', ') }}.</div>{% endif %}
+
+<form class="card card-body mb-3 row g-2 flex-row align-items-center mx-0 bg-light-subtle" method="get">
+  {% if filters.sort %}<input type="hidden" name="sort" value="{{ filters.sort }}"><input type="hidden" name="dir" value="{{ filters.dir }}">{% endif %}
+  <div class="col-12 col-md"><input class="form-control form-control-sm" type="search" name="q" value="{{ filters.q }}" placeholder="Nom, matricule, email…" aria-label="Rechercher un étudiant"></div>
+  <div class="col-12 col-md-auto d-flex gap-2 align-items-center">
+    <button class="btn btn-sm btn-outline-primary"><i class="bi bi-funnel"></i> Filtrer</button>
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('defense.global_jury', defense_id=defense.id) }}">Effacer</a>
+    <span class="small text-muted text-nowrap">{{ rows | length }} / {{ total }}</span>
+  </div>
+  <div class="w-100 m-0 p-0"></div>
+  <div class="col-6 col-md-4 col-xl-2"><select class="form-select form-select-sm" name="gender" aria-label="Genre" data-autosubmit>
+    <option value="">Tous les genres</option>{% for g in ('F', 'M') %}<option value="{{ g }}" {{ 'selected' if filters.gender == g }}>{{ g }}</option>{% endfor %}</select></div>
+  <div class="col-6 col-md-4 col-xl-2"><select class="form-select form-select-sm" name="jury" aria-label="Jury" data-autosubmit>
+    <option value="">Tous les jurys</option>{% for j in defense.juries %}<option value="{{ j.id }}" {{ 'selected' if filters.jury == j.id | string }}>{{ j.name }}</option>{% endfor %}</select></div>
+  <div class="col-6 col-md-4 col-xl-2"><select class="form-select form-select-sm" name="class" aria-label="Classe" data-autosubmit>
+    <option value="">Toutes les classes</option>{% for name in classes %}<option {{ 'selected' if filters.get('class') == name }}>{{ name }}</option>{% endfor %}</select></div>
+  <div class="col-6 col-md-4 col-xl-2"><select class="form-select form-select-sm" name="decision" aria-label="Décision" data-autosubmit>
+    <option value="">Toutes les décisions</option><option value="none" {{ 'selected' if filters.decision == 'none' }}>Sans décision</option>
+    {% for key, label in decisions.items() %}<option value="{{ key }}" {{ 'selected' if filters.decision == key }}>{{ label }}</option>{% endfor %}</select></div>
+  <div class="col-6 col-md-4 col-xl-2"><input class="form-control form-control-sm" type="number" name="min_final" min="0" max="100" step="0.1" value="{{ filters.min_final }}" placeholder="Note finale min." aria-label="Note finale minimale"></div>
+  <div class="col-6 col-md-4 col-xl-2"><input class="form-control form-control-sm" type="number" name="min_follow" min="0" max="100" step="0.1" value="{{ filters.min_follow }}" placeholder="Évaluation min." aria-label="Évaluation individuelle minimale"></div>
+</form>
+
 <form class="card" method="post" data-confirm="Enregistrer ces décisions ? Elles seront aussitôt visibles par les étudiants.">
   {{ csrf() }}<fieldset {{ 'disabled' if waiting or not rows }}>
   <div class="table-responsive"><table class="table table-hover align-middle mb-0">
-    <thead><tr><th><span class="visually-hidden">Photo</span></th><th>Étudiant</th><th>Jury</th>
-      <th class="text-end">Évaluation individuelle <span class="small fw-normal text-muted">coef. 2</span></th>
-      <th class="text-end">Soutenance <span class="small fw-normal text-muted">coef. 1</span></th>
-      <th class="text-end">Note finale</th><th>Décision</th><th>Réserve ou orientation</th></tr></thead>
+    <thead><tr><th><input class="form-check-input" type="checkbox" data-check-all="selected" aria-label="Cocher tous les étudiants affichés"></th>
+      <th><span class="visually-hidden">Photo</span></th>{{ sort_th('Étudiant', 'name', sort_args) }}{{ sort_th('Genre', 'gender', sort_args) }}{{ sort_th('Jury', 'jury', sort_args) }}
+      {{ sort_th('Évaluation individuelle (coef. 2)', 'follow', sort_args, 'text-end text-wrap') }}
+      {{ sort_th('Soutenance (coef. 1)', 'defense', sort_args, 'text-end text-wrap') }}
+      {{ sort_th('Note finale', 'final', sort_args, 'text-end text-wrap') }}{{ sort_th('Décision', 'decision', sort_args) }}<th class="text-wrap">Réserve ou orientation</th></tr></thead>
     <tbody>
     {% for row, r in rows %}{% set c = row.candidate %}{% set s = row.sheet or {} %}
       <tr>
+        <td><input class="form-check-input" type="checkbox" name="selected" value="{{ row.id }}" aria-label="Cocher {{ c.full_name }}"></td>
         <td>{{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 32, zoom=True) }}</td>
         <td><a class="fw-semibold" href="{{ url_for('jury.sheet', row_id=row.id) }}">{{ c.full_name }}</a>
           <div class="small text-muted"><code>{{ c.matricule }}</code> · {{ c.sas_class or 'sans classe' }}</div></td>
+        <td>{{ c.gender or '—' }}</td>
         <td>{{ row.jury.name }}</td>
         <td class="text-end">{{ note(r.follow) }}</td>
         <td class="text-end">{{ note(r.defense) }}</td>
         <td class="text-end fw-bold">{{ note(r.final) }}</td>
-        <td><select class="form-select form-select-sm" name="decision_{{ row.id }}" aria-label="Décision pour {{ c.full_name }}">
+        <td><select class="form-select form-select-sm decision-select" name="decision_{{ row.id }}" aria-label="Décision pour {{ c.full_name }}">
           <option value="">—</option>
           {% for key, label in decisions.items() %}<option value="{{ key }}" {{ 'selected' if s.decision == key }}>{{ label }}</option>{% endfor %}</select></td>
-        <td><input class="form-control form-control-sm" name="note_{{ row.id }}" value="{{ s.decision_note or '' }}" maxlength="200" aria-label="Réserve ou orientation pour {{ c.full_name }}"></td>
+        <td><input class="form-control form-control-sm decision-note" name="note_{{ row.id }}" value="{{ s.decision_note or '' }}" maxlength="200" aria-label="Réserve ou orientation pour {{ c.full_name }}"></td>
       </tr>
-    {% else %}<tr><td colspan="8">{{ empty('mortarboard', 'Aucun étudiant dans les jurys de cette soutenance.') }}</td></tr>{% endfor %}
+    {% else %}<tr><td colspan="10">{{ empty('mortarboard', 'Aucun étudiant ne correspond à ces filtres.' if total else 'Aucun étudiant dans les jurys de cette soutenance.') }}</td></tr>{% endfor %}
     </tbody>
   </table></div>
-  {% if rows and not waiting %}<div class="sticky-actions"><span class="small text-muted">Décisions visibles par les étudiants dès l'enregistrement</span>
-    <button class="btn btn-primary"><i class="bi bi-save"></i> Enregistrer les décisions</button></div>{% endif %}
+  {% if rows and not waiting %}<div class="sticky-actions">
+    {# The save button comes first in the page so that Enter in a note saves, and never applies the batch decision. #}
+    <button class="btn btn-primary order-last"><i class="bi bi-save"></i> Enregistrer les décisions</button>
+    <div class="d-flex flex-wrap align-items-center gap-2">
+      <label class="small text-muted" for="bulk-decision">Pour les étudiants cochés :</label>
+      <select class="form-select form-select-sm w-auto" id="bulk-decision" name="bulk_decision">
+        <option value="">Choisir une décision</option>
+        {% for key, label in decisions.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select>
+      <button class="btn btn-sm btn-outline-primary" name="apply_bulk" value="1"><i class="bi bi-check2-square"></i> Attribuer</button>
+    </div>
+  </div>{% endif %}
 </fieldset></form>
 {% endblock %}

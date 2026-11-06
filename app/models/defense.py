@@ -39,7 +39,8 @@ POSITIVES = {"plan": "Annonce un plan clair", "field": "Exemples de terrain", "f
 NEGATIVES = {"reads": "Lit ses diapositives", "crowded": "Diapositives surchargées", "overtime": "Dépasse le temps",
              "fast": "Débit trop rapide", "off_topic": "Hors sujet par moments", "demo_ko": "Démo en échec",
              "typos": "Fautes sur les supports", "one_speaker": "Un seul membre parle (équipe)"}
-DECISIONS = {"admitted": "Admis", "reserved": "Admis sous réserve", "rejected": "Non admis"}
+DECISIONS = {"admitted": "Admis", "reserved": "Admis sous réserve", "waitlist": "Liste d'attente",
+             "rejected": "Non admis"}
 
 
 def grid_points(ratings: dict, key: str, weight: int) -> float | None:

@@ -207,17 +207,24 @@
     if (e.target.closest("[data-print]")) window.print();
   });
   window.addEventListener("load", () => {
-    const body = document.body;
-    if (body.hasAttribute("data-fit-page")) {
-      // One A4 sheet whatever the comments' length: 281 mm high (297 - margins), 2% kept so no line spills over.
-      // The width grows as the zoom shrinks: the text reflows on the full 194 mm instead of leaving side margins.
-      const page = 281 * 96 / 25.4 * 0.98;
-      for (let zoom = 1; zoom > 0.4 && body.getBoundingClientRect().height > page; zoom -= 0.02) {
-        body.style.zoom = zoom - 0.02;
-        body.style.width = `${194 / (zoom - 0.02)}mm`;
+    // One A4 sheet per [data-fit-page] whatever the comments' length: 281 mm high (297 - margins), 2% kept so no line
+    // spills over. The width grows as the zoom shrinks: the text reflows on the full 194 mm, no side margins are left.
+    const page = 281 * 96 / 25.4 * 0.98;
+    document.querySelectorAll("[data-fit-page]").forEach((sheet) => {
+      for (let zoom = 1; zoom > 0.4 && sheet.getBoundingClientRect().height > page; zoom -= 0.02) {
+        sheet.style.zoom = zoom - 0.02;
+        sheet.style.width = `${194 / (zoom - 0.02)}mm`;
       }
-    }
-    if (body.hasAttribute("data-autoprint")) window.print();
+    });
+    if (document.body.hasAttribute("data-autoprint")) window.print();
+  });
+
+  // <input type="checkbox" data-check-all="selected"> ticks every input named "selected" of its form.
+  document.addEventListener("change", (e) => {
+    if (!e.target.matches("[data-check-all]")) return;
+    e.target.form.querySelectorAll(`input[name="${e.target.dataset.checkAll}"]`).forEach((box) => {
+      box.checked = e.target.checked;
+    });
   });
 
   // Tabs (Bootstrap data API) follow the URL hash, so a link or a redirect can open one: a redirect without a

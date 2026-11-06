@@ -9,7 +9,7 @@ from app.models.defense import DECISIONS, JURY_ROLES
 from app.models.user import ROLE_ADMIN
 from app.services import audit_service, defense_service
 from app.services.candidate_service import BusinessError
-from app.utils import roles_required
+from app.utils import roles_required, utcnow
 
 bp = Blueprint("defense", __name__, url_prefix="/soutenances")
 
@@ -71,9 +71,29 @@ def global_jury(defense_id: int):
         except BusinessError as exc:
             db.session.rollback()
             flash(str(exc), "danger")
+        return redirect(url_for("defense.global_jury", defense_id=defense.id, **request.args.to_dict()))
+    everyone = defense_service.global_results(defense)
+    rows = defense_service.sort_global(defense_service.filter_global(everyone, request.args),
+                                       request.args.get("sort", ""), request.args.get("dir") == "desc")
+    return render_template("defense/global.html", defense=defense, rows=rows, total=len(everyone), decisions=DECISIONS,
+                           waiting=defense_service.open_juries(defense), filters=request.args.to_dict(),
+                           classes=sorted({r.candidate.sas_class for r, _res in everyone if r.candidate.sas_class}),
+                           sort_args=dict(request.args.to_dict(), defense_id=defense.id))
+
+
+@bp.get("/<int:defense_id>/proces-verbal")
+def minutes(defense_id: int):
+    """One document for the whole defense: every decision and the signature of everyone who sat on a jury."""
+    defense = db.get_or_404(Defense, defense_id)
+    problem = defense_service.minutes_problem(defense)
+    if problem:
+        flash(problem, "warning")
         return redirect(url_for("defense.global_jury", defense_id=defense.id))
-    return render_template("defense/global.html", defense=defense, rows=defense_service.global_results(defense),
-                           decisions=DECISIONS, waiting=defense_service.open_juries(defense))
+    audit_service.log("export", defense, {"kind": "defense_minutes"})
+    db.session.commit()
+    return render_template("defense/minutes.html", defense=defense, printed_at=utcnow(),
+                           groups=defense_service.decision_groups(defense_service.global_results(defense)),
+                           people=defense_service.participants(defense))
 
 
 @bp.post("/<int:defense_id>/delete")

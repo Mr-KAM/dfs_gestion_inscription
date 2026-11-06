@@ -115,10 +115,10 @@
         data-status="{{ session.status }}">{{ session.remaining_seconds() | hms }}</span>
 {%- endmacro %}
 
-{% macro sort_th(label, key, args) -%}
+{% macro sort_th(label, key, args, cls='') -%}
   {% set is_current = args.get('sort') == key %}
   {% set next_dir = 'desc' if is_current and args.get('dir') != 'desc' else 'asc' %}
-  <th><a class="sort" href="{{ url_for(request.endpoint, **dict(args, sort=key, dir=next_dir, page=1)) }}">{{ label }}
+  <th class="{{ cls }}"><a class="sort" href="{{ url_for(request.endpoint, **dict(args, sort=key, dir=next_dir, page=1)) }}">{{ label }}
     {% if is_current %}<i class="bi bi-caret-{{ 'down' if args.get('dir') == 'desc' else 'up' }}-fill"></i>{% endif %}</a></th>
 {%- endmacro %}
 

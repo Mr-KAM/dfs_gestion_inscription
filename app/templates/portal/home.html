@@ -50,7 +50,7 @@
     <dl class="kv row mb-0">
       <dt class="col-5 col-md-3">Note de soutenance</dt><dd class="col-7 col-md-9 fs-5">{{ r.defense if r.defense is not none else '—' }} / 100</dd>
       <dt class="col-5 col-md-3">Note globale</dt><dd class="col-7 col-md-9 fs-4 fw-bold">{{ ('%g' % r.final) if r.final is not none else '—' }} / 100</dd>
-      {% if s.decision %}<dt class="col-5 col-md-3">Décision du jury</dt><dd class="col-7 col-md-9 fs-5">{{ {'admitted': 'Admis', 'reserved': 'Admis sous réserve', 'rejected': 'Non admis'}[s.decision] }}{% if s.decision_note %} : {{ s.decision_note }}{% endif %}</dd>{% endif %}
+      {% if s.decision %}<dt class="col-5 col-md-3">Décision du jury</dt><dd class="col-7 col-md-9 fs-5">{{ decisions[s.decision] }}{% if s.decision_note %} : {{ s.decision_note }}{% endif %}</dd>{% endif %}
       {% if s.strengths %}<dt class="col-5 col-md-3">Points forts</dt><dd class="col-7 col-md-9 pre-line">{{ s.strengths }}</dd>{% endif %}
       {% if s.improvements %}<dt class="col-5 col-md-3">Axes de progrès</dt><dd class="col-7 col-md-9 pre-line">{{ s.improvements }}</dd>{% endif %}
     </dl>
