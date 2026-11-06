@@ -1,5 +1,5 @@
 """Global jury page (filters, sort, batch decision) and its documents: all individual minutes, general minutes."""
-from app.models import Defense, Evaluation, Jury, JuryCandidate, JuryMember, Sas
+from app.models import Defense, Evaluation, Jury, JuryCandidate, JuryMember, Notification, Sas
 from app.models.campus import EVAL_CRITERIA
 from app.services import account_service
 from tests.conftest import login, make_candidate, make_user
@@ -127,9 +127,74 @@ def test_general_minutes(app, db, client, admin):
     assert "Évaluateur technique · Jury 1" in html and "Évaluateur présentation · Jury 2" in html
 
 
+def _student_logs_in(client, db, student):
+    client.post("/logout")
+    (account_service.sync_account(student) or student.account).must_change_password = False
+    db.session.commit()
+    portal_login(client, student.email)
+    return client.get("/candidat/").get_data(as_text=True)
+
+
+def test_results_reach_the_students_only_when_sent(app, db, client, admin):
+    d, rows = _defense(db, validated=False)
+    url, send = f"/soutenances/{d.id}/jury-global", f"/soutenances/{d.id}/resultats"
+    student = rows["ALPHA"].candidate
+    rows["ALPHA"].sheet = {"decision": "admitted"}
+    db.session.commit()
+
+    coach = make_user("coach", "other@test.ci")
+    login(client, coach)
+    assert client.post(send).status_code == 403
+    client.post("/logout")
+    login(client, admin)
+    assert "Délibération à valider" in client.post(send, follow_redirects=True).get_data(as_text=True)
+    for jury in d.juries:
+        client.post(f"/soutenances/juries/{jury.id}/validate")
+    assert "2 étudiant(s) sans décision" in client.post(send, follow_redirects=True).get_data(as_text=True)
+    db.session.expire_all()
+    assert d.results_sent_at is None and Notification.query.count() == 0
+    assert "Résultat de soutenance" not in _student_logs_in(client, db, student)  # validated and decided: not sent
+
+    client.post("/logout")
+    login(client, admin)
+    client.post(url, data={f"decision_{rows['BRAVO'].id}": "waitlist", f"decision_{rows['CHARLIE'].id}": "rejected"})
+    html = client.post(send, follow_redirects=True).get_data(as_text=True)
+    assert "Résultats envoyés à 3 étudiant(s)" in html and "Retirer les résultats" in html
+    notes = Notification.query.all()
+    assert {n.candidate_id for n in notes} == {r.candidate_id for r in rows.values()} and len(notes) == 3
+    assert not any("Admis" in n.body or "/ 100" in n.body for n in notes)  # the coaches can read them
+    assert "déjà envoyés" in client.post(send, follow_redirects=True).get_data(as_text=True)
+    assert Notification.query.count() == 3  # a double click does not notify twice
+
+    # Sent: everything is locked until the results are withdrawn.
+    a = rows["ALPHA"].id
+    assert "retirez-les d" in client.post(url, data={f"decision_{a}": "rejected"},
+                                          follow_redirects=True).get_data(as_text=True)
+    jury = rows["ALPHA"].jury
+    assert "retirez-les d" in client.post(f"/soutenances/juries/{jury.id}/validate", data={"reopen": "1"},
+                                          follow_redirects=True).get_data(as_text=True)
+    db.session.expire_all()
+    assert rows["ALPHA"].sheet["decision"] == "admitted" and jury.validated_at is not None
+    assert "Résultat de soutenance" in _student_logs_in(client, db, student)
+
+    client.post("/logout")
+    login(client, admin)
+    client.post(send, data={"withdraw": "1"})
+    client.post(url, data={f"decision_{a}": "reserved"})
+    db.session.expire_all()
+    assert d.results_sent_at is None and rows["ALPHA"].sheet["decision"] == "reserved"
+    assert Notification.query.count() == 0  # no "your result is available" left behind
+    assert "Résultat de soutenance" not in _student_logs_in(client, db, student)
+    client.post("/logout")
+    login(client, admin)
+    client.post(send)
+    assert Notification.query.count() == 3  # sent again, once each
+
+
 def test_all_individual_minutes_and_waitlist_label(app, db, client, admin):
     d, rows = _defense(db)
     rows["ALPHA"].sheet = {"decision": "waitlist", "decision_note": "Rang 2"}
+    rows["BRAVO"].sheet = rows["CHARLIE"].sheet = {"decision": "rejected"}
     db.session.commit()
     login(client, admin)
     html = client.get(f"/jury/soutenances/{d.id}/proces-verbaux").get_data(as_text=True)
@@ -137,9 +202,5 @@ def test_all_individual_minutes_and_waitlist_label(app, db, client, admin):
     assert "☑ Liste d&#39;attente" in html and "Chaque membre du jury" not in html
     single = client.get(f"/jury/sheets/{rows['ALPHA'].id}/print").get_data(as_text=True)
     assert single.count("data-fit-page") == 1 and "ALPHA" in single and "BRAVO" not in single
-    client.post("/logout")
-    student = rows["ALPHA"].candidate
-    (account_service.sync_account(student) or student.account).must_change_password = False
-    db.session.commit()
-    portal_login(client, student.email)
-    assert "Liste d&#39;attente : Rang 2" in client.get("/candidat/").get_data(as_text=True)
+    client.post(f"/soutenances/{d.id}/resultats")
+    assert "Liste d&#39;attente : Rang 2" in _student_logs_in(client, db, rows["ALPHA"].candidate)

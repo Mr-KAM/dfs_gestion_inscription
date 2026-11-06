@@ -30,7 +30,8 @@ def test_jury_rates_deliberates_and_prints(app, db, client, admin):
                         ((tech, "technical"), (pres, "president"), (pp, "presentation"))])
     bravo = make_candidate(email="b@test.ci", cni="B", phone="0202020202", full_name="BRAVO", sas=sas, sas_class="Web")
     row = JuryCandidate(jury=j, defense_id=d.id, candidate=c, position=1)
-    db.session.add_all([row, JuryCandidate(jury=j, defense_id=d.id, candidate=bravo, position=0)])  # passes first
+    bravo_row = JuryCandidate(jury=j, defense_id=d.id, candidate=bravo, position=0)  # passes first
+    db.session.add_all([row, bravo_row])
     db.session.commit()
     sheet = f"/jury/sheets/{row.id}"
 
@@ -108,6 +109,13 @@ def test_jury_rates_deliberates_and_prints(app, db, client, admin):
     html = client.post(f"{sheet}/score", data={**A, **A_FACTS, "r_brief": "1"}, follow_redirects=True).get_data(
         as_text=True)
     assert "Délibération validée" in html  # locked
+    client.post("/logout")
+    portal_login(client, c.email)
+    assert "Résultat de soutenance" not in client.get("/candidat/").get_data(as_text=True)  # validated, not sent
+    client.post("/logout")
+    login(client, admin)
+    client.post(global_jury, data={f"decision_{bravo_row.id}": "rejected"})
+    client.post(f"/soutenances/{d.id}/resultats")
     client.post("/logout")
     portal_login(client, c.email)
     html = client.get("/candidat/").get_data(as_text=True)

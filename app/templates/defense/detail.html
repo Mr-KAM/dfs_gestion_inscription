@@ -107,7 +107,7 @@
         <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#edit-jury-{{ j.id }}"
                 aria-expanded="false" aria-controls="edit-jury-{{ j.id }}"><i class="bi bi-pencil"></i> Modifier</button>
         <form method="post" action="{{ url_for('defense.jury_validate', jury_id=j.id) }}"
-              data-confirm="{{ 'Rouvrir la délibération ? Les membres pourront de nouveau modifier leurs notes et les résultats seront masqués aux étudiants.' if j.validated_at else 'Valider la délibération de ce jury ? Les fiches seront verrouillées et les résultats visibles par les étudiants.' }}">
+              data-confirm="{{ 'Rouvrir la délibération ? Les membres pourront de nouveau modifier leurs notes.' if j.validated_at else 'Valider la délibération de ce jury ? Les fiches seront verrouillées. Les étudiants ne verront rien avant l’envoi des résultats depuis le jury global.' }}">
           {{ csrf() }}{% if j.validated_at %}<button class="btn btn-sm btn-outline-warning" name="reopen" value="1"><i class="bi bi-unlock"></i> Rouvrir</button>
           {% else %}<button class="btn btn-sm btn-success"><i class="bi bi-check2-circle"></i> Valider la délibération</button>{% endif %}</form>
       </div>

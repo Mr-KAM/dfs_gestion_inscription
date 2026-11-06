@@ -5,7 +5,7 @@ from datetime import timedelta
 from sqlalchemy import func, or_, select
 
 from app.extensions import db
-from app.models import Candidate, Defense, DefenseScore, Jury, JuryCandidate, JuryMember, Sas, User
+from app.models import Candidate, Defense, DefenseScore, Jury, JuryCandidate, JuryMember, Notification, Sas, User
 from app.models.defense import (DECISIONS, DEFENSE_CRITERIA, DEFENSE_SCALE, DEFENSE_SECTIONS, JURY_ROLES, NEGATIVES,
                                 POSITIVES, SUPPORTS, grid_points)
 from app.models.user import ROLE_ADMIN, ROLE_CANDIDATE
@@ -257,15 +257,17 @@ def attendance(candidate: Candidate) -> tuple[int, int]:
 
 
 def published_results(candidate: Candidate) -> list[tuple[JuryCandidate, dict]]:
-    """What the student may see: only after the admin validated the jury's deliberation."""
-    rows = db.session.scalars(select(JuryCandidate).join(Jury).where(
-        JuryCandidate.candidate_id == candidate.id, Jury.validated_at.is_not(None))
-        .order_by(Jury.validated_at.desc())).all()
+    """What the student may see: only once the admin has sent the results of the defense."""
+    rows = db.session.scalars(select(JuryCandidate).join(Jury).join(Defense, Defense.id == Jury.defense_id).where(
+        JuryCandidate.candidate_id == candidate.id, Defense.results_sent_at.is_not(None))
+        .order_by(Defense.results_sent_at.desc())).all()
     return [(row, results(row)) for row in rows]
 
 
 def validate(jury: Jury, user, reopen: bool = False) -> None:
-    """Admin: validate the deliberation (sheets locked, results published) or reopen it."""
+    """Admin: validate the deliberation (sheets locked) or reopen it. Students see nothing: see send_results."""
+    if reopen and jury.defense.results_sent_at:
+        raise BusinessError("Résultats déjà envoyés aux étudiants : retirez-les d'abord depuis le jury global.")
     jury.validated_at, jury.validated_by = (None, None) if reopen else (utcnow(), user.id)
     jury.timer_ends_at = jury.timer_left = None
     audit_service.log("jury_validate", jury.defense, {"jury": jury.name, "reopened": reopen})
@@ -341,6 +343,8 @@ def minutes_problem(defense: Defense) -> str | None:
 def save_decisions(defense: Defense, form) -> None:
     """Global jury (admin only): the decision on each student shown on the page (a student filtered out is not in
     the form and keeps his decision), once every jury has deliberated. "apply_bulk": one decision on the ticked ones."""
+    if defense.results_sent_at:
+        raise BusinessError("Résultats déjà envoyés aux étudiants : retirez-les d'abord pour modifier une décision.")
     waiting = open_juries(defense)
     if waiting:
         raise BusinessError("Délibération à valider d'abord : " + ", ".join(j.name for j in waiting) + ".")
@@ -360,6 +364,44 @@ def save_decisions(defense: Defense, form) -> None:
                          "decision_note": _text(form, f"note_{row.id}", 200)}
             decisions[row.candidate.matricule] = decision
     audit_service.log("defense_update", defense, {"global_jury": decisions})
+    db.session.commit()
+
+
+def _results_title(defense: Defense) -> str:
+    return f"Résultat de soutenance · {defense.name}"[:150]
+
+
+def send_results(defense: Defense, user) -> int:
+    """Global jury (admin only): every student gets access to his results, and a notification saying so.
+    The notification holds no grade or decision: the student's coaches can read it."""
+    if defense.results_sent_at:
+        raise BusinessError("Les résultats de cette soutenance sont déjà envoyés.")
+    problem = minutes_problem(defense)
+    if problem:
+        raise BusinessError(problem)
+    rows = [row for jury in defense.juries for row in jury.candidates]
+    undecided = sum((row.sheet or {}).get("decision") not in DECISIONS for row in rows)
+    if undecided:
+        raise BusinessError(f"Décision à prendre d'abord : {undecided} étudiant(s) sans décision.")
+    defense.results_sent_at = utcnow()
+    db.session.add_all([Notification(sas_id=defense.sas_id, class_name=row.candidate.sas_class or "",
+                                     candidate=row.candidate, title=_results_title(defense), created_by=user.id,
+                                     body="Votre résultat de soutenance est disponible sur votre page d'accueil.")
+                        for row in rows])
+    audit_service.log("defense_update", defense, {"results_sent": len(rows)})
+    db.session.commit()
+    return len(rows)
+
+
+def withdraw_results(defense: Defense) -> None:
+    """Hide the results again to correct a decision, and take back the notifications announcing them."""
+    defense.results_sent_at = None
+    students = [row.candidate_id for jury in defense.juries for row in jury.candidates]
+    for notification in db.session.scalars(select(Notification).where(Notification.sas_id == defense.sas_id,
+                                                                      Notification.candidate_id.in_(students),
+                                                                      Notification.title == _results_title(defense))):
+        db.session.delete(notification)
+    audit_service.log("defense_update", defense, {"results_withdrawn": True})
     db.session.commit()
 
 

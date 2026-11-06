@@ -77,8 +77,26 @@ def global_jury(defense_id: int):
                                        request.args.get("sort", ""), request.args.get("dir") == "desc")
     return render_template("defense/global.html", defense=defense, rows=rows, total=len(everyone), decisions=DECISIONS,
                            waiting=defense_service.open_juries(defense), filters=request.args.to_dict(),
+                           undecided=sum((r.sheet or {}).get("decision") not in DECISIONS for r, _res in everyone),
                            classes=sorted({r.candidate.sas_class for r, _res in everyone if r.candidate.sas_class}),
                            sort_args=dict(request.args.to_dict(), defense_id=defense.id))
+
+
+@bp.post("/<int:defense_id>/resultats")
+def results(defense_id: int):
+    """Send the results to the students when ready, or withdraw them to correct a decision."""
+    defense = db.get_or_404(Defense, defense_id)
+    try:
+        if "withdraw" in request.form:
+            defense_service.withdraw_results(defense)
+            flash("Résultats retirés : les étudiants ne les voient plus.", "success")
+        else:
+            sent = defense_service.send_results(defense, current_user)
+            flash(f"Résultats envoyés à {sent} étudiant(s).", "success")
+    except BusinessError as exc:
+        db.session.rollback()
+        flash(str(exc), "danger")
+    return redirect(url_for("defense.global_jury", defense_id=defense.id))
 
 
 @bp.get("/<int:defense_id>/proces-verbal")
@@ -189,10 +207,13 @@ def candidate_update(row_id: int):
 
 @bp.post("/juries/<int:jury_id>/validate")
 def jury_validate(jury_id: int):
-    """Validate the deliberation (sheets locked, results shown to the students) or reopen it."""
+    """Validate the deliberation (sheets locked) or reopen it. The students see nothing until the results are sent."""
     jury = db.get_or_404(Jury, jury_id)
     reopen = "reopen" in request.form
-    defense_service.validate(jury, current_user, reopen=reopen)
-    flash(f"Jury « {jury.name} » : délibération " + ("rouverte, les membres peuvent modifier leurs notes."
-                                                     if reopen else "validée, résultats publiés."), "success")
+    try:
+        defense_service.validate(jury, current_user, reopen=reopen)
+        flash(f"Jury « {jury.name} » : délibération " + ("rouverte, les membres peuvent modifier leurs notes."
+                                                         if reopen else "validée."), "success")
+    except BusinessError as exc:
+        flash(str(exc), "danger")
     return _back(jury.defense_id, jury.id)

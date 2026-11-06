@@ -59,6 +59,8 @@ class Defense(db.Model):
     location = db.Column(db.String(150), default="")
     created_by = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    # Sent by the admin from the global jury: until then the students see nothing of this defense.
+    results_sent_at = db.Column(db.DateTime(timezone=True))
 
     sas = db.relationship("Sas")
     juries = db.relationship("Jury", back_populates="defense", cascade="all, delete-orphan", order_by="Jury.id")
@@ -73,7 +75,7 @@ class Jury(db.Model):
     room = db.Column(db.String(100), default="")
     starts_at = db.Column(db.DateTime(timezone=True))  # None: the defense's start
     duration = db.Column(db.Integer, nullable=False, default=30)  # minutes per student
-    # Deliberation validated by the admin: sheets locked, results shown to the students.
+    # Deliberation validated by the admin: sheets locked, the jury's grades are final.
     validated_at = db.Column(db.DateTime(timezone=True))
     validated_by = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
     # Shared timer set by a jury member: running until timer_ends_at, or paused with timer_left seconds.

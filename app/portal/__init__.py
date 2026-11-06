@@ -69,7 +69,7 @@ def home():
                            absence_hours=attendance_service.absence_hours(candidate, sessions, marks),
                            notifications=campus_service.notifications_for(candidate, limit=3),
                            invitations=campus_service.pending_invitations(candidate),
-                           defenses=defense_service.published_results(candidate),  # after the deliberation only
+                           defenses=defense_service.published_results(candidate),  # once the admin has sent them
                            decisions=DECISIONS)
 
 
