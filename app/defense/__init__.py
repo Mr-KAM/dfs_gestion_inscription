@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from app.extensions import db
 from app.models import Defense, Jury, JuryCandidate, JuryMember, Sas
-from app.models.defense import DECISIONS, JURY_ROLES
+from app.models.defense import DECISIONS, JURY_ROLES, MINUTES_TITLE
 from app.models.user import ROLE_ADMIN
 from app.services import audit_service, defense_service
 from app.services.candidate_service import BusinessError
@@ -109,7 +109,7 @@ def minutes(defense_id: int):
         return redirect(url_for("defense.global_jury", defense_id=defense.id))
     audit_service.log("export", defense, {"kind": "defense_minutes"})
     db.session.commit()
-    return render_template("defense/minutes.html", defense=defense, printed_at=utcnow(),
+    return render_template("defense/minutes.html", defense=defense, printed_at=utcnow(), title=MINUTES_TITLE,
                            groups=defense_service.decision_groups(defense_service.global_results(defense)),
                            people=defense_service.participants(defense))
 

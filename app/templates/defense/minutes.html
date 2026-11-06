@@ -5,7 +5,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Procès-verbal de jury de soutenance · {{ defense.name }} · DFS</title>
+  <title>{{ title }} · {{ defense.name }} · DFS</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons.min.css') }}">
@@ -20,15 +20,26 @@
       {{ brand.logo(26) }}
       <div class="text-end fw-bold">Session d'admission et de sélection</div>
     </div>
-    <h1 class="h4 mb-0">Procès-verbal de jury de soutenance</h1>
-    <div class="small text-primary mb-2">{{ defense.name }} · {{ defense.sas.name }}{% if defense.starts_at %} · {{ defense.starts_at | dt('%d/%m/%Y') }}{% endif %}{% if defense.location %} · {{ defense.location }}{% endif %}</div>
+    <h1 class="h5 mb-0 text-center">{{ title }}</h1>
+    <div class="small text-primary mb-2 text-center">{{ defense.name }} · {{ defense.sas.name }}</div>
+
+    {% set MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'] %}
+    {% set presidents = people | selectattr('role', 'equalto', 'president') | map(attribute='user.display_name') | list %}
+    {% set start = defense.starts_at %}
+    <div class="minutes-text">
+      <p>Le présent procès-verbal a pour objet de constater les délibérations du jury d’admission de la Digital Farming School (DFS) et d’arrêter, de manière collégiale, les décisions relatives aux candidats, à l’issue du SAS (Semaine d’Accélération des Skills) et de leur soutenance devant jury.</p>
+      <p>{% if presidents %}Sous la présidence de {{ presidents | join(' et ') }}, le{% else %}Le{% endif %} jury d’admission s’est réuni{% if start %} le {{ start | dt('%d') }} {{ MONTHS[(start | dt('%m') | int) - 1] }} {{ start | dt('%Y') }} à {{ start | dt('%Hh%M') }}{% endif %}, sur le site de la Digital Farming School à Yamoussoukro{% if defense.location %} ({{ defense.location }}){% endif %}, afin d’examiner les résultats des candidats et de statuer sur leur admission.</p>
+      <p class="mb-1">Le jury était composé de :</p>
+      <ul class="list-unstyled ms-3">
+      {% for m in people %}<li>– {{ m.user.display_name }}, {% if m.role == 'president' %}Président du jury{% else %}Membre du jury, {{ m.role_label }}{% endif %}{% if defense.juries | length > 1 %} ({{ m.jury.name }}){% endif %} ;</li>{% endfor %}
+      </ul>
+      <p>Après examen des évaluations individuelles de suivi et des notes de soutenance, le jury a procédé à une délibération collégiale. À l’issue de cette délibération, les décisions arrêtées pour chaque candidat figurent dans les listes ci-après.</p>
+    </div>
 
     <table class="table table-sm table-bordered sheet-table text-center">
       <tr>{% for label, rows in groups %}<th>{{ label }}</th>{% endfor %}<th>Total</th></tr>
       <tr>{% set total = namespace(n=0) %}{% for label, rows in groups %}{% set total.n = total.n + rows | length %}<td class="fw-bold">{{ rows | length }}</td>{% endfor %}<td class="fw-bold">{{ total.n }}</td></tr>
     </table>
-    <p class="small text-muted">Note finale = (évaluation individuelle × 2 + soutenance × 1) ÷ 3. Dans chaque liste, les étudiants sont classés de la meilleure note à la plus faible.</p>
-
     {% for label, rows in groups if rows %}
     <h2 class="h6">{{ label }} ({{ rows | length }})</h2>
     <table class="table table-sm table-bordered sheet-table">

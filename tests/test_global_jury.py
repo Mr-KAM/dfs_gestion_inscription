@@ -1,4 +1,6 @@
 """Global jury page (filters, sort, batch decision) and its documents: all individual minutes, general minutes."""
+from datetime import datetime, timezone
+
 from app.models import Defense, Evaluation, Jury, JuryCandidate, JuryMember, Notification, Sas
 from app.models.campus import EVAL_CRITERIA
 from app.services import account_service
@@ -113,11 +115,18 @@ def test_general_minutes(app, db, client, admin):
     d, rows = _defense(db)
     rows["ALPHA"].sheet = {"decision": "admitted"}
     rows["BRAVO"].sheet = {"decision": "waitlist", "decision_note": "Rang 1"}
+    d.starts_at, d.location = datetime(2026, 10, 5, 17, 30, tzinfo=timezone.utc), "Salle 3"
     db.session.commit()
     login(client, admin)
     assert "proces-verbal" in client.get(f"/soutenances/{d.id}/jury-global").get_data(as_text=True)
     html = client.get(f"/soutenances/{d.id}/proces-verbal").get_data(as_text=True)
-    assert "Procès-verbal de jury de soutenance" in html and "data-autoprint" in html
+    assert "PROCÈS-VERBAL JURY ADMISSION À LA DFS COHORTE 1 2026-2027" in html and "data-autoprint" in html
+    assert "Note finale =" not in html  # the formula stays on the global jury page
+    assert "Sous la présidence de SECOND Member, le jury" in html
+    assert "s’est réuni le 05 octobre 2026 à 17h30" in html and "Yamoussoukro (Salle 3)" in html
+    assert "– SECOND Member, Président du jury (Jury 1)" in html
+    assert "– THIRD Member, Membre du jury, Évaluateur présentation (Jury 2)" in html
+    assert html.index("Le jury était composé") < html.index("Admis (1)")  # the text, then the tables
     for title in ("Admis (1)", "Liste d&#39;attente (1)", "Sans décision (1)"):
         assert title in html
     assert "Non admis (" not in html and "Rang 1" in html  # empty lists only appear in the summary
