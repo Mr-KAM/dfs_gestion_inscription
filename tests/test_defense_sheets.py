@@ -100,6 +100,9 @@ def test_jury_rates_deliberates_and_prints(app, db, client, admin):
     html = client.get(f"{sheet}/print").get_data(as_text=True)
     assert "73.7 / 100" in html and "Drone et NDVI" in html and f"/jury/signature/{pres.id}" in html
     assert "☑ Diaporama" in html and "☑ Admis" in html
+    assert "Procès-verbal de jury de soutenance" in html and "data-fit-page" in html
+    assert "Fiche globale" not in html and "Commentaire" not in html and "Candidat" not in html
+    assert "Carte NDVI juste" not in html  # the cited facts stay on the screen sheet
     client.post("/logout")
     login(client, tech)
     html = client.post(f"{sheet}/score", data={**A, **A_FACTS, "r_brief": "1"}, follow_redirects=True).get_data(

@@ -6,32 +6,32 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Fiche de soutenance · {{ c.full_name }} · DFS</title>
+  <title>Procès-verbal de soutenance · {{ c.full_name }} · DFS</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  <style>@page { size: A4 portrait; margin: 8mm; }</style>
 </head>
-{# Opens the print dialog: "Enregistrer au format PDF" saves the file (app.js, data-autoprint). #}
-<body class="bg-white p-3 sheet-print" data-autoprint>
+{# Opens the print dialog: "Enregistrer au format PDF" saves the file; data-fit-page holds it on one sheet (app.js). #}
+<body class="bg-white sheet-print" data-autoprint data-fit-page>
   {% set president = jury.members | selectattr('role', 'equalto', 'president') | list %}
   {% set others = jury.members | rejectattr('role', 'equalto', 'president') | list %}
   {% macro check(on) %}{{ '☑' if on else '☐' }}{% endmacro %}
-  <div class="d-flex justify-content-between align-items-start border-bottom border-3 pb-2 mb-3">
-    {{ brand.logo(40) }}
-    <div class="text-end"><div class="fw-bold">Session d'admission et de sélection</div>
-      <div class="small text-primary">Fiche globale d'évaluation · Soutenance</div></div>
+  <div class="d-flex justify-content-between align-items-start border-bottom border-3 pb-1 mb-1">
+    {{ brand.logo(26) }}
+    <div class="text-end fw-bold">Session d'admission et de sélection</div>
   </div>
   <div class="d-flex justify-content-between align-items-start gap-3">
-    <div><h1 class="h4 mb-0">Fiche globale d'évaluation de la soutenance</h1>
+    <div><h1 class="h4 mb-0">Procès-verbal de jury de soutenance</h1>
       <div class="small text-primary">{{ jury.defense.sas.name }} · combine le suivi continu et la soutenance devant jury</div></div>
     <div class="d-flex gap-2 align-items-start">
-      {{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 64) }}
+      {{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 44) }}
       <button class="btn btn-primary btn-sm d-print-none" type="button" data-print><i class="bi bi-file-earmark-pdf"></i> Imprimer / PDF</button>
     </div>
   </div>
 
-  <table class="table table-sm table-bordered mt-2 sheet-table">
+  <table class="table table-sm table-bordered mt-1 sheet-table">
     <tr><th>Identifiant</th><td><code>{{ c.matricule }}</code></td><th>Nom, prénoms</th><td colspan="3">{{ c.full_name }}</td></tr>
     <tr><th>Équipe</th><td>{{ s.team or '' }}</td><th>Brief / sujet</th><td colspan="3">{{ s.subject or '' }}</td></tr>
     <tr><th>Date</th><td>{{ jury.slot(position) | dt('%d/%m/%Y') }}</td><th>Heure</th><td>{{ jury.slot(position) | dt('%H:%M') }}</td>
@@ -51,10 +51,10 @@
   </table>
 
   <h2 class="h6 mt-3">1. Grille de la soutenance</h2>
-  {{ grid(res, criteria, sections, section_weights, scale) }}
+  {{ grid(res, criteria, sections, section_weights, scale, comments=False) }}
   <p class="small text-muted">Points = poids × cote ÷ 4 (moyenne des membres qui notent la section). Si un critère est N/A : total ÷ somme des poids applicables × 100.</p>
 
-  <h2 class="h6 mt-3 page-break">2. Observations rapides sur la présentation</h2>
+  <h2 class="h6 mt-3">2. Observations rapides sur la présentation</h2>
   <table class="table table-sm table-bordered small sheet-table">
     <tr><th class="text-success">Points positifs</th><th class="text-danger">Points à corriger</th></tr>
     <tr><td>{% for key, label in positives.items() %}<span class="me-3 text-nowrap">{{ check(key in (s.positives or [])) }} {{ label }}</span> {% endfor %}
@@ -78,18 +78,17 @@
   </table>
 
   <table class="table table-bordered sheet-table text-center signatures">
-    <tr><th>Président du jury</th><th>Membres du jury</th><th>Direction pédagogique</th><th>Candidat<div class="small fw-normal">lu et pris connaissance</div></th></tr>
+    <tr><th class="w-25">Président du jury</th><th>Membres du jury</th><th class="w-25">Direction pédagogique</th></tr>
     <tr>
       <td>{% for m in president %}<div class="small">{{ m.user.display_name }}</div>
         {% if m.user.signature_type %}<img class="signature-img" src="{{ url_for('jury.signature', user_id=m.user_id) }}" alt="Signature de {{ m.user.display_name }}">{% endif %}{% endfor %}</td>
-      <td>{% for m in others %}<div class="small">{{ m.user.display_name }} · {{ m.role_label }}</div>
-        {% if m.user.signature_type %}<img class="signature-img" src="{{ url_for('jury.signature', user_id=m.user_id) }}" alt="Signature de {{ m.user.display_name }}">{% endif %}{% endfor %}</td>
+      <td>{% for m in others %}<div class="d-inline-block align-top px-1"><div class="small">{{ m.user.display_name }} · {{ m.role_label }}</div>
+        {% if m.user.signature_type %}<img class="signature-img" src="{{ url_for('jury.signature', user_id=m.user_id) }}" alt="Signature de {{ m.user.display_name }}">{% endif %}</div>{% endfor %}</td>
       <td class="small text-muted align-top">Nom et signature</td>
-      <td class="small text-muted align-top">Signature</td>
     </tr>
   </table>
   <div class="small text-muted border-top pt-1">Délibération validée le {{ jury.validated_at | dt }} · édité le {{ printed_at | dt }} ·
-    Chaque membre du jury cote seul, puis le jury consolide. Une cote 1 ou 4 s'appuie sur un fait cité dans la colonne commentaire.</div>
+    Chaque membre du jury cote seul, puis le jury consolide.</div>
   <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>

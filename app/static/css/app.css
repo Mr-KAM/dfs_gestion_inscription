@@ -237,9 +237,19 @@ a.stat-card:hover { border-color: var(--dfs-blue); }
 .signature-img { display: block; max-height: 70px; max-width: 220px; margin: .25rem auto; object-fit: contain; }
 .timer-minutes { width: 5.5rem; }
 .pre-line { white-space: pre-line; }
-.sheet-print .sheet-table { font-size: .82rem; }
-.sheet-print .signatures td { height: 110px; }
-@media print { .page-break { break-before: page; } .sheet-print { padding: 0 !important; } }
+/* Same width on screen and on paper (A4 - 16 mm of margins): app.js measures the height to hold on one sheet. */
+.sheet-print { width: 194mm; margin: 0 auto; font-size: .72rem; line-height: 1.2; background-image: none; }
+.sheet-print td > strong + .small { display: inline; margin-left: .3rem; }
+.sheet-print .fs-5 { font-size: .8rem !important; }
+.sheet-print .sheet-table { font-size: .68rem; margin-bottom: .3rem; }
+.sheet-print .table > :not(caption) > * > * { padding: .06rem .25rem; }
+.sheet-print .table td { white-space: normal; }
+.sheet-print .table td.pre-line { white-space: pre-line; }
+.sheet-print .table thead th { font-size: .6rem; letter-spacing: .02em; }
+.sheet-print .h6 { font-size: .75rem; margin: .3rem 0 .15rem !important; }
+.sheet-print p { margin-bottom: .2rem; font-size: .62rem; }
+.sheet-print .signatures td { height: 52px; }
+.sheet-print .signature-img { max-height: 34px; max-width: 110px; margin: 0 auto; }
 
 /* ---- Shared page components ---- */
 .sidebar .nav > .nav-section:first-child { padding-top: .5rem; }
