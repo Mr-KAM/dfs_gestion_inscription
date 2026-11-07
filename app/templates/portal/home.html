@@ -24,7 +24,7 @@
   <a class="small" href="{{ url_for('portal.notifications') }}">Tout voir</a></div>
   <ul class="list-group list-group-flush">
   {% for n in notifications %}
-    <li class="list-group-item"><div class="d-flex justify-content-between flex-wrap gap-2"><strong>{{ n.title }}{% if n.candidate_id %} <span class="status status-info">Pour vous</span>{% endif %}</strong>
+    <li class="list-group-item{% if n.level %} list-group-item-{{ n.level }}{% endif %}"><div class="d-flex justify-content-between flex-wrap gap-2"><strong>{{ n.title }}{% if n.candidate_id %} <span class="status status-info">Pour vous</span>{% endif %}</strong>
       <span class="small text-muted">{{ n.created_at | dt }}</span></div>
       {% if n.body %}<div class="small" style="white-space: pre-line">{{ n.body | truncate(300) }}</div>{% endif %}</li>
   {% endfor %}
@@ -44,12 +44,10 @@
   </div>
 </div>
 {% endif %}
-{% for row, r in defenses %}{% set s = row.sheet or {} %}
+{% for row in defenses %}{% set s = row.sheet or {} %}
 <div class="card mb-4"><div class="card-header"><i class="bi bi-easel"></i> Résultat de soutenance · {{ row.jury.defense.name }}</div>
   <div class="card-body">
     <dl class="kv row mb-0">
-      <dt class="col-5 col-md-3">Note de soutenance</dt><dd class="col-7 col-md-9 fs-5">{{ r.defense if r.defense is not none else '—' }} / 100</dd>
-      <dt class="col-5 col-md-3">Note globale</dt><dd class="col-7 col-md-9 fs-4 fw-bold">{{ ('%g' % r.final) if r.final is not none else '—' }} / 100</dd>
       {% if s.decision %}<dt class="col-5 col-md-3">Décision du jury</dt><dd class="col-7 col-md-9 fs-5">{{ decisions[s.decision] }}{% if s.decision_note %} : {{ s.decision_note }}{% endif %}</dd>{% endif %}
       {% if s.strengths %}<dt class="col-5 col-md-3">Points forts</dt><dd class="col-7 col-md-9 pre-line">{{ s.strengths }}</dd>{% endif %}
       {% if s.improvements %}<dt class="col-5 col-md-3">Axes de progrès</dt><dd class="col-7 col-md-9 pre-line">{{ s.improvements }}</dd>{% endif %}

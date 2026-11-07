@@ -47,6 +47,11 @@ MINUTES_DEFAULTS = {"civility": "Monsieur", "president_name": "KAMBOU ANICET CYR
                     "director_name": "KAMBOU ANICET CYRILLE"}
 DECISIONS = {"admitted": "Admis", "reserved": "Admis sous réserve", "waitlist": "Liste d'attente",
              "rejected": "Non admis"}
+# Message sent to each student with the results: (Bootstrap color, outcome; {e}: feminine agreement).
+RESULT_MESSAGES = {"admitted": ("success", "déclaré{e} admis{e}"),
+                   "reserved": ("info", "déclaré{e} admis{e} sous réserve"),
+                   "waitlist": ("warning", "inscrit{e} sur la liste d'attente"),
+                   "rejected": ("danger", "déclaré{e} non admis{e}")}
 
 
 def grid_points(ratings: dict, key: str, weight: int) -> float | None:

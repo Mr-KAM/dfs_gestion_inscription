@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 from app.models import Defense, Evaluation, Jury, JuryCandidate, JuryMember, Notification, Sas
 from app.models.campus import EVAL_CRITERIA
+from app.models.defense import DECISIONS, RESULT_MESSAGES
 from app.services import account_service
 from app.services.defense_service import minutes_lists, surname_first
 from tests.conftest import login, make_candidate, make_user
@@ -371,7 +372,7 @@ def test_results_reach_the_students_only_when_sent(app, db, client, admin):
     assert "Résultats envoyés à 3 étudiant(s)" in html and "Retirer les résultats" in html
     notes = Notification.query.all()
     assert {n.candidate_id for n in notes} == {r.candidate_id for r in rows.values()} and len(notes) == 3
-    assert not any("Admis" in n.body or "/ 100" in n.body for n in notes)  # the coaches can read them
+    assert not any("/ 100" in n.body for n in notes)
     assert "déjà envoyés" in client.post(send, follow_redirects=True).get_data(as_text=True)
     assert Notification.query.count() == 3  # a double click does not notify twice
 
@@ -398,6 +399,49 @@ def test_results_reach_the_students_only_when_sent(app, db, client, admin):
     login(client, admin)
     client.post(send)
     assert Notification.query.count() == 3  # sent again, once each
+    # ... with the corrected decision
+    assert "admise sous réserve" in Notification.query.filter_by(candidate_id=student.id).one().body
+
+
+def test_result_message_per_decision(app, db, client, admin):
+    assert set(RESULT_MESSAGES) == set(DECISIONS)
+    d, rows = _defense(db)  # ALPHA F, BRAVO M
+    charlie = rows["CHARLIE"].candidate
+    charlie.gender, charlie.full_name = None, "yao jean kouame"
+    rows["ALPHA"].candidate.full_name = "salia kamagate"
+    rows["ALPHA"].sheet, rows["BRAVO"].sheet = {"decision": "admitted"}, {"decision": "waitlist"}
+    rows["CHARLIE"].sheet = {"decision": "rejected", "decision_note": "Note interne"}
+    db.session.commit()
+    login(client, admin)
+    client.post(f"/soutenances/{d.id}/resultats")
+
+    def note(name):
+        return Notification.query.filter_by(candidate_id=rows[name].candidate_id).one()
+    intro = "Le jury a délibéré : à l'issue de la soutenance du SAS, vous avez été"
+    assert note("ALPHA").body == f"Bonjour Kamagate Salia,\n{intro} déclarée admise."
+    assert note("ALPHA").level == "success"
+    assert note("BRAVO").body == f"Bonjour Bravo,\n{intro} inscrit sur la liste d'attente."
+    assert note("BRAVO").level == "warning"
+    assert note("CHARLIE").body == f"Bonjour Kouame Yao Jean,\n{intro} déclaré(e) non admis(e)."
+    assert note("CHARLIE").level == "danger"
+    assert not any(ch.isdigit() for n in Notification.query.all() for ch in n.body)  # no grade
+
+    # The student sees it in color, on his home page and his notifications; his message only.
+    home = _student_logs_in(client, db, rows["ALPHA"].candidate)
+    assert "list-group-item-success" in home and "déclarée admise" in home and "list-group-item-danger" not in home
+    html = client.get("/candidat/notifications").get_data(as_text=True)
+    assert "list-group-item-success" in html and "déclarée admise" in html
+
+    # The coach of the class sees the title, never the decision.
+    client.post("/logout")
+    coach = make_user("coach", "c@test.ci")
+    coach.coach_classes = [f"{d.sas_id}:SIG"]
+    db.session.commit()
+    login(client, coach)
+    for url in ("/campus/notifications", f"/campus/students/{rows['ALPHA'].candidate_id}"):
+        html = client.get(url).get_data(as_text=True)
+        assert "Résultat de soutenance" in html and "réservé à l'étudiant" in html, url
+        assert "déclarée admise" not in html, url
 
 
 def test_all_individual_minutes_and_waitlist_label(app, db, client, admin):

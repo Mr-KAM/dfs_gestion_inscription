@@ -9,7 +9,7 @@
   <a class="btn btn-primary" href="{{ url_for('defense.minutes', defense_id=defense.id) }}" target="_blank" rel="noopener"><i class="bi bi-file-earmark-text"></i> Procès-verbal du jury</a>
   <a class="btn btn-outline-primary" href="{{ url_for('jury.print_all', defense_id=defense.id) }}" target="_blank" rel="noopener"><i class="bi bi-files"></i> Tous les PV individuels</a>
   {% if not defense.results_sent_at %}
-  <form method="post" action="{{ url_for('defense.results', defense_id=defense.id) }}" data-confirm="Envoyer les résultats aux {{ total }} étudiant(s) ? Ils verront aussitôt leurs notes et leur décision et recevront une notification.">
+  <form method="post" action="{{ url_for('defense.results', defense_id=defense.id) }}" data-confirm="Envoyer les résultats aux {{ total }} étudiant(s) ? Ils verront aussitôt leur décision, sans les notes, et recevront une notification.">
     {{ csrf() }}<button class="btn btn-success" {{ 'disabled' if undecided }}><i class="bi bi-send"></i> Envoyer les résultats aux étudiants</button></form>
   {% endif %}{% endif %}
 {% endcall %}

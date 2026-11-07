@@ -23,6 +23,8 @@ class Notification(db.Model):
     candidate_id = db.Column(db.Integer, db.ForeignKey("candidates.id", ondelete="CASCADE"), index=True)
     title = db.Column(db.String(150), nullable=False)
     body = db.Column(db.Text, nullable=False, default="")
+    # Set on a student's defense decision: its Bootstrap color for him; the staff lists show the title, never the body.
+    level = db.Column(db.String(10))
     created_by = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
 

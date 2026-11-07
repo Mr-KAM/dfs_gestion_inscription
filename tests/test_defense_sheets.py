@@ -119,7 +119,9 @@ def test_jury_rates_deliberates_and_prints(app, db, client, admin):
     client.post("/logout")
     portal_login(client, c.email)
     html = client.get("/candidat/").get_data(as_text=True)
-    assert "Résultat de soutenance" in html and "73.7 / 100" in html and "Admis : Stage terrain" in html
+    assert "Résultat de soutenance" in html and "Admis : Stage terrain" in html
+    for grade in ("/ 100", "73.7", "Note de soutenance", "Note globale"):  # the decision, never the grades
+        assert grade not in html
 
 
 def test_jury_only_profiles(app, db, client, admin):

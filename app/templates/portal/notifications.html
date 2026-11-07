@@ -9,7 +9,7 @@
 {{ invitation_cards(invitations) }}
 <div class="card" style="max-width: 760px"><ul class="list-group list-group-flush">
 {% for n in notifications %}
-  <li class="list-group-item">
+  <li class="list-group-item{% if n.level %} list-group-item-{{ n.level }}{% endif %}">
     <div class="d-flex justify-content-between flex-wrap gap-2"><strong>{{ n.title }}{% if n.candidate_id %} <span class="status status-info">Pour vous</span>{% endif %}</strong>
       <span class="small text-muted">{{ n.created_at | dt }}{% if n.author %} · {{ n.author.display_name }}{% endif %}</span></div>
     {% if n.body %}<div class="mt-1" style="white-space: pre-line">{{ n.body }}</div>{% endif %}

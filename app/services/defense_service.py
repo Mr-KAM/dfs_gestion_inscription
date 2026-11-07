@@ -8,7 +8,7 @@ from sqlalchemy import func, or_, select
 from app.extensions import db
 from app.models import Candidate, Defense, DefenseScore, Jury, JuryCandidate, JuryMember, Notification, Sas, User
 from app.models.defense import (DECISIONS, DEFENSE_CRITERIA, DEFENSE_SCALE, DEFENSE_SECTIONS, JURY_ROLES,
-                                MINUTES_DEFAULTS, NEGATIVES, POSITIVES, SUPPORTS, grid_points)
+                                MINUTES_DEFAULTS, NEGATIVES, POSITIVES, RESULT_MESSAGES, SUPPORTS, grid_points)
 from app.models.user import ROLE_ADMIN, ROLE_CANDIDATE
 from app.services import attendance_service, audit_service, settings_service
 from app.services.account_service import PHOTO_MAX_BYTES, image_type
@@ -257,12 +257,11 @@ def attendance(candidate: Candidate) -> tuple[int, int]:
     return total - attendance_service.absence_hours(candidate, sessions), total
 
 
-def published_results(candidate: Candidate) -> list[tuple[JuryCandidate, dict]]:
-    """What the student may see: only once the admin has sent the results of the defense."""
-    rows = db.session.scalars(select(JuryCandidate).join(Jury).join(Defense, Defense.id == Jury.defense_id).where(
+def published_results(candidate: Candidate) -> list[JuryCandidate]:
+    """The sheets the student may see (decision and appraisal, never the grades): once the admin has sent the results."""
+    return db.session.scalars(select(JuryCandidate).join(Jury).join(Defense, Defense.id == Jury.defense_id).where(
         JuryCandidate.candidate_id == candidate.id, Defense.results_sent_at.is_not(None))
         .order_by(Defense.results_sent_at.desc())).all()
-    return [(row, results(row)) for row in rows]
 
 
 def validate(jury: Jury, user, reopen: bool = False) -> None:
@@ -432,9 +431,17 @@ def _results_title(defense: Defense) -> str:
     return f"Résultat de soutenance · {defense.name}"[:150]
 
 
+def _result_message(row: JuryCandidate) -> tuple[str, str]:
+    """(color, body) of the message giving a student the jury's decision: no grade."""
+    color, outcome = RESULT_MESSAGES[row.sheet["decision"]]
+    e = {"F": "e", "M": ""}.get(row.candidate.gender, "(e)")
+    return color, (f"Bonjour {surname_first(row.candidate.full_name)},\n"
+                   f"Le jury a délibéré : à l'issue de la soutenance du SAS, vous avez été {outcome.format(e=e)}.")
+
+
 def send_results(defense: Defense, user) -> int:
-    """Global jury (admin only): every student gets access to his results, and a notification saying so.
-    The notification holds no grade or decision: the student's coaches can read it."""
+    """Global jury (admin only): every student gets access to his results, and a personal message with the decision.
+    The staff lists only show that message's title (Notification.level)."""
     if defense.results_sent_at:
         raise BusinessError("Les résultats de cette soutenance sont déjà envoyés.")
     problem = deliberation_problem(defense)
@@ -445,10 +452,11 @@ def send_results(defense: Defense, user) -> int:
     if undecided:
         raise BusinessError(f"Décision à prendre d'abord : {undecided} étudiant(s) sans décision.")
     defense.results_sent_at = utcnow()
-    db.session.add_all([Notification(sas_id=defense.sas_id, class_name=row.candidate.sas_class or "",
-                                     candidate=row.candidate, title=_results_title(defense), created_by=user.id,
-                                     body="Votre résultat de soutenance est disponible sur votre page d'accueil.")
-                        for row in rows])
+    for row in rows:
+        level, body = _result_message(row)
+        db.session.add(Notification(sas_id=defense.sas_id, class_name=row.candidate.sas_class or "", level=level,
+                                    candidate=row.candidate, title=_results_title(defense), created_by=user.id,
+                                    body=body))
     audit_service.log("defense_update", defense, {"results_sent": len(rows)})
     db.session.commit()
     return len(rows)
