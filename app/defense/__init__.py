@@ -126,7 +126,7 @@ def minutes_save(defense_id: int):
     """Session president, date, place and stamp of the general minutes."""
     defense = db.get_or_404(Defense, defense_id)
     try:
-        defense_service.save_minutes_info(defense, request.form, request.files.get("stamp"))
+        defense_service.save_minutes_info(defense, request.form, request.files)
         flash("Informations du procès-verbal enregistrées.", "success")
     except BusinessError as exc:
         db.session.rollback()
@@ -134,14 +134,24 @@ def minutes_save(defense_id: int):
     return redirect(url_for("defense.global_jury", defense_id=defense.id))
 
 
+def _private_image(data: bytes | None, mimetype: str | None):
+    if not mimetype:
+        abort(404)
+    response = send_file(io.BytesIO(data), mimetype=mimetype, max_age=0)
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
 @bp.get("/<int:defense_id>/cachet")
 def stamp(defense_id: int):
     defense = db.get_or_404(Defense, defense_id)
-    if not defense.stamp_type:
-        abort(404)
-    response = send_file(io.BytesIO(defense.stamp), mimetype=defense.stamp_type, max_age=0)
-    response.headers["Cache-Control"] = "private, no-store"
-    return response
+    return _private_image(defense.stamp, defense.stamp_type)
+
+
+@bp.get("/<int:defense_id>/signature-directeur")
+def director_signature(defense_id: int):
+    defense = db.get_or_404(Defense, defense_id)
+    return _private_image(defense.director_signature, defense.director_signature_type)
 
 
 @bp.post("/<int:defense_id>/delete")

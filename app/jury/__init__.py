@@ -12,7 +12,7 @@ from app.models.defense import (DECISIONS, DEFENSE_CRITERIA, DEFENSE_SCALE, DEFE
 from app.models.user import ROLE_ADMIN
 from app.services import audit_service, defense_service
 from app.services.candidate_service import BusinessError
-from app.utils import utcnow
+from app.utils import norm_name, utcnow
 
 bp = Blueprint("jury", __name__, url_prefix="/jury")
 
@@ -107,7 +107,8 @@ SHEET_LABELS = {"criteria": DEFENSE_CRITERIA, "sections": DEFENSE_SECTIONS, "sec
 def _sheet_context(row: JuryCandidate) -> dict:
     present, total = defense_service.attendance(row.candidate)
     return {"row": row, "jury": row.jury, "c": row.candidate, "s": row.sheet or {}, "res": defense_service.results(row),
-            "present": present, "total_hours": total, "position": row.jury.candidates.index(row), **SHEET_LABELS}
+            "name": defense_service.surname_first(row.candidate.full_name), "present": present, "total_hours": total,
+            "position": row.jury.candidates.index(row), **SHEET_LABELS}
 
 
 @bp.get("/sheets/<int:row_id>")
@@ -154,12 +155,14 @@ def print_sheet(row_id: int):
         flash("Validez d'abord la délibération du jury.", "warning")
         return redirect(url_for("defense.detail", defense_id=row.defense_id) + f"#jury-{row.jury_id}")
     return render_template("jury/print.html", sheets=[_sheet_context(row)], **SHEET_LABELS, printed_at=utcnow(),
-                           doc_title=f"Procès-verbal de soutenance · {row.candidate.full_name}")
+                           director_name=defense_service.minutes_info(row.jury.defense)["director_name"],
+                           doc_title=f"Procès-verbal de soutenance · "
+                                     f"{defense_service.surname_first(row.candidate.full_name)}")
 
 
 @bp.get("/soutenances/<int:defense_id>/proces-verbaux")
 def print_all(defense_id: int):
-    """Every student's minutes in one document, one sheet each, by name: admin only, once all is validated."""
+    """Every student's minutes in one document, one sheet each, by surname: admin only, once all is validated."""
     if current_user.role != ROLE_ADMIN:
         abort(403)
     defense = db.get_or_404(Defense, defense_id)
@@ -167,8 +170,10 @@ def print_all(defense_id: int):
     if problem:
         flash(problem, "warning")
         return redirect(url_for("defense.global_jury", defense_id=defense.id))
-    rows = sorted((row for jury in defense.juries for row in jury.candidates), key=lambda r: r.candidate.full_name)
+    rows = sorted((row for jury in defense.juries for row in jury.candidates),
+                  key=lambda r: norm_name(defense_service.surname_first(r.candidate.full_name)))
     audit_service.log("export", defense, {"kind": "defense_all_minutes", "rows": len(rows)})
     db.session.commit()
     return render_template("jury/print.html", sheets=[_sheet_context(row) for row in rows], **SHEET_LABELS,
-                           printed_at=utcnow(), doc_title=f"Procès-verbaux individuels · {defense.name}")
+                           printed_at=utcnow(), doc_title=f"Procès-verbaux individuels · {defense.name}",
+                           director_name=defense_service.minutes_info(defense)["director_name"])

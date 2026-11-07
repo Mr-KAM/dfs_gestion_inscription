@@ -351,8 +351,8 @@ def minutes_info(defense: Defense) -> dict:
     return {**_minutes_defaults(defense), **(defense.minutes_info or {})}
 
 
-def save_minutes_info(defense: Defense, form, stamp=None) -> None:
-    """Keeps only what differs from the defaults: an emptied field returns to its default. No new file: same stamp."""
+def save_minutes_info(defense: Defense, form, files) -> None:
+    """Keeps only what differs from the defaults: an emptied field returns to its default. No new file: same image."""
     defaults = _minutes_defaults(defense)
     entered = {key: _text(form, key, 150) for key in defaults}
     try:
@@ -360,12 +360,16 @@ def save_minutes_info(defense: Defense, form, stamp=None) -> None:
     except ValueError:
         raise BusinessError("Date invalide.")
     defense.minutes_info = {key: value for key, value in entered.items() if value and value != defaults[key]}
-    if "remove_stamp" in form:
-        defense.stamp = defense.stamp_type = None
-    elif image := _read_image(stamp):
-        defense.stamp, defense.stamp_type = image, image_type(image)
+    for field in ("stamp", "director_signature"):
+        if f"remove_{field}" in form:
+            setattr(defense, field, None)
+            setattr(defense, f"{field}_type", None)
+        elif image := _read_image(files.get(field)):
+            setattr(defense, field, image)
+            setattr(defense, f"{field}_type", image_type(image))
     audit_service.log("defense_update", defense, {"minutes_info": defense.minutes_info,
-                                                  "stamp": defense.stamp_type is not None})
+                                                  "stamp": defense.stamp_type is not None,
+                                                  "director_signature": defense.director_signature_type is not None})
     db.session.commit()
 
 

@@ -245,6 +245,63 @@ def test_minutes_fixed_wording_can_change_and_returns_to_default(app, db, client
     assert "au titre de la première promotion, année académique 2026-2027," in html
 
 
+def test_director_signature_on_every_individual_minutes(app, db, client, admin):
+    d, rows = _defense(db)
+    db.session.commit()
+    login(client, admin)
+    page, pv = f"/soutenances/{d.id}/jury-global", f"/soutenances/{d.id}/proces-verbal"
+    image, all_pv = f"/soutenances/{d.id}/signature-directeur", f"/jury/soutenances/{d.id}/proces-verbaux"
+    one_pv = f"/jury/sheets/{rows['ALPHA'].id}/print"
+
+    html = client.get(all_pv).get_data(as_text=True)
+    assert html.count("KAMBOU ANICET CYRILLE") == 3 and image not in html  # default name, room to sign by hand
+    assert "Nom et signature" not in html and client.get(image).status_code == 404
+    assert "sans signature du directeur" in client.get(page).get_data(as_text=True)
+
+    client.post(pv, data={"director_name": "ATSE Laure", "director_signature": (io.BytesIO(PNG), "s.png")},
+                content_type="multipart/form-data")
+    html = client.get(all_pv).get_data(as_text=True)
+    assert html.count(image) == 3 and html.count("ATSE Laure") >= 3  # one per student's sheet
+    assert image in client.get(one_pv).get_data(as_text=True)
+    resp = client.get(image)
+    assert resp.data == PNG and resp.mimetype == "image/png" and "no-store" in resp.headers["Cache-Control"]
+    assert "signature du directeur chargée" in client.get(page).get_data(as_text=True)
+
+    # An SVG is refused and keeps the signature; the stamp and the signature live apart.
+    resp = client.post(pv, data={"director_signature": (io.BytesIO(b"<svg></svg>"), "s.svg")},
+                       content_type="multipart/form-data", follow_redirects=True)
+    assert "Image invalide" in resp.get_data(as_text=True) and client.get(image).data == PNG
+    assert client.get(f"/soutenances/{d.id}/cachet").status_code == 404
+
+    client.post("/logout")
+    login(client, make_user("coach", "other@test.ci"))
+    assert client.get(image).status_code == 403
+    assert client.post(pv, data={"remove_director_signature": "1"}).status_code == 403
+    client.post("/logout")
+    login(client, admin)
+    client.post(pv, data={"remove_director_signature": "1"})
+    assert client.get(image).status_code == 404 and image not in client.get(all_pv).get_data(as_text=True)
+
+
+def test_individual_minutes_surname_first_and_no_reserved_option(app, db, client, admin):
+    d, rows = _defense(db)
+    rows["ALPHA"].candidate.full_name, rows["BRAVO"].candidate.full_name = "zoe abo", "ali yao"
+    rows["CHARLIE"].candidate.full_name = "awa koné"
+    rows["ALPHA"].sheet = {"decision": "admitted"}
+    rows["CHARLIE"].sheet = {"decision": "reserved"}
+    db.session.commit()
+    login(client, admin)
+    html = client.get(f"/jury/soutenances/{d.id}/proces-verbaux").get_data(as_text=True)
+    # Sheets by surname: Abo, Koné, Yao; not by what comes first in the record.
+    assert html.index(">Abo Zoe<") < html.index(">Koné Awa<") < html.index(">Yao Ali<")
+    assert "zoe abo" not in html
+    single = client.get(f"/jury/sheets/{rows['ALPHA'].id}/print").get_data(as_text=True)
+    assert "<title>Procès-verbal de soutenance · Abo Zoe" in single and "réserve" not in single
+    assert "☑ Admis" in single and "☐ Liste d&#39;attente" in single and "☐ Non admis" in single
+    # A student actually given that decision keeps it visible: his sheet never shows an empty decision.
+    assert "☑ Admis sous réserve" in client.get(f"/jury/sheets/{rows['CHARLIE'].id}/print").get_data(as_text=True)
+
+
 def test_minutes_president_signature_follows_the_name(app, db, client, admin):
     d, rows = _defense(db)
     for row in rows.values():
@@ -350,9 +407,9 @@ def test_all_individual_minutes_and_waitlist_label(app, db, client, admin):
     db.session.commit()
     login(client, admin)
     html = client.get(f"/jury/soutenances/{d.id}/proces-verbaux").get_data(as_text=True)
-    assert html.count("data-fit-page") == 3 and html.index("ALPHA") < html.index("BRAVO") < html.index("CHARLIE")
+    assert html.count("data-fit-page") == 3 and html.index("Alpha") < html.index("Bravo") < html.index("Charlie")
     assert "☑ Liste d&#39;attente" in html and "Chaque membre du jury" not in html
     single = client.get(f"/jury/sheets/{rows['ALPHA'].id}/print").get_data(as_text=True)
-    assert single.count("data-fit-page") == 1 and "ALPHA" in single and "BRAVO" not in single
+    assert single.count("data-fit-page") == 1 and "Alpha" in single and "Bravo" not in single
     client.post(f"/soutenances/{d.id}/resultats")
     assert "Liste d&#39;attente : Rang 2" in _student_logs_in(client, db, rows["ALPHA"].candidate)

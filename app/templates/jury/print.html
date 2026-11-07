@@ -33,7 +33,7 @@
   </div>
 
   <table class="table table-sm table-bordered mt-1 sheet-table">
-    <tr><th>Identifiant</th><td><code>{{ c.matricule }}</code></td><th>Nom, prénoms</th><td colspan="3">{{ c.full_name }}</td></tr>
+    <tr><th>Identifiant</th><td><code>{{ c.matricule }}</code></td><th>Nom, prénoms</th><td colspan="3">{{ sheet.name }}</td></tr>
     <tr><th>Équipe</th><td>{{ s.team or '' }}</td><th>Brief / sujet</th><td colspan="3">{{ s.subject or '' }}</td></tr>
     <tr><th>Date</th><td>{{ jury.slot(position) | dt('%d/%m/%Y') }}</td><th>Heure</th><td>{{ jury.slot(position) | dt('%H:%M') }}</td>
       <th>Salle</th><td>{{ jury.room or jury.defense.location or '' }}</td></tr>
@@ -74,7 +74,8 @@
   <table class="table table-sm table-bordered sheet-table">
     <tr><th class="w-25">Points forts</th><td class="pre-line">{{ s.strengths or '' }}</td></tr>
     <tr><th>Axes de progrès</th><td class="pre-line">{{ s.improvements or '' }}</td></tr>
-    <tr><th>Décision du jury</th><td>{% for key, label in decisions.items() %}{{ check(s.decision == key) }} {{ label }}
+    {# "Admis sous réserve" is no longer offered on paper, but a student who was given it must not get an empty decision. #}
+    <tr><th>Décision du jury</th><td>{% for key, label in decisions.items() if key != 'reserved' or s.decision == key %}{{ check(s.decision == key) }} {{ label }}
       {% if key == s.decision and s.decision_note %}: {{ s.decision_note }}{% endif %} &nbsp; {% endfor %}</td></tr>
   </table>
 
@@ -85,7 +86,8 @@
         {% if m.user.signature_type %}<img class="signature-img" src="{{ url_for('jury.signature', user_id=m.user_id) }}" alt="Signature de {{ m.user.display_name }}">{% endif %}{% endfor %}</td>
       <td>{% for m in others %}<div class="d-inline-block align-top px-1"><div class="small">{{ m.user.display_name }} · {{ m.role_label }}</div>
         {% if m.user.signature_type %}<img class="signature-img" src="{{ url_for('jury.signature', user_id=m.user_id) }}" alt="Signature de {{ m.user.display_name }}">{% endif %}</div>{% endfor %}</td>
-      <td class="small text-muted align-top">Nom et signature</td>
+      <td><div class="small">{{ director_name }}</div>
+        {% if jury.defense.director_signature_type %}<img class="signature-img" src="{{ url_for('defense.director_signature', defense_id=jury.defense_id) }}" alt="Signature de {{ director_name }}">{% endif %}</td>
     </tr>
   </table>
   <div class="small text-muted border-top pt-1">Délibération validée le {{ jury.validated_at | dt }} · édité le {{ printed_at | dt }}</div>

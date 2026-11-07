@@ -43,7 +43,8 @@ NEGATIVES = {"reads": "Lit ses diapositives", "crowded": "Diapositives surcharg�
 MINUTES_DEFAULTS = {"civility": "Monsieur", "president_name": "KAMBOU ANICET CYRILLE",
                     "president_title": "Directeur Pédagogique et Académique", "title_suffix": "de la DFS",
                     "organization": "Digital Farming School (DFS)", "site": "Digital Farming School",
-                    "city": "Yamoussoukro", "promotion": "première promotion", "academic_year": "2026-2027"}
+                    "city": "Yamoussoukro", "promotion": "première promotion", "academic_year": "2026-2027",
+                    "director_name": "KAMBOU ANICET CYRILLE"}
 DECISIONS = {"admitted": "Admis", "reserved": "Admis sous réserve", "waitlist": "Liste d'attente",
              "rejected": "Non admis"}
 
@@ -70,6 +71,9 @@ class Defense(db.Model):
     minutes_info = db.Column(db.JSON, nullable=False, default=dict, server_default="{}")
     stamp = db.deferred(db.Column(db.LargeBinary))
     stamp_type = db.Column(db.String(20))
+    # Printed in the "Direction pédagogique" box of every individual minutes.
+    director_signature = db.deferred(db.Column(db.LargeBinary))
+    director_signature_type = db.Column(db.String(20))
 
     sas = db.relationship("Sas")
     juries = db.relationship("Jury", back_populates="defense", cascade="all, delete-orphan", order_by="Jury.id")
