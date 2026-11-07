@@ -39,8 +39,11 @@ POSITIVES = {"plan": "Annonce un plan clair", "field": "Exemples de terrain", "f
 NEGATIVES = {"reads": "Lit ses diapositives", "crowded": "Diapositives surchargées", "overtime": "Dépasse le temps",
              "fast": "Débit trop rapide", "off_topic": "Hors sujet par moments", "demo_ko": "Démo en échec",
              "typos": "Fautes sur les supports", "one_speaker": "Un seul membre parle (équipe)"}
-# ponytail: fixed for this cohort, like the text of defense/minutes.html; a field of the defense when that changes.
-SESSION_PRESIDENT = "KAMBOU ANICET CYRILLE"
+# General minutes, unless the admin changes them on the global jury page (the date defaults to the defense's).
+MINUTES_DEFAULTS = {"civility": "Monsieur", "president_name": "KAMBOU ANICET CYRILLE",
+                    "president_title": "Directeur Pédagogique et Académique", "title_suffix": "de la DFS",
+                    "organization": "Digital Farming School (DFS)", "site": "Digital Farming School",
+                    "city": "Yamoussoukro", "promotion": "première promotion", "academic_year": "2026-2027"}
 DECISIONS = {"admitted": "Admis", "reserved": "Admis sous réserve", "waitlist": "Liste d'attente",
              "rejected": "Non admis"}
 
@@ -63,6 +66,10 @@ class Defense(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
     # Sent by the admin from the global jury: until then the students see nothing of this defense.
     results_sent_at = db.Column(db.DateTime(timezone=True))
+    # General minutes: only what differs from the defaults (defense_service.minutes_info), and the president's stamp.
+    minutes_info = db.Column(db.JSON, nullable=False, default=dict, server_default="{}")
+    stamp = db.deferred(db.Column(db.LargeBinary))
+    stamp_type = db.Column(db.String(20))
 
     sas = db.relationship("Sas")
     juries = db.relationship("Jury", back_populates="defense", cascade="all, delete-orphan", order_by="Jury.id")

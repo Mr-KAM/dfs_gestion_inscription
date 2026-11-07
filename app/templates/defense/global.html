@@ -19,6 +19,31 @@
     {{ csrf() }}<button class="btn btn-sm btn-outline-danger" name="withdraw" value="1"><i class="bi bi-arrow-counterclockwise"></i> Retirer les résultats</button></form></div>
 {% elif total %}<div class="alert alert-info"><i class="bi bi-eye-slash"></i> Les étudiants ne voient rien tant que vous n'avez pas envoyé les résultats.{% if undecided %} Reste {{ undecided }} étudiant(s) sans décision avant de pouvoir les envoyer.{% endif %}</div>{% endif %}
 
+<details class="card card-body mb-3">
+  <summary class="fw-semibold"><i class="bi bi-pen"></i> Informations du procès-verbal <span class="fw-normal small text-muted">· {{ info.president_name }} · {{ (info.date[8:] ~ '/' ~ info.date[5:7] ~ '/' ~ info.date[:4]) if info.date else 'date à renseigner' }} · {{ info.site }}, {{ info.city }} · {{ 'cachet chargé' if defense.stamp_type else 'sans cachet' }}</span></summary>
+  <form class="row g-2 mt-1" method="post" enctype="multipart/form-data" action="{{ url_for('defense.minutes_save', defense_id=defense.id) }}">
+    {{ csrf() }}
+    <div class="col-6 col-md-2"><label class="form-label small mb-1" for="pv-civility">Civilité</label><input class="form-control form-control-sm" id="pv-civility" name="civility" maxlength="150" value="{{ info.civility }}"></div>
+    <div class="col-12 col-md-5"><label class="form-label small mb-1" for="pv-name">Nom et prénoms du président de séance</label><input class="form-control form-control-sm" id="pv-name" name="president_name" maxlength="150" value="{{ info.president_name }}"></div>
+    <div class="col-12 col-md-5"><label class="form-label small mb-1" for="pv-title">Fonction</label><input class="form-control form-control-sm" id="pv-title" name="president_title" maxlength="150" value="{{ info.president_title }}"></div>
+    <div class="col-6 col-md-2"><label class="form-label small mb-1" for="pv-date">Date</label><input class="form-control form-control-sm" id="pv-date" type="date" name="date" value="{{ info.date }}"></div>
+    <div class="col-12 col-md-4"><label class="form-label small mb-1" for="pv-site">Lieu</label><input class="form-control form-control-sm" id="pv-site" name="site" maxlength="150" value="{{ info.site }}"></div>
+    <div class="col-6 col-md-2"><label class="form-label small mb-1" for="pv-city">Ville</label><input class="form-control form-control-sm" id="pv-city" name="city" maxlength="150" value="{{ info.city }}"></div>
+    <div class="col-12 col-md-4"><label class="form-label small mb-1" for="pv-stamp">Cachet numérique</label><input class="form-control form-control-sm" id="pv-stamp" type="file" name="stamp" accept="image/png,image/jpeg,image/webp"></div>
+    <div class="col-6 col-md-3"><label class="form-label small mb-1" for="pv-suffix">Après la fonction</label><input class="form-control form-control-sm" id="pv-suffix" name="title_suffix" maxlength="150" value="{{ info.title_suffix }}"></div>
+    <div class="col-6 col-md-3"><label class="form-label small mb-1" for="pv-org">Structure, sous la fonction</label><input class="form-control form-control-sm" id="pv-org" name="organization" maxlength="150" value="{{ info.organization }}"></div>
+    <div class="col-6 col-md-3"><label class="form-label small mb-1" for="pv-promotion">Promotion</label><input class="form-control form-control-sm" id="pv-promotion" name="promotion" maxlength="150" value="{{ info.promotion }}"></div>
+    <div class="col-6 col-md-3"><label class="form-label small mb-1" for="pv-year">Année académique</label><input class="form-control form-control-sm" id="pv-year" name="academic_year" maxlength="150" value="{{ info.academic_year }}"></div>
+    <div class="col-12 form-text mt-1">Un champ vidé reprend sa valeur par défaut. Cachet : image PNG, JPEG ou WebP (2 Mo max.), imprimée sous la signature du président sur la dernière page.
+      {% if president and president.signature_type %}Signature du président : celle du compte {{ president.display_name }}.{% else %}Aucune signature enregistrée pour ce nom parmi les comptes du personnel : la place reste vide pour signer à la main.{% endif %}</div>
+    <div class="col-12 d-flex gap-2 align-items-center">
+      <button class="btn btn-sm btn-primary"><i class="bi bi-check2"></i> Enregistrer</button>
+      {% if defense.stamp_type %}<img class="pv-stamp-preview" src="{{ url_for('defense.stamp', defense_id=defense.id) }}" alt="Cachet chargé">
+      <button class="btn btn-sm btn-outline-danger" name="remove_stamp" value="1" data-confirm="Supprimer le cachet ?"><i class="bi bi-trash"></i> Supprimer le cachet</button>{% endif %}
+    </div>
+  </form>
+</details>
+
 <form class="card card-body mb-3 row g-2 flex-row align-items-center mx-0 bg-light-subtle" method="get">
   {% if filters.sort %}<input type="hidden" name="sort" value="{{ filters.sort }}"><input type="hidden" name="dir" value="{{ filters.dir }}">{% endif %}
   <div class="col-12 col-md"><input class="form-control form-control-sm" type="search" name="q" value="{{ filters.q }}" placeholder="Nom, matricule, email…" aria-label="Rechercher un étudiant"></div>

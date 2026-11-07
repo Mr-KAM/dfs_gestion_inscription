@@ -259,6 +259,8 @@ a.stat-card:hover { border-color: var(--dfs-blue); }
 .pv-signature { width: 30mm; height: 14mm; }
 .pv-signature img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .pv-president .pv-signature { width: 42mm; height: 18mm; margin: .2rem auto 0; }
+.pv-stamp { display: block; width: 38mm; height: 30mm; margin: .2rem auto 0; object-fit: contain; }
+.pv-stamp-preview { height: 2.5rem; max-width: 6rem; object-fit: contain; }
 .pv-foot { flex: none; margin-top: 2mm; }
 .pv-number { position: absolute; right: 20mm; bottom: 9mm; font-size: 9pt; }
 .sheet-print td > strong + .small { display: inline; margin-left: .3rem; }

@@ -1,4 +1,5 @@
 """Global jury page (filters, sort, batch decision) and its documents: all individual minutes, general minutes."""
+import io
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
@@ -108,7 +109,7 @@ def test_documents_are_for_the_admin_once_validated(app, db, client, admin):
     assert all(client.get(url).status_code == 403 for url in urls)
     client.post("/logout")
     login(client, admin)
-    assert "proces-verbal" not in client.get(f"/soutenances/{d.id}/jury-global").get_data(as_text=True)
+    assert f'href="{urls[0]}"' not in client.get(f"/soutenances/{d.id}/jury-global").get_data(as_text=True)
     for url in urls:
         assert "Délibération à valider" in client.get(url, follow_redirects=True).get_data(as_text=True)
 
@@ -144,8 +145,9 @@ def test_general_minutes(app, db, client, admin):
     member.signature, member.signature_type = b"x", "image/png"
     db.session.commit()
     login(client, admin)
-    assert "proces-verbal" in client.get(f"/soutenances/{d.id}/jury-global").get_data(as_text=True)
-    html = client.get(f"/soutenances/{d.id}/proces-verbal").get_data(as_text=True)
+    url = f"/soutenances/{d.id}/proces-verbal"
+    assert f'href="{url}"' in client.get(f"/soutenances/{d.id}/jury-global").get_data(as_text=True)
+    html = client.get(url).get_data(as_text=True)
     assert "PROCÈS-VERBAL DU JURY D’ADMISSION" in html and "data-autoprint" in html and "papier-en-tete.svg" in html
     assert "Vendredi 06 novembre 2026" in html and "session du vendredi 06 novembre 2026" in html
     assert "Fait à Yamoussoukro, le 06 novembre 2026." in html and "sous la présidence de Monsieur KAMBOU" in html
@@ -157,6 +159,106 @@ def test_general_minutes(app, db, client, admin):
     # Signatures: the president also signs when he sits on no jury; the others without name nor role.
     assert f"/jury/signature/{admin.id}" in html and f"/jury/signature/{member.id}" in html
     assert member.full_name not in html and "Évaluateur" not in html
+
+
+PNG = b"\x89PNG\r\n\x1a\n" + b"x" * 10
+
+
+def test_minutes_info_defaults_edit_and_stamp(app, db, client, admin):
+    d, rows = _defense(db)
+    for row in rows.values():
+        row.sheet = {"decision": "admitted"}
+    d.starts_at = datetime(2026, 11, 6, 9, 0, tzinfo=timezone.utc)
+    db.session.commit()
+    login(client, admin)
+    page, pv = f"/soutenances/{d.id}/jury-global", f"/soutenances/{d.id}/proces-verbal"
+    html = client.get(page).get_data(as_text=True)
+    for default in ('value="KAMBOU ANICET CYRILLE"', 'value="Directeur Pédagogique et Académique"',
+                    'value="2026-11-06"', 'value="Digital Farming School"', 'value="Yamoussoukro"', "sans cachet"):
+        assert default in html
+
+    form = {"civility": "Madame", "president_name": "ATSE Laure", "president_title": "Directrice", "date": "2026-11-09",
+            "site": "INP-HB", "city": "Bouaké"}
+    resp = client.post(pv, data={**form, "stamp": (io.BytesIO(PNG), "cachet.png")}, content_type="multipart/form-data",
+                       follow_redirects=True)
+    assert "Informations du procès-verbal enregistrées" in resp.get_data(as_text=True)
+    html = client.get(pv).get_data(as_text=True)
+    assert "Lundi 09 novembre 2026" in html and "Lieu :</strong> INP-HB, Bouaké" in html
+    assert "site « INP-HB » à Bouaké, sous la présidence de Madame ATSE Laure, Directrice de la DFS" in html
+    assert "Fait à Bouaké, le 09 novembre 2026." in html and "La Présidente de la session" in html
+    # The stamp comes right under the president's signature, in the closing block only.
+    assert html.count(f"/soutenances/{d.id}/cachet") == 1
+    assert html.index("Directrice</div>") < html.index("/cachet") < html.index('flex-fill')
+    resp = client.get(f"/soutenances/{d.id}/cachet")
+    assert resp.data == PNG and resp.mimetype == "image/png" and "no-store" in resp.headers["Cache-Control"]
+
+    # A new save without a file keeps the stamp; an SVG is refused and changes nothing.
+    client.post(pv, data=form, content_type="multipart/form-data")
+    assert client.get(f"/soutenances/{d.id}/cachet").status_code == 200
+    resp = client.post(pv, data={"stamp": (io.BytesIO(b"<svg></svg>"), "c.svg")}, content_type="multipart/form-data",
+                       follow_redirects=True)
+    assert "Image invalide" in resp.get_data(as_text=True)
+    db.session.expire_all()
+    assert d.minutes_info["city"] == "Bouaké"
+    assert "Date invalide" in client.post(pv, data={**form, "date": "x"}, follow_redirects=True).get_data(as_text=True)
+
+    # Emptied fields go back to the defaults, the date follows the defense again; the stamp can be removed.
+    client.post(pv, data={"remove_stamp": "1"})
+    db.session.expire_all()
+    assert d.minutes_info == {} and d.stamp_type is None
+    assert client.get(f"/soutenances/{d.id}/cachet").status_code == 404
+    html = client.get(pv).get_data(as_text=True)
+    assert "site de la Digital Farming School à Yamoussoukro, sous la présidence de Monsieur KAMBOU" in html
+    assert "Vendredi 06 novembre 2026" in html and "Le Président de la session" in html
+
+    client.post("/logout")
+    login(client, make_user("coach", "other@test.ci"))
+    assert client.post(pv, data=form).status_code == 403
+    assert client.get(f"/soutenances/{d.id}/cachet").status_code == 403
+
+
+def test_minutes_fixed_wording_can_change_and_returns_to_default(app, db, client, admin):
+    d, rows = _defense(db)
+    for row in rows.values():
+        row.sheet = {"decision": "admitted"}
+    d.starts_at = datetime(2026, 11, 6, 9, 0, tzinfo=timezone.utc)
+    db.session.commit()
+    login(client, admin)
+    pv = f"/soutenances/{d.id}/proces-verbal"
+    html = client.get(pv).get_data(as_text=True)
+    assert "Académique de la DFS, a procédé" in html and "<div>Digital Farming School (DFS)</div>" in html
+    assert "de la première promotion de la DFS, au titre de l’année académique 2026-2027." in html
+    assert "au titre de la première promotion, année académique 2026-2027," in html
+
+    client.post(pv, data={"title_suffix": "de l’INP-HB", "organization": "INP-HB", "promotion": "deuxième promotion",
+                          "academic_year": "2027-2028"})
+    html = client.get(pv).get_data(as_text=True)
+    assert "Académique de l’INP-HB, a procédé" in html and "<div>INP-HB</div>" in html
+    assert "de la deuxième promotion de la DFS, au titre de l’année académique 2027-2028." in html
+    assert "au titre de la deuxième promotion, année académique 2027-2028," in html
+    assert "au titre de l’année académique 2027-2028, les candidats" in html
+    assert "2026-2027" not in html and "première promotion" not in html
+
+    client.post(pv, data={"title_suffix": "", "organization": " ", "promotion": "", "academic_year": ""})
+    html = client.get(pv).get_data(as_text=True)
+    assert "Académique de la DFS, a procédé" in html and "<div>Digital Farming School (DFS)</div>" in html
+    assert "au titre de la première promotion, année académique 2026-2027," in html
+
+
+def test_minutes_president_signature_follows_the_name(app, db, client, admin):
+    d, rows = _defense(db)
+    for row in rows.values():
+        row.sheet = {"decision": "admitted"}
+    d.starts_at = datetime(2026, 11, 6, 9, 0, tzinfo=timezone.utc)
+    member = d.juries[1].members[0].user  # "THIRD Member" sits on a jury and becomes president of the session
+    member.signature, member.signature_type = PNG, "image/png"
+    d.minutes_info = {"president_name": "Member Third"}
+    db.session.commit()
+    login(client, admin)
+    html = client.get(f"/soutenances/{d.id}/proces-verbal").get_data(as_text=True)
+    url = f"/jury/signature/{member.id}"
+    # In the president's block, not again next to it, and on the foot of the sheets.
+    assert html.count(url) == 2 and html.index("pv-president") < html.index(url) < html.index("flex-fill")
 
 
 def test_general_minutes_needs_a_date_and_a_place_for_everyone(app, db, client, admin):

@@ -1,11 +1,14 @@
 """SAS defenses (admin): schedule a defense, its juries (members, duration per student) and who defends where."""
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+import io
+from datetime import date
+
+from flask import Blueprint, abort, flash, redirect, render_template, request, send_file, url_for
 from flask_login import current_user
 from sqlalchemy import select
 
 from app.extensions import db
 from app.models import Defense, Jury, JuryCandidate, JuryMember, Sas
-from app.models.defense import DECISIONS, JURY_ROLES, SESSION_PRESIDENT
+from app.models.defense import DECISIONS, JURY_ROLES
 from app.models.user import ROLE_ADMIN
 from app.services import audit_service, defense_service
 from app.services.candidate_service import BusinessError
@@ -79,7 +82,9 @@ def global_jury(defense_id: int):
                            waiting=defense_service.open_juries(defense), filters=request.args.to_dict(),
                            undecided=sum((r.sheet or {}).get("decision") not in DECISIONS for r, _res in everyone),
                            classes=sorted({r.candidate.sas_class for r, _res in everyone if r.candidate.sas_class}),
-                           sort_args=dict(request.args.to_dict(), defense_id=defense.id))
+                           sort_args=dict(request.args.to_dict(), defense_id=defense.id),
+                           info=defense_service.minutes_info(defense),
+                           president=defense_service.minutes_signatories(defense)[0])
 
 
 @bp.post("/<int:defense_id>/resultats")
@@ -111,8 +116,32 @@ def minutes(defense_id: int):
     db.session.commit()
     admitted, waitlist = defense_service.minutes_lists(defense_service.global_results(defense))
     president, others = defense_service.minutes_signatories(defense)
-    return render_template("defense/minutes.html", defense=defense, admitted=admitted, waitlist=waitlist,
-                           president_name=SESSION_PRESIDENT, president=president, others=others)
+    info = defense_service.minutes_info(defense)
+    return render_template("defense/minutes.html", defense=defense, admitted=admitted, waitlist=waitlist, info=info,
+                           when=date.fromisoformat(info["date"]), president=president, others=others)
+
+
+@bp.post("/<int:defense_id>/proces-verbal")
+def minutes_save(defense_id: int):
+    """Session president, date, place and stamp of the general minutes."""
+    defense = db.get_or_404(Defense, defense_id)
+    try:
+        defense_service.save_minutes_info(defense, request.form, request.files.get("stamp"))
+        flash("Informations du procès-verbal enregistrées.", "success")
+    except BusinessError as exc:
+        db.session.rollback()
+        flash(str(exc), "danger")
+    return redirect(url_for("defense.global_jury", defense_id=defense.id))
+
+
+@bp.get("/<int:defense_id>/cachet")
+def stamp(defense_id: int):
+    defense = db.get_or_404(Defense, defense_id)
+    if not defense.stamp_type:
+        abort(404)
+    response = send_file(io.BytesIO(defense.stamp), mimetype=defense.stamp_type, max_age=0)
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
 
 
 @bp.post("/<int:defense_id>/delete")

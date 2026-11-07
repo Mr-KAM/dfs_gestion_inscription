@@ -1,19 +1,20 @@
 """SAS defenses: juries, their members (staff, one jury per person and defense) and the students they hear."""
 import re
-from datetime import timedelta
+from datetime import date, timedelta
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, or_, select
 
 from app.extensions import db
 from app.models import Candidate, Defense, DefenseScore, Jury, JuryCandidate, JuryMember, Notification, Sas, User
-from app.models.defense import (DECISIONS, DEFENSE_CRITERIA, DEFENSE_SCALE, DEFENSE_SECTIONS, JURY_ROLES, NEGATIVES,
-                                POSITIVES, SESSION_PRESIDENT, SUPPORTS, grid_points)
+from app.models.defense import (DECISIONS, DEFENSE_CRITERIA, DEFENSE_SCALE, DEFENSE_SECTIONS, JURY_ROLES,
+                                MINUTES_DEFAULTS, NEGATIVES, POSITIVES, SUPPORTS, grid_points)
 from app.models.user import ROLE_ADMIN, ROLE_CANDIDATE
-from app.services import attendance_service, audit_service
+from app.services import attendance_service, audit_service, settings_service
 from app.services.account_service import PHOTO_MAX_BYTES, image_type
 from app.services.campus_service import evaluation_of, local_datetime
 from app.services.candidate_service import BusinessError
-from app.utils import norm_name, utcnow
+from app.utils import as_utc, norm_name, utcnow
 
 MIN_DURATION, MAX_DURATION = 5, 480
 
@@ -339,10 +340,39 @@ def minutes_lists(rows: list) -> tuple[list, list]:
     return sorted(named("admitted"), key=lambda n: norm_name(n[0])), named("waitlist")
 
 
+def _minutes_defaults(defense: Defense) -> dict:
+    start = as_utc(defense.starts_at)
+    tz = ZoneInfo(settings_service.get("timezone") or "UTC")
+    return {**MINUTES_DEFAULTS, "date": start.astimezone(tz).date().isoformat() if start else ""}
+
+
+def minutes_info(defense: Defense) -> dict:
+    """General minutes: session president, date (ISO) and place, as entered on the global jury page or by default."""
+    return {**_minutes_defaults(defense), **(defense.minutes_info or {})}
+
+
+def save_minutes_info(defense: Defense, form, stamp=None) -> None:
+    """Keeps only what differs from the defaults: an emptied field returns to its default. No new file: same stamp."""
+    defaults = _minutes_defaults(defense)
+    entered = {key: _text(form, key, 150) for key in defaults}
+    try:
+        date.fromisoformat(entered["date"] or "2000-01-01")
+    except ValueError:
+        raise BusinessError("Date invalide.")
+    defense.minutes_info = {key: value for key, value in entered.items() if value and value != defaults[key]}
+    if "remove_stamp" in form:
+        defense.stamp = defense.stamp_type = None
+    elif image := _read_image(stamp):
+        defense.stamp, defense.stamp_type = image, image_type(image)
+    audit_service.log("defense_update", defense, {"minutes_info": defense.minutes_info,
+                                                  "stamp": defense.stamp_type is not None})
+    db.session.commit()
+
+
 def minutes_signatories(defense: Defense) -> tuple[User | None, list[User]]:
     """General minutes: the session president's account, for his signature, and the other jury members.
     ponytail: account found by name (2 words in common); without one, room is left for a handwritten signature."""
-    wanted = set(norm_name(SESSION_PRESIDENT).split())
+    wanted = set(norm_name(minutes_info(defense)["president_name"]).split())
     staff = db.session.scalars(select(User).where(User.role != ROLE_CANDIDATE))
     president = next((u for u in staff if len(wanted & set(norm_name(u.full_name).split())) >= 2), None)
     return president, [m.user for jury in defense.juries for m in jury.members if m.user != president]
@@ -359,8 +389,8 @@ def minutes_problem(defense: Defense) -> str | None:
     """Why the general minutes cannot be printed: it states the date and has no place for an open or reserved case."""
     if problem := deliberation_problem(defense):
         return problem
-    if not defense.starts_at:
-        return "Renseignez d'abord la date de la soutenance : elle figure sur le procès-verbal."
+    if not minutes_info(defense)["date"]:
+        return "Renseignez d'abord la date du procès-verbal, dans ses informations sur cette page."
     unplaced = sum((row.sheet or {}).get("decision") not in ("admitted", "waitlist", "rejected")
                    for jury in defense.juries for row in jury.candidates)
     return (f"{unplaced} étudiant(s) sans décision ou « Admis sous réserve » : attribuez-leur Admis, Liste d'attente "
@@ -450,18 +480,25 @@ def set_timer(jury: Jury, user, action: str, minutes: int | None = None) -> None
     db.session.commit()
 
 
+def _read_image(file) -> bytes:
+    """An uploaded signature or stamp, empty if none was sent (JPEG / PNG / WebP, real format checked; no SVG: it can
+    carry scripts)."""
+    data = file.read(PHOTO_MAX_BYTES + 1) if file is not None and file.filename else b""
+    if len(data) > PHOTO_MAX_BYTES:
+        raise BusinessError("Image trop lourde : 2 Mo maximum.")
+    if data and image_type(data) is None:
+        raise BusinessError("Image invalide : formats JPEG, PNG ou WebP uniquement.")
+    return data
+
+
 def save_signature(owner: User, file=None, remove: bool = False) -> None:
-    """A jury member's signature (JPEG / PNG / WebP image, real format checked; no SVG: it can carry scripts)."""
+    """A jury member's signature."""
     if remove:
         owner.signature = owner.signature_type = None
     else:
-        data = file.read(PHOTO_MAX_BYTES + 1) if file is not None and file.filename else b""
+        data = _read_image(file)
         if not data:
             raise BusinessError("Choisissez l'image de la signature.")
-        if len(data) > PHOTO_MAX_BYTES:
-            raise BusinessError("Signature trop lourde : 2 Mo maximum.")
-        if image_type(data) is None:
-            raise BusinessError("Signature invalide : formats JPEG, PNG ou WebP uniquement.")
         owner.signature, owner.signature_type = data, image_type(data)
     audit_service.log("signature_update", owner, {"removed": remove})
     db.session.commit()

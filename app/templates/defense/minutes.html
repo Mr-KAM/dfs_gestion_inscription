@@ -1,8 +1,7 @@
-{% set DAYS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'] %}
+{% set DAYS = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'] %}
 {% set MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'] %}
-{% set start = defense.starts_at %}
-{% set day = (start | dt('%d')) ~ ' ' ~ MONTHS[(start | dt('%m') | int) - 1] ~ ' ' ~ (start | dt('%Y')) %}
-{% set long_day = DAYS[start | dt('%w') | int] ~ ' ' ~ day %}
+{% set day = when.strftime('%d') ~ ' ' ~ MONTHS[when.month - 1] ~ ' ' ~ when.year %}
+{% set long_day = DAYS[when.weekday()] ~ ' ' ~ day %}
 {% macro signature(user) %}<div class="pv-signature">{% if user and user.signature_type %}<img src="{{ url_for('jury.signature', user_id=user.id) }}" alt="Signature">{% endif %}</div>{% endmacro %}
 {% macro students(rows) %}
   {% if rows %}
@@ -33,9 +32,9 @@
   <main class="pv-page" data-paginate>
     <img class="pv-letterhead" src="{{ url_for('static', filename='img/papier-en-tete.svg') }}" alt="">
     <div class="pv-body">
-      <div><strong>Date :</strong> {{ long_day | capitalize }}<br><strong>Lieu :</strong> Digital Farming School, Yamoussoukro</div>
+      <div><strong>Date :</strong> {{ long_day | capitalize }}<br><strong>Lieu :</strong> {{ info.site }}, {{ info.city }}</div>
       <h1 class="pv-title">PROCÈS-VERBAL DU JURY D’ADMISSION</h1>
-      <p>Le Jury d’Admission du Parcours de formation AgriTech de la Digital Farming School (DFS), réuni en sa session du {{ long_day }}, sur le site de la Digital Farming School à Yamoussoukro, sous la présidence de Monsieur {{ president_name }}, Directeur Pédagogique et Académique de la DFS, a procédé à l’examen des résultats des candidats ayant participé à la Self Accessement Skills (SAS), organisée dans le cadre du recrutement de la première promotion de la DFS, au titre de l’année académique 2026-2027.</p>
+      <p>Le Jury d’Admission du Parcours de formation AgriTech de la Digital Farming School (DFS), réuni en sa session du {{ long_day }}, sur le site {% if info.site == 'Digital Farming School' %}de la {{ info.site }}{% else %}« {{ info.site }} »{% endif %} à {{ info.city }}, sous la présidence de {{ info.civility }} {{ info.president_name }}, {{ info.president_title }} {{ info.title_suffix }}, a procédé à l’examen des résultats des candidats ayant participé à la Self Accessement Skills (SAS), organisée dans le cadre du recrutement de la {{ info.promotion }} de la DFS, au titre de l’année académique {{ info.academic_year }}.</p>
       <p class="fw-bold" data-keep>Vu :</p>
       <p>L’ordonnance n° 2024-368 du 12 juin 2024 relative à l’organisation de la société civile en République de Côte d’Ivoire ;</p>
       <p>Les statuts et règlement intérieur de l’association Digital Farming School (DFS), adoptés lors de l’Assemblée générale constitutive du 17 mars 2026 ;</p>
@@ -45,23 +44,24 @@
       <p data-keep>Après examen des résultats, appréciation des performances individuelles et délibération, le Jury d’Admission décide et arrête ce qui suit :</p>
 
       <h2 class="pv-article" data-keep>Article 1 : Admission définitive</h2>
-      <p data-keep>Sont déclarés ADMIS au Parcours de formation AgriTech de la Digital Farming School, au titre de la première promotion, année académique 2026-2027, les candidats dont les noms figurent par ordre alphabétique sur la liste suivante :</p>
+      <p data-keep>Sont déclarés ADMIS au Parcours de formation AgriTech de la Digital Farming School, au titre de la {{ info.promotion }}, année académique {{ info.academic_year }}, les candidats dont les noms figurent par ordre alphabétique sur la liste suivante :</p>
       {{ students(admitted) }}
 
       <h2 class="pv-article" data-keep>Article 2 : Liste d’attente</h2>
-      <p data-keep>Sont inscrits sur la LISTE D’ATTENTE du Parcours de formation AgriTech de la Digital Farming School, au titre de l’année académique 2026-2027, les candidats dont les noms figurent sur la liste ci-dessous.</p>
+      <p data-keep>Sont inscrits sur la LISTE D’ATTENTE du Parcours de formation AgriTech de la Digital Farming School, au titre de l’année académique {{ info.academic_year }}, les candidats dont les noms figurent sur la liste ci-dessous.</p>
       <p data-keep>Les candidats inscrits sur cette liste pourront être appelés, dans l’ordre de classement arrêté par le jury, en fonction des places disponibles et des éventuels désistements des candidats admis.</p>
       {{ students(waitlist) }}
 
       <section class="pv-closing" data-closing>
-        <p>Fait à Yamoussoukro, le {{ day }}.</p>
+        <p>Fait à {{ info.city }}, le {{ day }}.</p>
         <div class="d-flex gap-3">
           <div class="pv-president">
-            <div class="fw-bold">Le Président de la session du Jury d’Admission</div>
-            <div class="fw-bold mt-1">{{ president_name }}</div>
-            <div>Directeur Pédagogique et Académique</div>
-            <div>Digital Farming School (DFS)</div>
+            <div class="fw-bold">{{ 'La Présidente' if info.civility == 'Madame' else 'Le Président' }} de la session du Jury d’Admission</div>
+            <div class="fw-bold mt-1">{{ info.president_name }}</div>
+            <div>{{ info.president_title }}</div>
+            <div>{{ info.organization }}</div>
             {{ signature(president) }}
+            {% if defense.stamp_type %}<img class="pv-stamp" src="{{ url_for('defense.stamp', defense_id=defense.id) }}" alt="Cachet">{% endif %}
           </div>
           <div class="pv-signatures flex-fill">{% for user in others %}{{ signature(user) }}{% endfor %}</div>
         </div>
