@@ -5,11 +5,11 @@ from sqlalchemy import select
 
 from app.extensions import db
 from app.models import Defense, Jury, JuryCandidate, JuryMember, Sas
-from app.models.defense import DECISIONS, JURY_ROLES, MINUTES_TITLE
+from app.models.defense import DECISIONS, JURY_ROLES, SESSION_PRESIDENT
 from app.models.user import ROLE_ADMIN
 from app.services import audit_service, defense_service
 from app.services.candidate_service import BusinessError
-from app.utils import roles_required, utcnow
+from app.utils import roles_required
 
 bp = Blueprint("defense", __name__, url_prefix="/soutenances")
 
@@ -101,7 +101,7 @@ def results(defense_id: int):
 
 @bp.get("/<int:defense_id>/proces-verbal")
 def minutes(defense_id: int):
-    """One document for the whole defense: every decision and the signature of everyone who sat on a jury."""
+    """One document for the whole defense, on letterhead: the admitted, the wait list, everyone's signature."""
     defense = db.get_or_404(Defense, defense_id)
     problem = defense_service.minutes_problem(defense)
     if problem:
@@ -109,9 +109,10 @@ def minutes(defense_id: int):
         return redirect(url_for("defense.global_jury", defense_id=defense.id))
     audit_service.log("export", defense, {"kind": "defense_minutes"})
     db.session.commit()
-    return render_template("defense/minutes.html", defense=defense, printed_at=utcnow(), title=MINUTES_TITLE,
-                           groups=defense_service.decision_groups(defense_service.global_results(defense)),
-                           people=defense_service.participants(defense))
+    admitted, waitlist = defense_service.minutes_lists(defense_service.global_results(defense))
+    president, others = defense_service.minutes_signatories(defense)
+    return render_template("defense/minutes.html", defense=defense, admitted=admitted, waitlist=waitlist,
+                           president_name=SESSION_PRESIDENT, president=president, others=others)
 
 
 @bp.post("/<int:defense_id>/delete")

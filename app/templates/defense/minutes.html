@@ -1,73 +1,74 @@
-{% from "jury/_parts.html" import note %}
-{% import "_brand.html" as brand %}
+{% set DAYS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'] %}
+{% set MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'] %}
+{% set start = defense.starts_at %}
+{% set day = (start | dt('%d')) ~ ' ' ~ MONTHS[(start | dt('%m') | int) - 1] ~ ' ' ~ (start | dt('%Y')) %}
+{% set long_day = DAYS[start | dt('%w') | int] ~ ' ' ~ day %}
+{% macro signature(user) %}<div class="pv-signature">{% if user and user.signature_type %}<img src="{{ url_for('jury.signature', user_id=user.id) }}" alt="Signature">{% endif %}</div>{% endmacro %}
+{% macro students(rows) %}
+  {% if rows %}
+  <table class="table table-sm table-bordered pv-table">
+    <thead><tr><th class="text-center">N°</th><th>Matricule</th><th>NOM ET PRÉNOMS</th><th class="text-center">Genre</th></tr></thead>
+    <tbody>
+    {% for name, c in rows %}<tr><td class="text-center">{{ loop.index }}</td><td>{{ c.matricule }}</td><td>{{ name }}</td><td class="text-center">{{ c.gender or '—' }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p>Néant.</p>{% endif %}
+{% endmacro %}
 <!doctype html>
 <html lang="fr">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ title }} · {{ defense.name }} · DFS</title>
+  <title>Procès-verbal du jury d’admission · {{ defense.name }} · DFS</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
-  <style>@page { size: A4 portrait; margin: 8mm; }</style>
+  <style>@page { size: A4 portrait; margin: 0; }</style>
 </head>
-{# General minutes of the defense: runs over as many sheets as there are students, signatures kept together at the end. #}
-<body class="bg-white sheet-print sheet-minutes" data-autoprint>
+{# app.js spreads .pv-body over as many sheets as needed: each one repeats the letterhead, the signatures and its number. #}
+<body class="bg-white pv" data-autoprint>
   <div class="text-end p-2 d-print-none"><button class="btn btn-primary btn-sm" type="button" data-print><i class="bi bi-file-earmark-pdf"></i> Imprimer / PDF</button></div>
-  <main class="sheet-page">
-    <div class="d-flex justify-content-between align-items-start border-bottom border-3 pb-1 mb-2">
-      {{ brand.logo(26) }}
-      <div class="text-end fw-bold">Session d'admission et de sélection</div>
+  <main class="pv-page" data-paginate>
+    <img class="pv-letterhead" src="{{ url_for('static', filename='img/papier-en-tete.svg') }}" alt="">
+    <div class="pv-body">
+      <div><strong>Date :</strong> {{ long_day | capitalize }}<br><strong>Lieu :</strong> Digital Farming School, Yamoussoukro</div>
+      <h1 class="pv-title">PROCÈS-VERBAL DU JURY D’ADMISSION</h1>
+      <p>Le Jury d’Admission du Parcours de formation AgriTech de la Digital Farming School (DFS), réuni en sa session du {{ long_day }}, sur le site de la Digital Farming School à Yamoussoukro, sous la présidence de Monsieur {{ president_name }}, Directeur Pédagogique et Académique de la DFS, a procédé à l’examen des résultats des candidats ayant participé à la Self Accessement Skills (SAS), organisée dans le cadre du recrutement de la première promotion de la DFS, au titre de l’année académique 2026-2027.</p>
+      <p class="fw-bold" data-keep>Vu :</p>
+      <p>L’ordonnance n° 2024-368 du 12 juin 2024 relative à l’organisation de la société civile en République de Côte d’Ivoire ;</p>
+      <p>Les statuts et règlement intérieur de l’association Digital Farming School (DFS), adoptés lors de l’Assemblée générale constitutive du 17 mars 2026 ;</p>
+      <p>Les orientations pédagogiques de la Digital Farming School relatives à la formation AgriTech, fondées sur l’acquisition de compétences pratiques, techniques, agricoles et entrepreneuriales ;</p>
+      <p>Les résultats des différentes épreuves d’évaluation et des travaux réalisés par les candidats au cours de la SAS ;</p>
+      <p>Les résultats des soutenances des projets présentés devant les jurys le {{ long_day }}.</p>
+      <p data-keep>Après examen des résultats, appréciation des performances individuelles et délibération, le Jury d’Admission décide et arrête ce qui suit :</p>
+
+      <h2 class="pv-article" data-keep>Article 1 : Admission définitive</h2>
+      <p data-keep>Sont déclarés ADMIS au Parcours de formation AgriTech de la Digital Farming School, au titre de la première promotion, année académique 2026-2027, les candidats dont les noms figurent par ordre alphabétique sur la liste suivante :</p>
+      {{ students(admitted) }}
+
+      <h2 class="pv-article" data-keep>Article 2 : Liste d’attente</h2>
+      <p data-keep>Sont inscrits sur la LISTE D’ATTENTE du Parcours de formation AgriTech de la Digital Farming School, au titre de l’année académique 2026-2027, les candidats dont les noms figurent sur la liste ci-dessous.</p>
+      <p data-keep>Les candidats inscrits sur cette liste pourront être appelés, dans l’ordre de classement arrêté par le jury, en fonction des places disponibles et des éventuels désistements des candidats admis.</p>
+      {{ students(waitlist) }}
+
+      <section class="pv-closing" data-closing>
+        <p>Fait à Yamoussoukro, le {{ day }}.</p>
+        <div class="d-flex gap-3">
+          <div class="pv-president">
+            <div class="fw-bold">Le Président de la session du Jury d’Admission</div>
+            <div class="fw-bold mt-1">{{ president_name }}</div>
+            <div>Directeur Pédagogique et Académique</div>
+            <div>Digital Farming School (DFS)</div>
+            {{ signature(president) }}
+          </div>
+          <div class="pv-signatures flex-fill">{% for user in others %}{{ signature(user) }}{% endfor %}</div>
+        </div>
+      </section>
     </div>
-    <h1 class="h5 mb-0 text-center">{{ title }}</h1>
-    <div class="small text-primary mb-2 text-center">{{ defense.name }} · {{ defense.sas.name }}</div>
-
-    {% set MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'] %}
-    {% set presidents = people | selectattr('role', 'equalto', 'president') | map(attribute='user.display_name') | list %}
-    {% set start = defense.starts_at %}
-    <div class="minutes-text">
-      <p>Le présent procès-verbal a pour objet de constater les délibérations du jury d’admission de la Digital Farming School (DFS) et d’arrêter, de manière collégiale, les décisions relatives aux candidats, à l’issue du SAS (Semaine d’Accélération des Skills) et de leur soutenance devant jury.</p>
-      <p>{% if presidents %}Sous la présidence de {{ presidents | join(' et ') }}, le{% else %}Le{% endif %} jury d’admission s’est réuni{% if start %} le {{ start | dt('%d') }} {{ MONTHS[(start | dt('%m') | int) - 1] }} {{ start | dt('%Y') }} à {{ start | dt('%Hh%M') }}{% endif %}, sur le site de la Digital Farming School à Yamoussoukro{% if defense.location %} ({{ defense.location }}){% endif %}, afin d’examiner les résultats des candidats et de statuer sur leur admission.</p>
-      <p class="mb-1">Le jury était composé de :</p>
-      <ul class="list-unstyled ms-3">
-      {% for m in people %}<li>– {{ m.user.display_name }}, {% if m.role == 'president' %}Président du jury{% else %}Membre du jury, {{ m.role_label }}{% endif %}{% if defense.juries | length > 1 %} ({{ m.jury.name }}){% endif %} ;</li>{% endfor %}
-      </ul>
-      <p>Après examen des évaluations individuelles de suivi et des notes de soutenance, le jury a procédé à une délibération collégiale. À l’issue de cette délibération, les décisions arrêtées pour chaque candidat figurent dans les listes ci-après.</p>
-    </div>
-
-    <table class="table table-sm table-bordered sheet-table text-center">
-      <tr>{% for label, rows in groups %}<th>{{ label }}</th>{% endfor %}<th>Total</th></tr>
-      <tr>{% set total = namespace(n=0) %}{% for label, rows in groups %}{% set total.n = total.n + rows | length %}<td class="fw-bold">{{ rows | length }}</td>{% endfor %}<td class="fw-bold">{{ total.n }}</td></tr>
-    </table>
-    {% for label, rows in groups if rows %}
-    <h2 class="h6">{{ label }} ({{ rows | length }})</h2>
-    <table class="table table-sm table-bordered sheet-table">
-      <thead><tr><th class="text-center">Rang</th><th>Matricule</th><th>Nom et prénoms</th><th class="text-center">Genre</th>
-        <th class="text-center">Évaluation coef. 2</th><th class="text-center">Soutenance coef. 1</th><th class="text-center">Note finale</th><th>Réserve ou orientation</th></tr></thead>
-      <tbody>
-      {% for row, r in rows %}
-        <tr><td class="text-center">{{ loop.index }}</td><td><code>{{ row.candidate.matricule }}</code></td><td>{{ row.candidate.full_name }}</td>
-          <td class="text-center">{{ row.candidate.gender or '—' }}</td><td class="text-center">{{ note(r.follow) }}</td><td class="text-center">{{ note(r.defense) }}</td>
-          <td class="text-center fw-bold">{{ note(r.final) }}</td><td>{{ (row.sheet or {}).decision_note or '' }}</td></tr>
-      {% endfor %}
-      </tbody>
-    </table>
-    {% endfor %}
-
-    <section class="minutes-signatures">
-      <h2 class="h6">Signatures des membres du jury</h2>
-      <div class="row g-1">
-      {% for m in people %}
-        <div class="col-4"><div class="minutes-signature border text-center">
-          <div class="fw-bold">{{ m.user.display_name }}</div>
-          <div class="small text-muted">{{ m.role_label }} · {{ m.jury.name }}</div>
-          {% if m.user.signature_type %}<img class="signature-img" src="{{ url_for('jury.signature', user_id=m.user_id) }}" alt="Signature de {{ m.user.display_name }}">{% endif %}
-        </div></div>
-      {% else %}<div class="col-12 text-muted">Aucun membre de jury.</div>{% endfor %}
-      </div>
-      <div class="small text-muted border-top pt-1 mt-2">Édité le {{ printed_at | dt }}</div>
-    </section>
+    <div class="pv-signatures pv-foot">{{ signature(president) }}{% for user in others %}{{ signature(user) }}{% endfor %}</div>
+    <div class="pv-number"></div>
   </main>
   <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>

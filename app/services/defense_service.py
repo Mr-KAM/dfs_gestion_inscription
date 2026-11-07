@@ -7,13 +7,13 @@ from sqlalchemy import func, or_, select
 from app.extensions import db
 from app.models import Candidate, Defense, DefenseScore, Jury, JuryCandidate, JuryMember, Notification, Sas, User
 from app.models.defense import (DECISIONS, DEFENSE_CRITERIA, DEFENSE_SCALE, DEFENSE_SECTIONS, JURY_ROLES, NEGATIVES,
-                                POSITIVES, SUPPORTS, grid_points)
+                                POSITIVES, SESSION_PRESIDENT, SUPPORTS, grid_points)
 from app.models.user import ROLE_ADMIN, ROLE_CANDIDATE
 from app.services import attendance_service, audit_service
 from app.services.account_service import PHOTO_MAX_BYTES, image_type
 from app.services.campus_service import evaluation_of, local_datetime
 from app.services.candidate_service import BusinessError
-from app.utils import utcnow
+from app.utils import norm_name, utcnow
 
 MIN_DURATION, MAX_DURATION = 5, 480
 
@@ -320,24 +320,51 @@ def sort_global(rows: list, sort: str, descending: bool) -> list:
     return sorted(filled, key=lambda r: key(*r), reverse=descending) + [r for r in rows if key(*r) in (None, "")]
 
 
-def decision_groups(rows: list) -> list[tuple[str, list]]:
-    """General minutes: the students under each decision, then those still without one."""
-    groups = [(label, [r for r in rows if (r[0].sheet or {}).get("decision") == key])
-              for key, label in DECISIONS.items()]
-    undecided = [r for r in rows if (r[0].sheet or {}).get("decision") not in DECISIONS]
-    return groups + ([("Sans décision", undecided)] if undecided else [])
+def surname_first(full_name: str) -> str:
+    """'salia abdallah kamagate' -> 'Kamagate Salia Abdallah'.
+    ponytail: a student has a single name field, so the surname is guessed: the last word, or the words in capitals
+    when the others are not ('GOULI BI Jean Marc'). Split the field in two if too many names need correcting."""
+    words = full_name.split()
+    caps = [w for w in words if w.isupper() and len(w) > 1]
+    rest = [w for w in words if w not in caps]
+    return " ".join(caps + rest if caps and rest else words[-1:] + words[:-1]).title()
 
 
-def participants(defense: Defense) -> list[JuryMember]:
-    """Everyone who sat on a jury of the defense (one jury per person, a unique constraint), presidents first."""
-    return sorted((m for jury in defense.juries for m in jury.members), key=lambda m: m.role != "president")
+def minutes_lists(rows: list) -> tuple[list, list]:
+    """General minutes: (name, candidate) of the admitted in alphabetical order and of the wait list in merit order
+    (global_results comes best first). The other decisions do not appear."""
+    def named(decision):
+        return [(surname_first(r.candidate.full_name), r.candidate) for r, _res in rows
+                if (r.sheet or {}).get("decision") == decision]
+    return sorted(named("admitted"), key=lambda n: norm_name(n[0])), named("waitlist")
 
 
-def minutes_problem(defense: Defense) -> str | None:
-    """Why the minutes cannot be printed yet: grades may still change, or there is no student."""
+def minutes_signatories(defense: Defense) -> tuple[User | None, list[User]]:
+    """General minutes: the session president's account, for his signature, and the other jury members.
+    ponytail: account found by name (2 words in common); without one, room is left for a handwritten signature."""
+    wanted = set(norm_name(SESSION_PRESIDENT).split())
+    staff = db.session.scalars(select(User).where(User.role != ROLE_CANDIDATE))
+    president = next((u for u in staff if len(wanted & set(norm_name(u.full_name).split())) >= 2), None)
+    return president, [m.user for jury in defense.juries for m in jury.members if m.user != president]
+
+
+def deliberation_problem(defense: Defense) -> str | None:
+    """Why the results are not final yet: grades may still change, or there is no student."""
     if waiting := open_juries(defense):
         return "Délibération à valider d'abord : " + ", ".join(j.name for j in waiting) + "."
     return None if any(jury.candidates for jury in defense.juries) else "Aucun étudiant dans les jurys."
+
+
+def minutes_problem(defense: Defense) -> str | None:
+    """Why the general minutes cannot be printed: it states the date and has no place for an open or reserved case."""
+    if problem := deliberation_problem(defense):
+        return problem
+    if not defense.starts_at:
+        return "Renseignez d'abord la date de la soutenance : elle figure sur le procès-verbal."
+    unplaced = sum((row.sheet or {}).get("decision") not in ("admitted", "waitlist", "rejected")
+                   for jury in defense.juries for row in jury.candidates)
+    return (f"{unplaced} étudiant(s) sans décision ou « Admis sous réserve » : attribuez-leur Admis, Liste d'attente "
+            "ou Non admis, le procès-verbal ne prévoit pas d'autre cas.") if unplaced else None
 
 
 def save_decisions(defense: Defense, form) -> None:
@@ -376,7 +403,7 @@ def send_results(defense: Defense, user) -> int:
     The notification holds no grade or decision: the student's coaches can read it."""
     if defense.results_sent_at:
         raise BusinessError("Les résultats de cette soutenance sont déjà envoyés.")
-    problem = minutes_problem(defense)
+    problem = deliberation_problem(defense)
     if problem:
         raise BusinessError(problem)
     rows = [row for jury in defense.juries for row in jury.candidates]

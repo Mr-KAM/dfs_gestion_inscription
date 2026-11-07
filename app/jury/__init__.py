@@ -163,7 +163,7 @@ def print_all(defense_id: int):
     if current_user.role != ROLE_ADMIN:
         abort(403)
     defense = db.get_or_404(Defense, defense_id)
-    problem = defense_service.minutes_problem(defense)
+    problem = defense_service.deliberation_problem(defense)
     if problem:
         flash(problem, "warning")
         return redirect(url_for("defense.global_jury", defense_id=defense.id))

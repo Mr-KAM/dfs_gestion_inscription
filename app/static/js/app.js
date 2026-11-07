@@ -206,7 +206,71 @@
   document.addEventListener("click", (e) => {
     if (e.target.closest("[data-print]")) window.print();
   });
+  // [data-paginate]: its .pv-body spreads over as many sheets (copies of it) as needed, table rows included. A [data-keep]
+  // block stays with what follows; [data-closing] ends the document and replaces the .pv-foot of its sheet.
+  function paginate(first) {
+    const body = first.querySelector(".pv-body");
+    const blocks = [...body.children];
+    const closing = blocks.pop();
+    body.replaceChildren();
+    const blank = first.cloneNode(true);
+    let sheet = first;
+    let target = body;
+    const overflows = () => target.scrollHeight > target.clientHeight;
+    const turn = () => {
+      const carried = [];
+      while (target.lastElementChild?.matches("[data-keep]")) {
+        carried.unshift(target.lastElementChild);
+        target.lastElementChild.remove();
+      }
+      const next = blank.cloneNode(true);
+      sheet.after(next);
+      sheet = next;
+      target = sheet.querySelector(".pv-body");
+      target.append(...carried);
+    };
+    const place = (block) => {
+      target.append(block);
+      if (overflows()) {
+        block.remove();
+        turn();
+        target.append(block);
+      }
+    };
+    blocks.forEach((block) => {
+      if (!block.matches("table")) return place(block);
+      const rows = [...block.tBodies[0].rows];
+      block.tBodies[0].replaceChildren();
+      let part = block;
+      target.append(part);
+      rows.forEach((row) => {
+        part.tBodies[0].append(row);
+        if (!overflows()) return;
+        row.remove();
+        const empty = block.cloneNode(false);
+        empty.append(block.tHead.cloneNode(true), document.createElement("tbody"));
+        if (!part.tBodies[0].rows.length) part.remove();
+        turn();
+        part = empty;
+        target.append(part);
+        part.tBodies[0].append(row);
+      });
+    });
+    sheet.querySelector(".pv-foot").hidden = true;
+    target.append(closing);
+    if (overflows()) {
+      closing.remove();
+      sheet.querySelector(".pv-foot").hidden = false;
+      turn();
+      sheet.querySelector(".pv-foot").hidden = true;
+      target.append(closing);
+    }
+    const sheets = document.querySelectorAll("[data-paginate]");
+    sheets.forEach((s, i) => { s.querySelector(".pv-number").textContent = `Page ${i + 1} / ${sheets.length}`; });
+  }
+
   window.addEventListener("load", () => {
+    document.querySelectorAll("[data-paginate]").forEach(paginate);
     // One A4 sheet per [data-fit-page] whatever the comments' length: 281 mm high (297 - margins), 2% kept so no line
     // spills over. The width grows as the zoom shrinks: the text reflows on the full 194 mm, no side margins are left.
     const page = 281 * 96 / 25.4 * 0.98;
@@ -216,7 +280,10 @@
         sheet.style.width = `${194 / (zoom - 0.02)}mm`;
       }
     });
-    if (document.body.hasAttribute("data-autoprint")) window.print();
+    // Sheets added by paginate load their images after the page's load event: wait for them.
+    if (document.body.hasAttribute("data-autoprint")) {
+      Promise.all([...document.images].map((img) => img.decode().catch(() => {}))).then(() => window.print());
+    }
   });
 
   // <input type="checkbox" data-check-all="selected"> ticks every input named "selected" of its form.

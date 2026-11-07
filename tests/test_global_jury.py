@@ -1,9 +1,11 @@
 """Global jury page (filters, sort, batch decision) and its documents: all individual minutes, general minutes."""
 from datetime import datetime, timezone
+from types import SimpleNamespace
 
 from app.models import Defense, Evaluation, Jury, JuryCandidate, JuryMember, Notification, Sas
 from app.models.campus import EVAL_CRITERIA
 from app.services import account_service
+from app.services.defense_service import minutes_lists, surname_first
 from tests.conftest import login, make_candidate, make_user
 from tests.test_portal import portal_login
 
@@ -111,29 +113,68 @@ def test_documents_are_for_the_admin_once_validated(app, db, client, admin):
         assert "Délibération à valider" in client.get(url, follow_redirects=True).get_data(as_text=True)
 
 
+def test_surname_first():
+    assert surname_first("salia abdallah kamagate") == "Kamagate Salia Abdallah"
+    assert surname_first("SALIA ABDALLAH KAMAGATE") == "Kamagate Salia Abdallah"
+    assert surname_first("GOULI BI jean-marc") == "Gouli Bi Jean-Marc"  # capitals mark a compound surname
+    assert surname_first("salia A kamagate") == "Kamagate Salia A"  # an initial is not a surname
+    assert surname_first("awa n'guessan") == "N'Guessan Awa"
+    assert surname_first("kouassi yao kouassi") == "Kouassi Kouassi Yao"  # no word lost
+    assert surname_first("ALPHA") == "Alpha"
+
+
+def test_minutes_lists_alphabetical_and_merit():
+    def row(name, decision):
+        return SimpleNamespace(candidate=SimpleNamespace(full_name=name), sheet={"decision": decision}), {}
+    best_first = [row("awa zadi", "admitted"), row("yao élan", "admitted"), row("ali zoro", "waitlist"),
+                  row("ben kone", "waitlist"), row("eve abo", "rejected"), row("ivan aka", "reserved")]
+    admitted, waitlist = minutes_lists(best_first)
+    assert [n for n, _c in admitted] == ["Élan Yao", "Zadi Awa"]  # alphabetical, accent ignored
+    assert [n for n, _c in waitlist] == ["Zoro Ali", "Kone Ben"]  # merit, as they come
+
+
 def test_general_minutes(app, db, client, admin):
     d, rows = _defense(db)
-    rows["ALPHA"].sheet = {"decision": "admitted"}
-    rows["BRAVO"].sheet = {"decision": "waitlist", "decision_note": "Rang 1"}
-    d.starts_at, d.location = datetime(2026, 10, 5, 17, 30, tzinfo=timezone.utc), "Salle 3"
+    rows["ALPHA"].candidate.full_name, rows["BRAVO"].candidate.full_name = "salia abdallah kamagate", "awa kone"
+    rows["ALPHA"].sheet = rows["BRAVO"].sheet = {"decision": "admitted"}
+    rows["CHARLIE"].sheet = {"decision": "rejected", "decision_note": "Orientation X"}
+    d.starts_at = datetime(2026, 11, 6, 9, 0, tzinfo=timezone.utc)
+    admin.full_name, admin.signature, admin.signature_type = "KAMBOU Anicet Cyrille", b"x", "image/png"
+    member = d.juries[0].members[0].user
+    member.signature, member.signature_type = b"x", "image/png"
     db.session.commit()
     login(client, admin)
     assert "proces-verbal" in client.get(f"/soutenances/{d.id}/jury-global").get_data(as_text=True)
     html = client.get(f"/soutenances/{d.id}/proces-verbal").get_data(as_text=True)
-    assert "PROCÈS-VERBAL JURY ADMISSION À LA DFS COHORTE 1 2026-2027" in html and "data-autoprint" in html
-    assert "Note finale =" not in html  # the formula stays on the global jury page
-    assert "Sous la présidence de SECOND Member, le jury" in html
-    assert "s’est réuni le 05 octobre 2026 à 17h30" in html and "Yamoussoukro (Salle 3)" in html
-    assert "– SECOND Member, Président du jury (Jury 1)" in html
-    assert "– THIRD Member, Membre du jury, Évaluateur présentation (Jury 2)" in html
-    assert html.index("Le jury était composé") < html.index("Admis (1)")  # the text, then the tables
-    for title in ("Admis (1)", "Liste d&#39;attente (1)", "Sans décision (1)"):
-        assert title in html
-    assert "Non admis (" not in html and "Rang 1" in html  # empty lists only appear in the summary
-    assert html.index("Admis (1)") < html.index("ALPHA") < html.index("Liste d&#39;attente (1)") < html.index("BRAVO")
-    # the president signs first
-    assert html.index(">SECOND Member<") < html.index(">FIRST Member<") < html.index(">THIRD Member<")
-    assert "Évaluateur technique · Jury 1" in html and "Évaluateur présentation · Jury 2" in html
+    assert "PROCÈS-VERBAL DU JURY D’ADMISSION" in html and "data-autoprint" in html and "papier-en-tete.svg" in html
+    assert "Vendredi 06 novembre 2026" in html and "session du vendredi 06 novembre 2026" in html
+    assert "Fait à Yamoussoukro, le 06 novembre 2026." in html and "sous la présidence de Monsieur KAMBOU" in html
+    assert html.index("Article 1") < html.index("Kamagate Salia Abdallah") < html.index("Kone Awa") \
+        < html.index("Article 2") < html.index("Néant") < html.index("Fait à Yamoussoukro")
+    assert "CHARLIE" not in html and "Charlie" not in html  # the rejected are not listed, nor their notes:
+    for absent in ("Non admis", "réserve", "Orientation X", "Rang", "Note finale", "coef"):
+        assert absent not in html
+    # Signatures: the president also signs when he sits on no jury; the others without name nor role.
+    assert f"/jury/signature/{admin.id}" in html and f"/jury/signature/{member.id}" in html
+    assert member.full_name not in html and "Évaluateur" not in html
+
+
+def test_general_minutes_needs_a_date_and_a_place_for_everyone(app, db, client, admin):
+    d, rows = _defense(db)
+    for row in rows.values():
+        row.sheet = {"decision": "admitted"}
+    db.session.commit()
+    login(client, admin)
+    url = f"/soutenances/{d.id}/proces-verbal"
+    assert "Renseignez d&#39;abord la date" in client.get(url, follow_redirects=True).get_data(as_text=True)
+    d.starts_at = datetime(2026, 11, 6, 9, 0, tzinfo=timezone.utc)
+    rows["ALPHA"].sheet = {"decision": "reserved"}
+    rows["BRAVO"].sheet = {}
+    db.session.commit()
+    assert "2 étudiant(s) sans décision ou" in client.get(url, follow_redirects=True).get_data(as_text=True)
+    rows["ALPHA"].sheet = rows["BRAVO"].sheet = {"decision": "waitlist"}
+    db.session.commit()
+    assert "PROCÈS-VERBAL" in client.get(url).get_data(as_text=True)
 
 
 def _student_logs_in(client, db, student):

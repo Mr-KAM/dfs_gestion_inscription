@@ -39,8 +39,8 @@ POSITIVES = {"plan": "Annonce un plan clair", "field": "Exemples de terrain", "f
 NEGATIVES = {"reads": "Lit ses diapositives", "crowded": "Diapositives surchargées", "overtime": "Dépasse le temps",
              "fast": "Débit trop rapide", "off_topic": "Hors sujet par moments", "demo_ko": "Démo en échec",
              "typos": "Fautes sur les supports", "one_speaker": "Un seul membre parle (équipe)"}
-# ponytail: fixed for this cohort; make it a field of the defense when the next cohort starts.
-MINUTES_TITLE = "PROCÈS-VERBAL JURY ADMISSION À LA DFS COHORTE 1 2026-2027"
+# ponytail: fixed for this cohort, like the text of defense/minutes.html; a field of the defense when that changes.
+SESSION_PRESIDENT = "KAMBOU ANICET CYRILLE"
 DECISIONS = {"admitted": "Admis", "reserved": "Admis sous réserve", "waitlist": "Liste d'attente",
              "rejected": "Non admis"}
 
