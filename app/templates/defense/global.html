@@ -17,6 +17,11 @@
 {% elif defense.results_sent_at %}<div class="alert alert-success d-flex justify-content-between align-items-center flex-wrap gap-2"><span><i class="bi bi-check2-circle"></i> Résultats envoyés aux étudiants le {{ defense.results_sent_at | dt }}. Les décisions sont verrouillées.</span>
   <form method="post" action="{{ url_for('defense.results', defense_id=defense.id) }}" data-confirm="Retirer les résultats ? Les étudiants ne les verront plus jusqu'au prochain envoi, et vous pourrez corriger les décisions.">
     {{ csrf() }}<button class="btn btn-sm btn-outline-danger" name="withdraw" value="1"><i class="bi bi-arrow-counterclockwise"></i> Retirer les résultats</button></form></div>
+<div class="card card-body mb-3"><div class="fw-semibold"><i class="bi bi-globe"></i> Lien public des résultats</div>
+  <div class="small text-muted mb-2">À partager avec qui vous voulez : on y saisit un matricule pour afficher, imprimer ou télécharger en PDF le résultat du candidat. Le lien se ferme si vous retirez les résultats.</div>
+  <div class="input-group input-group-sm"><input class="form-control" value="{{ public_url }}" readonly aria-label="Lien public des résultats">
+    <button type="button" class="btn btn-outline-primary js-copy" data-copy="{{ public_url }}"><i class="bi bi-clipboard"></i> Copier</button>
+    <a class="btn btn-outline-secondary" href="{{ public_url }}" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i> Ouvrir</a></div></div>
 {% elif total %}<div class="alert alert-info"><i class="bi bi-eye-slash"></i> Les étudiants ne voient rien tant que vous n'avez pas envoyé les résultats.{% if undecided %} Reste {{ undecided }} étudiant(s) sans décision avant de pouvoir les envoyer.{% endif %}</div>{% endif %}
 
 <details class="card card-body mb-3">
@@ -35,6 +40,7 @@
     <div class="col-6 col-md-3"><label class="form-label small mb-1" for="pv-promotion">Promotion</label><input class="form-control form-control-sm" id="pv-promotion" name="promotion" maxlength="150" value="{{ info.promotion }}"></div>
     <div class="col-6 col-md-3"><label class="form-label small mb-1" for="pv-year">Année académique</label><input class="form-control form-control-sm" id="pv-year" name="academic_year" maxlength="150" value="{{ info.academic_year }}"></div>
     <div class="col-12 col-md-6"><label class="form-label small mb-1" for="pv-director">PV individuels : nom du directeur pédagogique</label><input class="form-control form-control-sm" id="pv-director" name="director_name" maxlength="150" value="{{ info.director_name }}"></div>
+    <div class="col-12"><label class="form-label small mb-1" for="pv-registration">Lien public : les admis viennent s’inscrire sur le site de la DFS…</label><input class="form-control form-control-sm" id="pv-registration" name="registration" maxlength="150" value="{{ info.registration }}"></div>
     <div class="col-12 col-md-6"><label class="form-label small mb-1" for="pv-director-signature">PV individuels : signature du directeur</label><input class="form-control form-control-sm" id="pv-director-signature" type="file" name="director_signature" accept="image/png,image/jpeg,image/webp"></div>
     <div class="col-12 form-text mt-1">La signature du directeur s'imprime dans la case « Direction pédagogique » du PV de chaque candidat. Un champ vidé reprend sa valeur par défaut. Cachet : image PNG, JPEG ou WebP (2 Mo max.), imprimée sous la signature du président sur la dernière page.
       {% if president and president.signature_type %}Signature du président : celle du compte {{ president.display_name }}.{% else %}Aucune signature enregistrée pour ce nom parmi les comptes du personnel : la place reste vide pour signer à la main.{% endif %}</div>

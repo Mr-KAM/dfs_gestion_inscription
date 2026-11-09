@@ -3,6 +3,8 @@ import re
 from datetime import date, timedelta
 from zoneinfo import ZoneInfo
 
+from flask import abort, current_app
+from itsdangerous import BadSignature, URLSafeSerializer
 from sqlalchemy import func, or_, select
 
 from app.extensions import db
@@ -472,6 +474,32 @@ def withdraw_results(defense: Defense) -> None:
         db.session.delete(notification)
     audit_service.log("defense_update", defense, {"results_withdrawn": True})
     db.session.commit()
+
+
+def _public_signer() -> URLSafeSerializer:
+    return URLSafeSerializer(current_app.config["SECRET_KEY"], salt="public-results")
+
+
+def public_token(defense: Defense) -> str:
+    """Signed id in the public results link: not guessable from the defense number, no column to store."""
+    return _public_signer().dumps(defense.id)
+
+
+def public_defense(token: str) -> Defense:
+    """Defense of a public results link, 404 unless its results are sent (withdrawing them closes the link)."""
+    try:
+        defense = db.session.get(Defense, _public_signer().loads(token))
+    except BadSignature:
+        defense = None
+    if defense is None or not defense.results_sent_at:
+        abort(404)
+    return defense
+
+
+def public_row(defense: Defense, matricule: str) -> JuryCandidate | None:
+    """The student of this defense with that matricule (decided: the results are sent)."""
+    return db.session.scalar(select(JuryCandidate).join(Candidate).where(
+        JuryCandidate.defense_id == defense.id, Candidate.matricule == matricule.strip().upper()))
 
 
 def set_timer(jury: Jury, user, action: str, minutes: int | None = None) -> None:

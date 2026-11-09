@@ -44,7 +44,9 @@ MINUTES_DEFAULTS = {"civility": "Monsieur", "president_name": "KAMBOU ANICET CYR
                     "president_title": "Directeur Pédagogique et Académique", "title_suffix": "de la DFS",
                     "organization": "Digital Farming School (DFS)", "site": "Digital Farming School",
                     "city": "Yamoussoukro", "promotion": "première promotion", "academic_year": "2026-2027",
-                    "director_name": "KAMBOU ANICET CYRILLE"}
+                    "director_name": "KAMBOU ANICET CYRILLE",
+                    # Public results page: when the admitted come to register.
+                    "registration": "le mercredi 11 novembre 2026 à partir de 14h"}
 DECISIONS = {"admitted": "Admis", "reserved": "Admis sous réserve", "waitlist": "Liste d'attente",
              "rejected": "Non admis"}
 # Message sent to each student with the results: (Bootstrap color, outcome; {e}: feminine agreement).

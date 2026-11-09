@@ -1,8 +1,9 @@
 """SAS defenses (admin): schedule a defense, its juries (members, duration per student) and who defends where."""
+import base64
 import io
 from datetime import date
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, send_file, url_for
+from flask import Blueprint, abort, flash, make_response, redirect, render_template, request, send_file, url_for
 from flask_login import current_user
 from sqlalchemy import select
 
@@ -15,6 +16,8 @@ from app.services.candidate_service import BusinessError
 from app.utils import roles_required
 
 bp = Blueprint("defense", __name__, url_prefix="/soutenances")
+# No login: anyone with the link looks up a student by matricule, once the admin has sent the results.
+public_bp = Blueprint("public_results", __name__, url_prefix="/resultats")
 
 
 @bp.before_request
@@ -84,7 +87,9 @@ def global_jury(defense_id: int):
                            classes=sorted({r.candidate.sas_class for r, _res in everyone if r.candidate.sas_class}),
                            sort_args=dict(request.args.to_dict(), defense_id=defense.id),
                            info=defense_service.minutes_info(defense),
-                           president=defense_service.minutes_signatories(defense)[0])
+                           president=defense_service.minutes_signatories(defense)[0],
+                           public_url=url_for("public_results.lookup", token=defense_service.public_token(defense),
+                                              _external=True))
 
 
 @bp.post("/<int:defense_id>/resultats")
@@ -257,3 +262,19 @@ def jury_validate(jury_id: int):
     except BusinessError as exc:
         flash(str(exc), "danger")
     return _back(jury.defense_id, jury.id)
+
+
+@public_bp.get("/<token>")
+def lookup(token: str):
+    """Printable admission result of one student: identity, photo, SAS class, decision and what to do next."""
+    defense = defense_service.public_defense(token)
+    matricule = request.args.get("matricule", "").strip().upper()[:20]
+    row = defense_service.public_row(defense, matricule) if matricule else None
+    c = row.candidate if row else None
+    photo = (f"data:{c.photo_type};base64,{base64.b64encode(c.photo).decode()}"
+             if c and c.photo_type else None)  # data: URI, the photo route is staff-only
+    response = make_response(render_template("defense/public_result.html", defense=defense, matricule=matricule,
+                                              row=row, photo=photo, decisions=DECISIONS,
+                                              info=defense_service.minutes_info(defense)))
+    response.headers["Cache-Control"] = "private, no-store"  # personal data
+    return response

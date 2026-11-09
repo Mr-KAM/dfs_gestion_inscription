@@ -457,3 +457,29 @@ def test_all_individual_minutes_and_waitlist_label(app, db, client, admin):
     assert single.count("data-fit-page") == 1 and "Alpha" in single and "Bravo" not in single
     client.post(f"/soutenances/{d.id}/resultats")
     assert "Liste d&#39;attente : Rang 2" in _student_logs_in(client, db, rows["ALPHA"].candidate)
+
+
+def test_public_results_link(app, db, client, admin):
+    d, rows = _defense(db)
+    for name, decision in (("ALPHA", "admitted"), ("BRAVO", "waitlist"), ("CHARLIE", "rejected")):
+        rows[name].sheet = {"decision": decision}
+    db.session.commit()
+    login(client, admin)
+    assert "Lien public des résultats" not in client.get(f"/soutenances/{d.id}/jury-global").get_data(as_text=True)
+    from app.services.defense_service import public_token
+    url = f"/resultats/{public_token(d)}"
+    assert client.get(url).status_code == 404  # not sent yet
+    client.post(f"/soutenances/{d.id}/resultats")
+    assert url in client.get(f"/soutenances/{d.id}/jury-global").get_data(as_text=True)
+    client.post("/logout")
+
+    assert client.get(f"/resultats/{d.id}").status_code == 404 and client.get(url + "x").status_code == 404
+    alpha = client.get(url, query_string={"matricule": rows["ALPHA"].candidate.matricule.lower()}).get_data(as_text=True)
+    assert "ADMIS" in alpha and "déclarée" in alpha and "mercredi 11 novembre 2026" in alpha and "Classe SAS" in alpha
+    bravo = client.get(url, query_string={"matricule": rows["BRAVO"].candidate.matricule}).get_data(as_text=True)
+    assert "liste d’attente" in bravo and "rappelé," in bravo and "mercredi 11" not in bravo
+    assert "Aucun candidat" in client.get(url, query_string={"matricule": "26CAND999999"}).get_data(as_text=True)
+
+    login(client, admin)
+    client.post(f"/soutenances/{d.id}/resultats", data={"withdraw": "1"})
+    assert client.get(url).status_code == 404
