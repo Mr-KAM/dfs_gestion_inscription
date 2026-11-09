@@ -20,15 +20,14 @@
 {% elif total %}<div class="alert alert-info"><i class="bi bi-eye-slash"></i> Les étudiants ne voient rien tant que vous n'avez pas envoyé les résultats.{% if undecided %} Reste {{ undecided }} étudiant(s) sans décision avant de pouvoir les envoyer.{% endif %}</div>{% endif %}
 
 {% if total and not waiting %}
-{% set live = defense.public_token and defense.public_enabled and defense.results_sent_at %}
+{% set live = defense.public_token and defense.public_enabled %}
 <div class="card card-body mb-3" id="lien-public">
   <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
     <div><div class="fw-semibold"><i class="bi bi-globe"></i> Lien public des résultats
       {% if not defense.public_token %}<span class="status status-secondary ms-1">Aucun lien</span>
       {% elif live %}<span class="status status-success ms-1">Actif</span>
-      {% elif not defense.public_enabled %}<span class="status status-danger ms-1">Désactivé</span>
-      {% else %}<span class="status status-warning ms-1">En attente de l'envoi des résultats</span>{% endif %}</div>
-      <div class="small text-muted">Sans compte : on saisit un matricule pour afficher, imprimer ou télécharger en PDF le résultat du candidat. Le lien ne s'ouvre que si les résultats sont envoyés et qu'il est actif.</div></div>
+      {% else %}<span class="status status-danger ms-1">Désactivé</span>{% endif %}</div>
+      <div class="small text-muted">Sans compte : on saisit un matricule pour afficher, imprimer ou télécharger en PDF le résultat du candidat. Accessible dès qu'il est actif, même avant l'envoi des résultats aux étudiants : chacun y voit la décision enregistrée ici à cet instant ; un étudiant sans décision lit « résultat pas encore disponible ».</div></div>
     <form class="d-flex flex-wrap gap-2" method="post" action="{{ url_for('defense.public_link', defense_id=defense.id) }}">
       {{ csrf() }}
       {% if not defense.public_token %}<button class="btn btn-sm btn-primary" name="action" value="create"><i class="bi bi-link-45deg"></i> Générer le lien public</button>

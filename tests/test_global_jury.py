@@ -470,8 +470,14 @@ def test_public_results_link(app, db, client, admin):
     client.post(link, data={"action": "create"})
     db.session.refresh(d)
     url = f"/resultats/{d.public_token}"
-    assert d.public_enabled and "En attente de l'envoi" in client.get(page).get_data(as_text=True)
-    assert client.get(url).status_code == 404  # results not sent yet
+    assert d.public_enabled and "Actif" in client.get(page).get_data(as_text=True)
+    rows["CHARLIE"].sheet = {}  # no decision yet: open before sending, but nothing to show for him
+    db.session.commit()
+    charlie = {"matricule": rows["CHARLIE"].candidate.matricule}
+    assert "pas encore disponible" in client.get(url, query_string=charlie).get_data(as_text=True)
+    assert "result-admitted" in client.get(url, query_string={"matricule": rows["ALPHA"].candidate.matricule}).get_data(as_text=True)
+    rows["CHARLIE"].sheet = {"decision": "rejected"}
+    db.session.commit()
     client.post(f"/soutenances/{d.id}/resultats")
     assert url in client.get(page).get_data(as_text=True)
     client.post("/logout")
@@ -491,8 +497,7 @@ def test_public_results_link(app, db, client, admin):
     client.post(link, data={"action": "enable"})
     assert client.get(url).status_code == 200
     client.post(f"/soutenances/{d.id}/resultats", data={"withdraw": "1"})
-    assert client.get(url).status_code == 404  # withdrawn results close the link
-    client.post(f"/soutenances/{d.id}/resultats")
+    assert client.get(url).status_code == 200  # independent of sending the results to the students
     client.post(link, data={"action": "delete"})
     assert client.get(url).status_code == 404
     client.post(link, data={"action": "create"})

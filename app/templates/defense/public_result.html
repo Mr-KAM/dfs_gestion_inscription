@@ -31,12 +31,13 @@
       <button class="btn btn-primary btn-lg"><i class="bi bi-search"></i> Rechercher</button>
     </form>
     {% if matricule and not row %}<div class="alert alert-warning mt-3 mb-0" role="alert"><i class="bi bi-exclamation-triangle"></i> Aucun candidat de cette session ne porte le matricule <strong class="font-monospace">{{ matricule }}</strong>. Vérifiez la saisie.</div>{% endif %}
-    {% if row %}<div class="d-flex flex-wrap gap-2 mt-3">
+    {% if row and not tone %}<div class="alert alert-info mt-3 mb-0" role="status"><i class="bi bi-hourglass-split"></i> Le résultat du candidat <strong class="font-monospace">{{ matricule }}</strong> n’est pas encore disponible. Revenez consulter cette page plus tard.</div>{% endif %}
+    {% if tone %}<div class="d-flex flex-wrap gap-2 mt-3">
       <button class="btn btn-outline-primary" type="button" data-print><i class="bi bi-file-earmark-pdf"></i> Imprimer / Télécharger en PDF</button>
       <a class="btn btn-link" href="{{ request.path }}"><i class="bi bi-arrow-counterclockwise"></i> Nouvelle recherche</a></div>{% endif %}
   </section>
 
-  {% if row %}{% set c = row.candidate %}{% set decision = row.sheet.decision %}
+  {% if tone %}{% set c = row.candidate %}{% set decision = row.sheet.decision %}
   {% set e = {'F': 'e', 'M': ''}.get(c.gender, '(e)') %}
   <main class="pv pv-page result-page result-{{ tone[0] }}" aria-labelledby="result-title">
     <img class="pv-letterhead" src="{{ url_for('static', filename='img/papier-en-tete.svg') }}" alt="">
@@ -74,7 +75,7 @@
         <p>La DFS vous remercie pour votre participation et vous encourage à poursuivre votre projet.</p>
       {% endif %}
       </div>
-      <p class="small text-muted mt-4 mb-0">Résultats publiés le {{ defense.results_sent_at | dt('%d/%m/%Y') }} · {{ defense.name }}.</p>
+      <p class="small text-muted mt-4 mb-0">{{ defense.name }} · consulté le {{ now | dt('%d/%m/%Y à %H:%M') }}.</p>
     </div>
   </main>
   {% endif %}

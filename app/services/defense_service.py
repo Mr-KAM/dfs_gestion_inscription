@@ -496,9 +496,10 @@ def set_public_link(defense: Defense, action: str) -> None:
 
 
 def public_defense(token: str) -> Defense:
-    """Defense of a public results link: 404 if deleted, paused, or its results not sent (or withdrawn)."""
+    """Defense of a public results link: 404 if deleted or paused. Open even before the results are sent to the
+    students: a student without a decision yet is told his result is not available."""
     defense = db.session.scalar(select(Defense).where(Defense.public_token == token))
-    if defense is None or not defense.public_enabled or not defense.results_sent_at:
+    if defense is None or not defense.public_enabled:
         abort(404)
     return defense
 

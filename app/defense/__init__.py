@@ -13,7 +13,7 @@ from app.models.defense import DECISIONS, JURY_ROLES
 from app.models.user import ROLE_ADMIN
 from app.services import audit_service, defense_service
 from app.services.candidate_service import BusinessError
-from app.utils import roles_required
+from app.utils import roles_required, utcnow
 
 bp = Blueprint("defense", __name__, url_prefix="/soutenances")
 # No login: anyone with the link looks up a student by matricule, once the admin has sent the results.
@@ -294,7 +294,7 @@ def lookup(token: str):
              if c and c.photo_type else None)  # data: URI, the photo route is staff-only
     response = make_response(render_template("defense/public_result.html", defense=defense, matricule=matricule,
                                               row=row, photo=photo, decisions=DECISIONS,
-                                              tone=PUBLIC_TONES.get(row.sheet.get("decision")) if row else None,
-                                              info=defense_service.minutes_info(defense)))
+                                              tone=PUBLIC_TONES.get((row.sheet or {}).get("decision")) if row else None,
+                                              info=defense_service.minutes_info(defense), now=utcnow()))
     response.headers["Cache-Control"] = "private, no-store"  # personal data
     return response
