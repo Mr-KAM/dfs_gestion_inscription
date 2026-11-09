@@ -465,21 +465,36 @@ def test_public_results_link(app, db, client, admin):
         rows[name].sheet = {"decision": decision}
     db.session.commit()
     login(client, admin)
-    assert "Lien public des résultats" not in client.get(f"/soutenances/{d.id}/jury-global").get_data(as_text=True)
-    from app.services.defense_service import public_token
-    url = f"/resultats/{public_token(d)}"
-    assert client.get(url).status_code == 404  # not sent yet
+    page, link = f"/soutenances/{d.id}/jury-global", f"/soutenances/{d.id}/lien-public"
+    assert "Générer le lien public" in client.get(page).get_data(as_text=True)
+    client.post(link, data={"action": "create"})
+    db.session.refresh(d)
+    url = f"/resultats/{d.public_token}"
+    assert d.public_enabled and "En attente de l'envoi" in client.get(page).get_data(as_text=True)
+    assert client.get(url).status_code == 404  # results not sent yet
     client.post(f"/soutenances/{d.id}/resultats")
-    assert url in client.get(f"/soutenances/{d.id}/jury-global").get_data(as_text=True)
+    assert url in client.get(page).get_data(as_text=True)
     client.post("/logout")
 
     assert client.get(f"/resultats/{d.id}").status_code == 404 and client.get(url + "x").status_code == 404
     alpha = client.get(url, query_string={"matricule": rows["ALPHA"].candidate.matricule.lower()}).get_data(as_text=True)
-    assert "ADMIS" in alpha and "déclarée" in alpha and "mercredi 11 novembre 2026" in alpha and "Classe SAS" in alpha
+    assert "result-admitted" in alpha and "déclarée" in alpha and "mercredi 11 novembre 2026" in alpha
+    assert "Photo non fournie" in alpha and "Classe SAS" in alpha
     bravo = client.get(url, query_string={"matricule": rows["BRAVO"].candidate.matricule}).get_data(as_text=True)
-    assert "liste d’attente" in bravo and "rappelé," in bravo and "mercredi 11" not in bravo
+    assert "result-waitlist" in bravo and "rappelé," in bravo and "mercredi 11" not in bravo
+    assert "result-rejected" in client.get(url, query_string={"matricule": rows["CHARLIE"].candidate.matricule}).get_data(as_text=True)
     assert "Aucun candidat" in client.get(url, query_string={"matricule": "26CAND999999"}).get_data(as_text=True)
 
     login(client, admin)
-    client.post(f"/soutenances/{d.id}/resultats", data={"withdraw": "1"})
+    client.post(link, data={"action": "disable"})
     assert client.get(url).status_code == 404
+    client.post(link, data={"action": "enable"})
+    assert client.get(url).status_code == 200
+    client.post(f"/soutenances/{d.id}/resultats", data={"withdraw": "1"})
+    assert client.get(url).status_code == 404  # withdrawn results close the link
+    client.post(f"/soutenances/{d.id}/resultats")
+    client.post(link, data={"action": "delete"})
+    assert client.get(url).status_code == 404
+    client.post(link, data={"action": "create"})
+    db.session.refresh(d)
+    assert f"/resultats/{d.public_token}" != url and client.get(f"/resultats/{d.public_token}").status_code == 200

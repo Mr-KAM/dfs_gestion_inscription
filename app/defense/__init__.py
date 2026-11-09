@@ -18,6 +18,9 @@ from app.utils import roles_required
 bp = Blueprint("defense", __name__, url_prefix="/soutenances")
 # No login: anyone with the link looks up a student by matricule, once the admin has sent the results.
 public_bp = Blueprint("public_results", __name__, url_prefix="/resultats")
+# Public page colour per decision: (css suffix, icon).
+PUBLIC_TONES = {"admitted": ("admitted", "patch-check-fill"), "reserved": ("admitted", "patch-check"),
+                "waitlist": ("waitlist", "hourglass-split"), "rejected": ("rejected", "x-octagon-fill")}
 
 
 @bp.before_request
@@ -88,8 +91,8 @@ def global_jury(defense_id: int):
                            sort_args=dict(request.args.to_dict(), defense_id=defense.id),
                            info=defense_service.minutes_info(defense),
                            president=defense_service.minutes_signatories(defense)[0],
-                           public_url=url_for("public_results.lookup", token=defense_service.public_token(defense),
-                                              _external=True))
+                           public_url=defense.public_token and url_for("public_results.lookup",
+                                                                       token=defense.public_token, _external=True))
 
 
 @bp.post("/<int:defense_id>/resultats")
@@ -107,6 +110,22 @@ def results(defense_id: int):
         db.session.rollback()
         flash(str(exc), "danger")
     return redirect(url_for("defense.global_jury", defense_id=defense.id))
+
+
+@bp.post("/<int:defense_id>/lien-public")
+def public_link(defense_id: int):
+    """Generate, pause, resume or delete the public results link."""
+    defense = db.get_or_404(Defense, defense_id)
+    action = request.form.get("action", "")
+    try:
+        defense_service.set_public_link(defense, action)
+        flash({"create": "Lien public généré : copiez-le pour le partager.", "enable": "Lien public réactivé.",
+               "disable": "Lien public désactivé : il affiche « page introuvable » jusqu'à sa réactivation.",
+               "delete": "Lien public supprimé : l'ancienne adresse ne fonctionnera plus jamais."}[action], "success")
+    except BusinessError as exc:
+        db.session.rollback()
+        flash(str(exc), "danger")
+    return redirect(url_for("defense.global_jury", defense_id=defense.id) + "#lien-public")
 
 
 @bp.get("/<int:defense_id>/proces-verbal")
@@ -275,6 +294,7 @@ def lookup(token: str):
              if c and c.photo_type else None)  # data: URI, the photo route is staff-only
     response = make_response(render_template("defense/public_result.html", defense=defense, matricule=matricule,
                                               row=row, photo=photo, decisions=DECISIONS,
+                                              tone=PUBLIC_TONES.get(row.sheet.get("decision")) if row else None,
                                               info=defense_service.minutes_info(defense)))
     response.headers["Cache-Control"] = "private, no-store"  # personal data
     return response

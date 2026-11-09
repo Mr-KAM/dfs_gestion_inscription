@@ -81,6 +81,10 @@ class Defense(db.Model):
     # Printed in the "Direction pédagogique" box of every individual minutes.
     director_signature = db.deferred(db.Column(db.LargeBinary))
     director_signature_type = db.Column(db.String(20))
+    # Public results link (/resultats/<token>), no login: generated, paused or deleted by the admin. Deleting it
+    # kills the URL for good; a new one gets a new token. Open only while the results are sent.
+    public_token = db.Column(db.String(32), unique=True)
+    public_enabled = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
 
     sas = db.relationship("Sas")
     juries = db.relationship("Jury", back_populates="defense", cascade="all, delete-orphan", order_by="Jury.id")

@@ -17,12 +17,33 @@
 {% elif defense.results_sent_at %}<div class="alert alert-success d-flex justify-content-between align-items-center flex-wrap gap-2"><span><i class="bi bi-check2-circle"></i> Résultats envoyés aux étudiants le {{ defense.results_sent_at | dt }}. Les décisions sont verrouillées.</span>
   <form method="post" action="{{ url_for('defense.results', defense_id=defense.id) }}" data-confirm="Retirer les résultats ? Les étudiants ne les verront plus jusqu'au prochain envoi, et vous pourrez corriger les décisions.">
     {{ csrf() }}<button class="btn btn-sm btn-outline-danger" name="withdraw" value="1"><i class="bi bi-arrow-counterclockwise"></i> Retirer les résultats</button></form></div>
-<div class="card card-body mb-3"><div class="fw-semibold"><i class="bi bi-globe"></i> Lien public des résultats</div>
-  <div class="small text-muted mb-2">À partager avec qui vous voulez : on y saisit un matricule pour afficher, imprimer ou télécharger en PDF le résultat du candidat. Le lien se ferme si vous retirez les résultats.</div>
-  <div class="input-group input-group-sm"><input class="form-control" value="{{ public_url }}" readonly aria-label="Lien public des résultats">
-    <button type="button" class="btn btn-outline-primary js-copy" data-copy="{{ public_url }}"><i class="bi bi-clipboard"></i> Copier</button>
-    <a class="btn btn-outline-secondary" href="{{ public_url }}" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i> Ouvrir</a></div></div>
 {% elif total %}<div class="alert alert-info"><i class="bi bi-eye-slash"></i> Les étudiants ne voient rien tant que vous n'avez pas envoyé les résultats.{% if undecided %} Reste {{ undecided }} étudiant(s) sans décision avant de pouvoir les envoyer.{% endif %}</div>{% endif %}
+
+{% if total and not waiting %}
+{% set live = defense.public_token and defense.public_enabled and defense.results_sent_at %}
+<div class="card card-body mb-3" id="lien-public">
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+    <div><div class="fw-semibold"><i class="bi bi-globe"></i> Lien public des résultats
+      {% if not defense.public_token %}<span class="status status-secondary ms-1">Aucun lien</span>
+      {% elif live %}<span class="status status-success ms-1">Actif</span>
+      {% elif not defense.public_enabled %}<span class="status status-danger ms-1">Désactivé</span>
+      {% else %}<span class="status status-warning ms-1">En attente de l'envoi des résultats</span>{% endif %}</div>
+      <div class="small text-muted">Sans compte : on saisit un matricule pour afficher, imprimer ou télécharger en PDF le résultat du candidat. Le lien ne s'ouvre que si les résultats sont envoyés et qu'il est actif.</div></div>
+    <form class="d-flex flex-wrap gap-2" method="post" action="{{ url_for('defense.public_link', defense_id=defense.id) }}">
+      {{ csrf() }}
+      {% if not defense.public_token %}<button class="btn btn-sm btn-primary" name="action" value="create"><i class="bi bi-link-45deg"></i> Générer le lien public</button>
+      {% else %}
+        {% if defense.public_enabled %}<button class="btn btn-sm btn-outline-warning" name="action" value="disable"><i class="bi bi-pause-circle"></i> Désactiver</button>
+        {% else %}<button class="btn btn-sm btn-outline-success" name="action" value="enable"><i class="bi bi-play-circle"></i> Réactiver</button>{% endif %}
+        <button class="btn btn-sm btn-outline-danger" name="action" value="delete" data-confirm="Supprimer le lien public ? L'adresse partagée ne fonctionnera plus jamais ; un nouveau lien aura une autre adresse."><i class="bi bi-trash"></i> Supprimer</button>
+      {% endif %}
+    </form>
+  </div>
+  {% if public_url %}<div class="input-group input-group-sm mt-2"><input class="form-control font-monospace" value="{{ public_url }}" readonly aria-label="Lien public des résultats">
+    <button type="button" class="btn btn-outline-primary js-copy" data-copy="{{ public_url }}"><i class="bi bi-clipboard"></i> Copier</button>
+    {% if live %}<a class="btn btn-outline-secondary" href="{{ public_url }}" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i> Ouvrir</a>{% endif %}</div>{% endif %}
+</div>
+{% endif %}
 
 <details class="card card-body mb-3">
   <summary class="fw-semibold"><i class="bi bi-pen"></i> Informations du procès-verbal <span class="fw-normal small text-muted">· {{ info.president_name }} · {{ (info.date[8:] ~ '/' ~ info.date[5:7] ~ '/' ~ info.date[:4]) if info.date else 'date à renseigner' }} · {{ info.site }}, {{ info.city }} · {{ 'cachet chargé' if defense.stamp_type else 'sans cachet' }} · {{ 'signature du directeur chargée' if defense.director_signature_type else 'sans signature du directeur' }}</span></summary>

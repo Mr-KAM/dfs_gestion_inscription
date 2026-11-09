@@ -3,8 +3,9 @@ import re
 from datetime import date, timedelta
 from zoneinfo import ZoneInfo
 
-from flask import abort, current_app
-from itsdangerous import BadSignature, URLSafeSerializer
+import secrets
+
+from flask import abort
 from sqlalchemy import func, or_, select
 
 from app.extensions import db
@@ -476,22 +477,28 @@ def withdraw_results(defense: Defense) -> None:
     db.session.commit()
 
 
-def _public_signer() -> URLSafeSerializer:
-    return URLSafeSerializer(current_app.config["SECRET_KEY"], salt="public-results")
+PUBLIC_LINK_ACTIONS = ("create", "enable", "disable", "delete")
 
 
-def public_token(defense: Defense) -> str:
-    """Signed id in the public results link: not guessable from the defense number, no column to store."""
-    return _public_signer().dumps(defense.id)
+def set_public_link(defense: Defense, action: str) -> None:
+    """Global jury (admin): generate the public results link (a new URL each time), pause / resume it, or delete it."""
+    if action not in PUBLIC_LINK_ACTIONS:
+        raise BusinessError("Action inconnue sur le lien public.")
+    if action != "create" and not defense.public_token:
+        raise BusinessError("Aucun lien public : générez-le d'abord.")
+    if action == "create":
+        defense.public_token = secrets.token_urlsafe(18)  # 24 characters, unguessable
+    if action == "delete":
+        defense.public_token = None
+    defense.public_enabled = action in ("create", "enable")
+    audit_service.log("defense_update", defense, {"public_link": action})
+    db.session.commit()
 
 
 def public_defense(token: str) -> Defense:
-    """Defense of a public results link, 404 unless its results are sent (withdrawing them closes the link)."""
-    try:
-        defense = db.session.get(Defense, _public_signer().loads(token))
-    except BadSignature:
-        defense = None
-    if defense is None or not defense.results_sent_at:
+    """Defense of a public results link: 404 if deleted, paused, or its results not sent (or withdrawn)."""
+    defense = db.session.scalar(select(Defense).where(Defense.public_token == token))
+    if defense is None or not defense.public_enabled or not defense.results_sent_at:
         abort(404)
     return defense
 

@@ -70,10 +70,7 @@ code { color: var(--dfs-navy); font-size: .85em; }
 .alert { border-left-width: 4px; }
 
 /* Brand */
-.dfs-logo { display: inline-flex; align-items: center; gap: calc(var(--logo-h) * .3); text-decoration: none; }
-.dfs-logo svg { display: block; width: auto; flex: none; }
-.dfs-wordmark { font-family: var(--font-sans); font-weight: 700; text-transform: uppercase; color: var(--dfs-navy);
-  font-size: calc(var(--logo-h) * .3); line-height: 1; letter-spacing: .02em; }
+.dfs-logo { display: block; width: auto; max-width: 100%; }
 .app-label { font-family: var(--font-mono); font-size: .68rem; letter-spacing: .28em; text-transform: uppercase; color: var(--dfs-blue);
   border-left: 1px solid var(--dfs-border); padding-left: 1rem; }
 
@@ -451,10 +448,45 @@ td > .empty-state { white-space: normal; }
 .lesson-calendar td { height: 7rem; vertical-align: top; padding: .3rem; }
 .lesson-calendar td.is-today { box-shadow: inset 0 0 0 2px var(--dfs-blue); }
 .lesson-chip { display: block; margin-top: .25rem; padding: .15rem .35rem; border: 1px solid; border-radius: .35rem; font-size: .75rem; line-height: 1.2; text-decoration: none; overflow: hidden; text-overflow: ellipsis; }
-/* Public admission result: A4 on letterhead when printed; on a phone, plain and full width. */
-.result-photo { flex: none; width: 32mm; height: 40mm; object-fit: cover; border: 1px solid #ccc; }
-.result-page th { width: 38%; }
+/* Public admission result (no login): search on screen, A4 sheet on letterhead when printed.
+   Decision tone: --tone (ink) / --tone-bg (fill); green admitted, orange wait list, red not admitted. */
+.result-public { background-color: var(--dfs-bg); }
+.result-wrap { width: 100%; max-width: 210mm; margin: 0 auto; padding: 0 16px; }
+.result-top { background: #fff; border-bottom: 1px solid var(--dfs-border); padding: .75rem 0; }
+.result-eyebrow { color: var(--dfs-blue); font-size: .72rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.result-intro { padding-top: 2rem; padding-bottom: 1.5rem; }
+.result-h1 { font-size: clamp(1.8rem, 5vw, 2.6rem); font-weight: 700; letter-spacing: -.03em; color: var(--dfs-navy); margin: .3rem 0 .5rem; }
+.result-search { display: flex; gap: .5rem; max-width: 34rem; }
+.result-search .form-control { text-transform: uppercase; letter-spacing: .06em; }
+.result-search .btn { flex: none; }
+.result-foot { padding-top: 2rem; padding-bottom: 2rem; color: var(--dfs-muted); font-size: .8rem; text-align: center; }
+.result-page { --tone: var(--dfs-navy); --tone-bg: var(--dfs-blue-light); background: #fff; box-shadow: 0 6px 30px rgba(20, 23, 47, .12);
+  -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.result-admitted { --tone: #1f7a2c; --tone-bg: #e6f4e7; }
+.result-waitlist { --tone: #b35900; --tone-bg: #fff0dc; }
+.result-rejected { --tone: #b42318; --tone-bg: #fde8e7; }
+.result-id { display: flex; gap: 6mm; align-items: flex-start; margin-bottom: 5mm; }
+.result-photo { flex: none; width: 34mm; height: 42mm; object-fit: cover; border: 2px solid var(--tone); background: #fff; }
+.result-photo-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .2rem;
+  color: var(--dfs-muted); background: var(--dfs-bg); border-style: dashed; font-size: 8pt; text-align: center; }
+.result-photo-empty .bi { font-size: 26pt; line-height: 1; }
+.result-fields { display: grid; grid-template-columns: max-content 1fr; gap: 2mm 5mm; margin: 0; flex: 1; }
+.result-fields dt { color: var(--dfs-muted); font-weight: 400; font-size: 8pt; letter-spacing: .08em; text-transform: uppercase; padding-top: .15em; }
+.result-fields dd { margin: 0; font-size: 11pt; }
+.result-decision { display: flex; align-items: center; gap: 4mm; padding: 4mm 5mm; margin-bottom: 5mm;
+  color: var(--tone); background: var(--tone-bg); border: 1px solid var(--tone); border-left-width: 6px; }
+.result-decision > .bi { font-size: 22pt; line-height: 1; }
+.result-decision-label { font-size: 8pt; letter-spacing: .1em; text-transform: uppercase; }
+.result-decision-value { font-size: 17pt; font-weight: 700; letter-spacing: .02em; line-height: 1.1; }
+.result-text p { text-align: justify; }
+.result-callout { padding: 3mm 4mm; border-left: 4px solid var(--tone); background: var(--tone-bg); }
+@media print { .result-public { background: none; } .result-page { box-shadow: none; } }
 @media screen and (max-width: 820px) {
-  .result-page { width: auto; height: auto; padding: 1rem; }
+  .result-page { width: auto; height: auto; margin: 0 16px; padding: 1.25rem 1rem; font-size: .95rem; }
   .result-page .pv-letterhead { display: none; }
+  .result-search .btn-lg { padding-inline: .9rem; }
+}
+@media screen and (max-width: 480px) {
+  .result-id { flex-direction: column; align-items: center; }
+  .result-fields { width: 100%; }
 }

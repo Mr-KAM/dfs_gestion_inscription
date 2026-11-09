@@ -1,4 +1,5 @@
-{# Public page (no login): search by matricule, then the student's admission result on letterhead, printable / PDF. #}
+{# Public page (no login): search by matricule, then the student's admission result on letterhead, printable / PDF.
+   Colour per decision (tone): green admitted, orange wait list, red not admitted; always with an icon and the word. #}
 <!doctype html>
 <html lang="fr">
 <head>
@@ -12,49 +13,73 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
   <style>@page { size: A4 portrait; margin: 0; }</style>
 </head>
-<body class="bg-white pv">
-  <form class="container py-3 d-print-none" method="get" role="search">
-    <h1 class="h5 mb-1">Résultats d’admission · Digital Farming School</h1>
-    <p class="text-muted small mb-2">Parcours de formation AgriTech · année académique {{ info.academic_year }}. Saisissez le matricule du candidat.</p>
-    <div class="input-group">
-      <input class="form-control" name="matricule" value="{{ matricule }}" placeholder="Matricule, ex. 26CAND000001" maxlength="20" required autocomplete="off" aria-label="Matricule du candidat">
-      <button class="btn btn-primary"><i class="bi bi-search"></i> Rechercher</button>
+<body class="result-public">
+  <header class="result-top d-print-none">
+    <div class="result-wrap d-flex align-items-center justify-content-between gap-3">
+      <img src="{{ url_for('static', filename='img/logo-dfs.svg') }}" height="36" alt="Digital Farming School">
+      <span class="result-eyebrow d-none d-sm-inline">Année académique {{ info.academic_year }}</span>
     </div>
-    {% if matricule and not row %}<div class="alert alert-warning mt-3 mb-0"><i class="bi bi-exclamation-triangle"></i> Aucun candidat de cette session ne porte le matricule « {{ matricule }} ». Vérifiez la saisie.</div>{% endif %}
-    {% if row %}<button class="btn btn-outline-primary btn-sm mt-2" type="button" data-print><i class="bi bi-file-earmark-pdf"></i> Imprimer / Télécharger en PDF</button>{% endif %}
-  </form>
+  </header>
+
+  <section class="result-wrap result-intro d-print-none">
+    <div class="result-eyebrow">Parcours de formation AgriTech</div>
+    <h1 class="result-h1">Résultats d’admission</h1>
+    <p class="text-muted mb-3">Saisissez le matricule du candidat (ex. 26CAND000001) pour consulter son résultat, l’imprimer ou le télécharger en PDF.</p>
+    <form class="result-search" method="get" role="search">
+      <label class="visually-hidden" for="matricule">Matricule du candidat</label>
+      <input class="form-control form-control-lg font-monospace" id="matricule" name="matricule" value="{{ matricule }}" placeholder="26CAND000001" maxlength="20" required autocomplete="off" autocapitalize="characters" spellcheck="false" {{ 'autofocus' if not row }}>
+      <button class="btn btn-primary btn-lg"><i class="bi bi-search"></i> Rechercher</button>
+    </form>
+    {% if matricule and not row %}<div class="alert alert-warning mt-3 mb-0" role="alert"><i class="bi bi-exclamation-triangle"></i> Aucun candidat de cette session ne porte le matricule <strong class="font-monospace">{{ matricule }}</strong>. Vérifiez la saisie.</div>{% endif %}
+    {% if row %}<div class="d-flex flex-wrap gap-2 mt-3">
+      <button class="btn btn-outline-primary" type="button" data-print><i class="bi bi-file-earmark-pdf"></i> Imprimer / Télécharger en PDF</button>
+      <a class="btn btn-link" href="{{ request.path }}"><i class="bi bi-arrow-counterclockwise"></i> Nouvelle recherche</a></div>{% endif %}
+  </section>
+
   {% if row %}{% set c = row.candidate %}{% set decision = row.sheet.decision %}
   {% set e = {'F': 'e', 'M': ''}.get(c.gender, '(e)') %}
-  <main class="pv-page result-page">
+  <main class="pv pv-page result-page result-{{ tone[0] }}" aria-labelledby="result-title">
     <img class="pv-letterhead" src="{{ url_for('static', filename='img/papier-en-tete.svg') }}" alt="">
     <div class="pv-body">
-      <h1 class="pv-title">RÉSULTAT D’ADMISSION</h1>
-      <p class="text-center mb-3">Parcours de formation AgriTech de la Digital Farming School (DFS) · {{ info.promotion }} · année académique {{ info.academic_year }}</p>
-      <div class="d-flex gap-3 align-items-start mb-3">
-        {% if photo %}<img class="result-photo" src="{{ photo }}" alt="Photo de {{ c.full_name }}">{% endif %}
-        <table class="table table-sm table-bordered pv-table flex-fill">
-          <tr><th>Matricule</th><td>{{ c.matricule }}</td></tr>
-          <tr><th>Nom et prénoms</th><td>{{ c.full_name | upper }}</td></tr>
-          <tr><th>Genre</th><td>{{ {'F': 'Féminin', 'M': 'Masculin'}.get(c.gender, '—') }}</td></tr>
-          <tr><th>Classe SAS</th><td>{{ c.sas_class or '—' }}</td></tr>
-          <tr><th>Résultat d’admission</th><td class="fw-bold">{{ decisions.get(decision, '—') | upper }}</td></tr>
-        </table>
+      <h2 class="pv-title" id="result-title">RÉSULTAT D’ADMISSION</h2>
+      <p class="text-center small mb-3">Parcours de formation AgriTech de la Digital Farming School (DFS) · {{ info.promotion }} · année académique {{ info.academic_year }}</p>
+
+      <div class="result-id">
+        {% if photo %}<img class="result-photo" src="{{ photo }}" alt="Photo de {{ c.full_name }}">
+        {% else %}<div class="result-photo result-photo-empty"><i class="bi bi-person" aria-hidden="true"></i><span>Photo non fournie</span></div>{% endif %}
+        <dl class="result-fields">
+          <dt>Matricule</dt><dd class="font-monospace">{{ c.matricule }}</dd>
+          <dt>Nom et prénoms</dt><dd class="fw-bold">{{ c.full_name | upper }}</dd>
+          <dt>Genre</dt><dd>{{ {'F': 'Féminin', 'M': 'Masculin'}.get(c.gender, '—') }}</dd>
+          <dt>Classe SAS</dt><dd>{{ c.sas_class or '—' }}</dd>
+        </dl>
       </div>
+
+      <div class="result-decision">
+        <i class="bi bi-{{ tone[1] }}" aria-hidden="true"></i>
+        <div><div class="result-decision-label">Résultat d’admission</div>
+          <div class="result-decision-value">{{ decisions.get(decision, '—') | upper }}</div></div>
+      </div>
+
+      <div class="result-text">
       {% if decision in ('admitted', 'reserved') %}
-      <p>Félicitations ! À l’issue de la SAS et de la délibération du Jury d’Admission, vous avez été déclaré{{ e }} <strong>admis{{ e }}{{ ' sous réserve' if decision == 'reserved' }}</strong> au Parcours de formation AgriTech de la Digital Farming School.</p>
-      {% if decision == 'reserved' and row.sheet.decision_note %}<p><strong>Réserve :</strong> {{ row.sheet.decision_note }}</p>{% endif %}
-      <p>Vous êtes prié{{ e }} de vous rendre sur le site de la DFS <strong>{{ info.registration }}</strong> pour votre inscription en première année de formation AgriTech de la DFS pour l’année académique {{ info.academic_year }}.</p>
+        <p><strong>Félicitations !</strong> À l’issue de la SAS et de la délibération du Jury d’Admission, vous avez été déclaré{{ e }} <strong>admis{{ e }}{{ ' sous réserve' if decision == 'reserved' }}</strong> au Parcours de formation AgriTech de la Digital Farming School.</p>
+        {% if decision == 'reserved' and row.sheet.decision_note %}<p><strong>Réserve :</strong> {{ row.sheet.decision_note }}</p>{% endif %}
+        <p class="result-callout"><i class="bi bi-calendar-event" aria-hidden="true"></i> Vous êtes prié{{ e }} de vous rendre sur le site de la DFS <strong>{{ info.registration }}</strong> pour votre inscription en première année de formation AgriTech de la DFS pour l’année académique {{ info.academic_year }}.</p>
       {% elif decision == 'waitlist' %}
-      <p>À l’issue de la SAS et de la délibération du Jury d’Admission, vous êtes inscrit{{ e }} sur la <strong>liste d’attente</strong> du Parcours de formation AgriTech de la Digital Farming School, au titre de l’année académique {{ info.academic_year }}.</p>
-      <p>Vous serez rappelé{{ e }}, dans l’ordre de classement arrêté par le jury, en cas de désistement de candidats admis.</p>
+        <p>À l’issue de la SAS et de la délibération du Jury d’Admission, vous êtes inscrit{{ e }} sur la <strong>liste d’attente</strong> du Parcours de formation AgriTech de la Digital Farming School, au titre de l’année académique {{ info.academic_year }}.</p>
+        <p class="result-callout"><i class="bi bi-telephone" aria-hidden="true"></i> Vous serez rappelé{{ e }}, dans l’ordre de classement arrêté par le jury, en cas de désistement de candidats admis.</p>
       {% else %}
-      <p>À l’issue de la SAS et de la délibération du Jury d’Admission, vous n’avez pas été retenu{{ e }} pour le Parcours de formation AgriTech de la Digital Farming School au titre de l’année académique {{ info.academic_year }}.</p>
-      <p>La DFS vous remercie pour votre participation et vous encourage à poursuivre votre projet.</p>
+        <p>À l’issue de la SAS et de la délibération du Jury d’Admission, vous n’avez pas été retenu{{ e }} pour le Parcours de formation AgriTech de la Digital Farming School au titre de l’année académique {{ info.academic_year }}.</p>
+        <p>La DFS vous remercie pour votre participation et vous encourage à poursuivre votre projet.</p>
       {% endif %}
-      <p class="small text-muted mt-4">Résultats publiés le {{ defense.results_sent_at | dt('%d/%m/%Y') }} · {{ defense.name }}.</p>
+      </div>
+      <p class="small text-muted mt-4 mb-0">Résultats publiés le {{ defense.results_sent_at | dt('%d/%m/%Y') }} · {{ defense.name }}.</p>
     </div>
   </main>
   {% endif %}
+
+  <footer class="result-wrap result-foot d-print-none">Digital Farming School · {{ info.city }}</footer>
   <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>
