@@ -62,6 +62,8 @@ def test_cohort_registration_flow(app, db, client, admin):
     db.session.expire_all()
     assert (alpha.matricule, alpha.bedroom, alpha.equipment) == (f"{prefix}000001", "B3", "PC-07")
     assert client.post(f"/cohortes/{cohort.id}/eligibles", data={"sas_id": sas.id}).status_code == 403
+    html = client.get(f"/cohortes/{cohort.id}").get_data(as_text=True)
+    assert "Inscrits (matricule DFS)" in html and "2 · 0 F / 0 M" in html  # 2 eligible, gender not filled
     client.post("/logout")
 
     login(client, make_user("coach"))

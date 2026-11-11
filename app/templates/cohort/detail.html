@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import avatar, csrf, empty, page_head, progress %}
+{% from "_macros.html" import avatar, csrf, empty, page_head, stat %}
 {% block title %}{{ cohort.name }}{% endblock %}
 {% block content %}
 {% set is_admin = current_user.role == 'admin' %}
@@ -39,7 +39,23 @@
 </div>
 {% endif %}
 
-<div class="mb-3">{{ progress(registered, cohort.enrollments | length, 'Inscriptions validées') }}</div>
+{# ponytail: counted in the template, a cohort holds a few hundred students at most. #}
+{% set all = cohort.enrollments %}
+{% set total, n = all | length, (all | length) or 1 %}
+{% macro share(count) %}{{ count }} <span class="fs-6 fw-normal text-muted">/ {{ total }}</span>{% endmacro %}
+{% set women = all | selectattr('candidate.gender', 'eq', 'F') | list | length %}
+{% set men = all | selectattr('candidate.gender', 'eq', 'M') | list | length %}
+<div class="group-label">Effectifs et logistique</div>
+<div class="row g-3 mb-4">
+  {{ stat('Éligibles', total ~ ' · ' ~ women ~ ' F / ' ~ men ~ ' M', 'people', col='col-12 col-md-8 col-xl-3', compact=True) }}
+  {{ stat('Inscrits (matricule DFS)', share(registered), 'mortarboard', progress=100 * registered / n) }}
+  {{ stat('À inscrire', total - registered, 'hourglass-split') }}
+  {% for attr, label, icon in (('arrival_date', "Date d'arrivée", 'calendar-check'), ('signature_type', 'Signés', 'pen'),
+                               ('bedroom', 'Avec chambre', 'house-door'), ('equipment', 'Avec matériel', 'laptop')) %}
+    {% set done = all | selectattr(attr) | list | length %}
+    {{ stat(label, share(done), icon, progress=100 * done / n) }}
+  {% endfor %}
+</div>
 <form class="card card-body mb-3 row g-2 align-items-center mx-0" method="get">
   <div class="col-10 col-md-6"><input class="form-control form-control-sm" type="search" name="q" value="{{ q }}" placeholder="Nom, matricule CAND ou DFS…" aria-label="Rechercher"></div>
   <div class="col-2 col-md-1"><button class="btn btn-sm btn-outline-primary w-100" title="Rechercher"><i class="bi bi-search"></i></button></div>
