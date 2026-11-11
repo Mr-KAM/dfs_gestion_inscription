@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% from "_macros.html" import avatar %}
+{% block title %}Espace Zeus{% endblock %}
+{% block content %}
+<div class="mb-4 d-flex align-items-center gap-3">
+  {{ avatar(c, url_for('portal.photo'), 80) }}
+  <div>
+    <div class="eyebrow mb-1">Espace Zeus · cohorte de formation {{ e.cohort.name }}</div>
+    <h1 class="page-title">{{ c.full_name }}</h1>
+    <div class="text-muted">Matricule DFS : <code class="fs-4">{{ e.matricule }}</code></div>
+  </div>
+</div>
+
+<div class="card mb-3"><div class="card-header"><i class="bi bi-lightning-charge"></i> Mon inscription</div>
+  <div class="card-body">
+    <dl class="kv row mb-0">
+      <dt class="col-5 col-md-3">Cohorte</dt><dd class="col-7 col-md-9">{{ e.cohort.name }}{% if e.cohort.description %} — {{ e.cohort.description }}{% endif %}</dd>
+      <dt class="col-5 col-md-3">Matricule DFS</dt><dd class="col-7 col-md-9"><code class="fs-5">{{ e.matricule }}</code></dd>
+      <dt class="col-5 col-md-3">Ancien matricule</dt><dd class="col-7 col-md-9"><code>{{ c.matricule }}</code></dd>
+      <dt class="col-5 col-md-3">Inscrit(e) le</dt><dd class="col-7 col-md-9">{{ e.validated_at | dt('%d/%m/%Y') }}</dd>
+      <dt class="col-5 col-md-3">Date d'arrivée</dt><dd class="col-7 col-md-9">{{ e.arrival_date | d }}</dd>
+      <dt class="col-5 col-md-3">Chambre</dt><dd class="col-7 col-md-9 fs-5">{{ e.bedroom or "En cours d'attribution" }}</dd>
+      <dt class="col-5 col-md-3">Matériel</dt><dd class="col-7 col-md-9">{{ e.equipment or "En cours d'attribution" }}</dd>
+    </dl>
+  </div></div>
+{% endblock %}

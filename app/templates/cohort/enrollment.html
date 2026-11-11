@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% from "_macros.html" import avatar, csrf, page_head %}
+{% block title %}Inscription · {{ c.full_name }}{% endblock %}
+{% block content %}
+{% set head_meta %}{% if e.matricule %}<span class="status status-success">Inscrit · {{ e.matricule }}</span>{% else %}<span class="status status-warning">À inscrire</span>{% endif %}{% endset %}
+{% call page_head(c.full_name, eyebrow='Inscription · ' ~ e.cohort.name, back=url_for('cohort.detail', cohort_id=e.cohort_id),
+                  back_label='Cohorte ' ~ e.cohort.name, meta=head_meta) %}
+  {% if current_user.role == 'admin' and not e.validated_at %}
+  <form method="post" data-confirm="Retirer {{ c.full_name }} de la cohorte ?">{{ csrf() }}
+    <button class="btn btn-outline-danger" name="action" value="remove"><i class="bi bi-person-dash"></i> Retirer</button></form>
+  {% endif %}
+{% endcall %}
+
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card h-100"><div class="card-header"><i class="bi bi-person-vcard"></i> Profil</div>
+      <div class="card-body">
+        <div class="text-center mb-3">{{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 120, zoom=True) }}</div>
+        <dl class="kv row mb-0">
+          <dt class="col-5">Matricule DFS</dt><dd class="col-7">{% if e.matricule %}<code class="fs-5">{{ e.matricule }}</code>{% else %}—{% endif %}</dd>
+          <dt class="col-5">Matricule candidat</dt><dd class="col-7"><code>{{ c.matricule }}</code></dd>
+          <dt class="col-5">Sexe</dt><dd class="col-7">{{ c.gender or '—' }}</dd>
+          <dt class="col-5">Naissance</dt><dd class="col-7">{{ c.birth_date | d or '—' }}{% if c.birth_place %} à {{ c.birth_place }}{% endif %}</dd>
+          <dt class="col-5">Téléphone</dt><dd class="col-7">{{ c.phone or '—' }}</dd>
+          <dt class="col-5">Email</dt><dd class="col-7 text-break">{{ c.email or '—' }}</dd>
+          <dt class="col-5">Ville</dt><dd class="col-7">{{ c.city or '—' }}</dd>
+          <dt class="col-5">Pièce</dt><dd class="col-7">{{ c.cni or '—' }}</dd>
+          <dt class="col-5">SAS</dt><dd class="col-7">{{ c.sas.name if c.sas else '—' }}{% if c.sas_class %} · {{ c.sas_class }}{% endif %}</dd>
+          {% if e.validated_at %}<dt class="col-5">Validée le</dt><dd class="col-7">{{ e.validated_at | dt }}{% if e.validator %}<div class="small text-muted">par {{ e.validator.display_name }}</div>{% endif %}</dd>{% endif %}
+        </dl>
+      </div></div>
+  </div>
+  <div class="col-lg-8">
+    <form class="card" method="post">{{ csrf() }}
+      <div class="card-header"><i class="bi bi-clipboard-check"></i> Inscription en cohorte de formation</div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-4"><label class="form-label" for="arrival_date">Date d'arrivée</label>
+            <input class="form-control" type="date" id="arrival_date" name="arrival_date" value="{{ e.arrival_date.isoformat() if e.arrival_date }}"></div>
+          <div class="col-md-8"><label class="form-label" for="bedroom">Chambre attribuée</label>
+            <input class="form-control" id="bedroom" name="bedroom" value="{{ e.bedroom or '' }}" maxlength="50" placeholder="{{ c.sas_bedroom or 'Ex. Bât. A · Ch. 12' }}"></div>
+          <div class="col-12"><label class="form-label" for="equipment">Matériel attribué</label>
+            <input class="form-control" id="equipment" name="equipment" value="{{ e.equipment or '' }}" maxlength="255" placeholder="Ordinateur n°, matelas, kit…"></div>
+          <div class="col-12">
+            <label class="form-label" for="signature-pad">Signature de l'étudiant</label>
+            {% if e.signature_type %}<div class="mb-2"><img class="border rounded bg-white" src="{{ url_for('cohort.signature', enrollment_id=e.id) }}" alt="Signature enregistrée" style="max-height: 120px"></div>
+              <div class="form-text mb-1">Signature enregistrée. Signez à nouveau ci-dessous pour la remplacer.</div>{% endif %}
+            <div class="js-signature">
+              <canvas id="signature-pad" class="border rounded bg-white w-100" height="180" style="touch-action: none" aria-label="Zone de signature : signer au doigt, au stylet ou à la souris"></canvas>
+              <input type="hidden" name="signature">
+              <button type="button" class="btn btn-sm btn-outline-secondary mt-1 js-signature-clear"><i class="bi bi-eraser"></i> Effacer</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card-footer d-flex flex-wrap gap-2 justify-content-end">
+        <button class="btn btn-outline-primary" name="action" value="save"><i class="bi bi-save"></i> Enregistrer</button>
+        {% if not e.validated_at %}<button class="btn btn-success" name="action" value="validate" data-confirm="Valider l'inscription ? Le matricule DFS sera attribué définitivement."><i class="bi bi-check2-circle"></i> Valider l'inscription</button>{% endif %}
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

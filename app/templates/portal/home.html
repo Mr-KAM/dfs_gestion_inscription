@@ -30,6 +30,16 @@
   {% endfor %}
   </ul></div>
 {% endif %}
+{% if c.enrollment %}
+<div class="alert alert-primary d-flex gap-3 align-items-center flex-wrap mb-4" role="status">
+  <i class="bi bi-mortarboard-fill fs-2" aria-hidden="true"></i>
+  <div class="flex-grow-1">
+    {% if c.enrollment.matricule %}<strong>Vous êtes inscrit(e) en cohorte de formation {{ c.enrollment.cohort.name }}.</strong> Matricule DFS : <code class="fs-5">{{ c.enrollment.matricule }}</code>
+    {% else %}<strong>Vous êtes éligible à la cohorte de formation {{ c.enrollment.cohort.name }}.</strong> Présentez-vous à l'accueil pour valider votre inscription.{% endif %}
+  </div>
+  {% if c.enrollment.matricule %}<a class="btn btn-primary" href="{{ url_for('portal.zeus') }}"><i class="bi bi-lightning-charge"></i> Espace Zeus</a>{% endif %}
+</div>
+{% endif %}
 {% if c.sas %}
 <div class="alert alert-success d-flex gap-3 align-items-start mb-4" role="status">
   <i class="bi bi-trophy fs-2" aria-hidden="true"></i>

@@ -353,7 +353,41 @@
     });
   }
 
+  // Signature pad: <div class="js-signature"><canvas> <input type="hidden"> <button class="js-signature-clear">.
+  // The drawing is sent as a PNG data URL; left empty if nothing was drawn.
+  function initSignature() {
+    document.querySelectorAll(".js-signature").forEach((box) => {
+      const canvas = box.querySelector("canvas");
+      const input = box.querySelector("input[type=hidden]");
+      canvas.width = canvas.clientWidth;  // drawing coordinates = displayed pixels
+      const ctx = canvas.getContext("2d");
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = ctx.lineJoin = "round";
+      let drawing = false;
+      const at = (e) => { const r = canvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+      canvas.addEventListener("pointerdown", (e) => {
+        drawing = true;
+        canvas.setPointerCapture(e.pointerId);
+        ctx.beginPath();
+        ctx.moveTo(...at(e));
+      });
+      canvas.addEventListener("pointermove", (e) => {
+        if (!drawing) return;
+        ctx.lineTo(...at(e));
+        ctx.stroke();
+      });
+      const end = () => { if (drawing) { drawing = false; input.value = canvas.toDataURL("image/png"); } };
+      canvas.addEventListener("pointerup", end);
+      canvas.addEventListener("pointercancel", end);
+      box.querySelector(".js-signature-clear").addEventListener("click", () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        input.value = "";
+      });
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
+    initSignature();
     initTimers(document);
     setInterval(tick, 1000);
     initPolling();

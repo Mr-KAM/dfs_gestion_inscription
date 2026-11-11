@@ -54,6 +54,7 @@
     <div class="nav flex-column gap-1">
       {% if role == 'candidate' %}
         {{ nav('portal.home', 'house', 'Mon espace') }}
+        {% if current_user.candidate.enrollment and current_user.candidate.enrollment.matricule %}{{ nav('portal.zeus', 'lightning-charge', 'Espace Zeus') }}{% endif %}
         {{ nav('portal.attendance', 'qr-code-scan', 'Ma présence') }}
         {{ nav('portal.join_class', 'people', 'Ma classe') }}
         {{ nav('portal.exercises', 'journal-code', 'Exercices') }}
@@ -84,6 +85,7 @@
           {{ nav('campus.notifications', 'megaphone', 'Notifications') }}
         {% endif %}
         {{ nav('campus.incidents', 'exclamation-triangle', 'Problèmes étudiants') }}
+        {% if role in ('reception', 'residence') %}{{ nav('cohort.index', 'mortarboard-fill', 'Cohortes de formation', 'cohort.') }}{% endif %}
       {% else %}
       {% if role == 'admin' %}<div class="nav-section">Recrutement</div>{% endif %}
       {{ nav('dashboard.index', 'speedometer2', 'Dashboard') }}
@@ -108,6 +110,8 @@
         {{ nav('campus.lessons', 'calendar3', 'Calendrier pédagogique', 'campus.lesson') }}
         {{ nav('defense.index', 'easel', 'Soutenances SAS', 'defense.') }}
         {{ nav('infra.index', 'building', 'Infrastructures', 'infra.') }}
+        <div class="nav-section">Formation</div>
+        {{ nav('cohort.index', 'mortarboard-fill', 'Cohortes de formation', 'cohort.') }}
         <div class="nav-section">Administration</div>
         {{ nav('admin.rooms', 'pc-display', 'Salles & ordinateurs') }}
         {{ nav('kobo.index', 'cloud-arrow-down', 'KoboToolbox', 'kobo.') }}

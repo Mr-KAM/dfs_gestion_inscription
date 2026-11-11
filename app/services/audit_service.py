@@ -70,6 +70,8 @@ ACTION_LABELS = {
     "defense_score": "Notation de soutenance",
     "jury_validate": "Délibération de jury",
     "signature_update": "Signature numérique",
+    "cohort_update": "Gestion cohortes de formation",
+    "cohort_enroll": "Inscription en cohorte de formation",
     "infra_update": "Gestion des infrastructures",
     "equipment_create": "Matériel ajouté à l'inventaire",
     "equipment_update": "Matériel modifié / déplacé / attribué",

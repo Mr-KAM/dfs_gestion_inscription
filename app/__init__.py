@@ -42,6 +42,7 @@ def create_app(config_overrides: dict | None = None) -> Flask:
     from app.campus import bp as campus_bp
     from app.candidates import bp as candidates_bp
     from app.cli import register_cli
+    from app.cohort import bp as cohort_bp
     from app.dashboard import bp as dashboard_bp
     from app.defense import bp as defense_bp
     from app.defense import public_bp as public_results_bp
@@ -53,7 +54,7 @@ def create_app(config_overrides: dict | None = None) -> Flask:
     from app.technical import bp as technical_bp
 
     for bp in (auth_bp, dashboard_bp, candidates_bp, motivation_bp, technical_bp, kobo_bp, admin_bp, portal_bp, campus_bp, infra_bp,
-               defense_bp, jury_bp, public_results_bp):
+               defense_bp, jury_bp, public_results_bp, cohort_bp):
         app.register_blueprint(bp)
     register_cli(app)
     _register_web_helpers(app)
