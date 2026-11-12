@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{% block title %}Zeus{% endblock %} · Zeus · DFS</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/zeus.css') }}">
+  {% block head %}{% endblock %}
+</head>
+{# Zeus mode: the training-cohort interface. Same shell classes as base.html (app.js drawer / rail), "Olympe" theme. #}
+<body class="zeus {{ 'sidebar-collapsed' if request.cookies.get('sidebar') == 'collapsed' }}">
+{% from "_macros.html" import avatar %}
+{% set role = current_user.role %}
+{% set student = role == 'candidate' %}
+{% macro is_active(endpoint, match=None) -%}
+  {{- 'active' if request.endpoint == endpoint or (match and request.endpoint and request.endpoint.startswith(match)) -}}
+{%- endmacro %}
+{% macro nav(endpoint, icon, label, match=None) -%}
+  <a class="nav-link {{ is_active(endpoint, match) }}" href="{{ url_for(endpoint) }}"><i class="bi bi-{{ icon }}" aria-hidden="true"></i><span class="nav-label">{{ label }}</span></a>
+{%- endmacro %}
+{% macro bnav(endpoint, icon, label, match=None) -%}
+  {% set active = is_active(endpoint, match) %}
+  <a class="bottom-nav-item {{ active }}" href="{{ url_for(endpoint) }}" {{ 'aria-current="page"' | safe if active }}>
+    <i class="bi bi-{{ icon }}" aria-hidden="true"></i><span>{{ label }}</span></a>
+{%- endmacro %}
+<header class="app-header d-flex align-items-center px-3 gap-3">
+  <button type="button" class="sidebar-toggle js-sidebar-toggle" aria-controls="sidebar" aria-expanded="false"
+          aria-label="Afficher ou réduire le menu" title="Menu"><i class="bi bi-layout-sidebar" aria-hidden="true"></i></button>
+  <a class="zeus-brand" href="{{ url_for('zeus.home') }}" aria-label="Accueil Zeus">
+    <svg viewBox="0 0 64 96" aria-hidden="true"><path d="M40 2 8 54h22l-8 40 34-58H34z"/></svg>
+    <b>ZEUS</b><small class="d-none d-md-inline">Cohortes de formation</small>
+  </a>
+  <div class="ms-auto d-flex align-items-center gap-2 gap-md-3">
+    {% set me = current_user.candidate if student else current_user %}
+    <a class="d-flex align-items-center gap-2 text-decoration-none text-reset" title="Mon profil"
+       href="{{ url_for('portal.profile' if student else 'auth.profile') }}">
+      <div class="user-chip text-end d-none d-md-block">
+        <div class="fw-semibold">{{ current_user.display_name }}</div>
+        <small>{{ current_user.role_label }}</small>
+      </div>
+      {{ avatar(me, url_for('portal.photo' if student else 'auth.photo'), 34) }}
+    </a>
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('portal.home' if student else 'dashboard.index') }}" title="Interface classique">
+      <i class="bi bi-arrow-left-right"></i><span class="d-none d-lg-inline"> Classique</span></a>
+    <form method="post" action="{{ url_for('auth.logout') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-sm btn-outline-secondary" title="Déconnexion"><i class="bi bi-box-arrow-right"></i><span class="d-none d-lg-inline"> Déconnexion</span></button>
+    </form>
+  </div>
+</header>
+<div class="d-flex">
+  <nav class="sidebar p-2 flex-shrink-0" id="sidebar" aria-label="Menu Zeus">
+    <div class="nav flex-column gap-1">
+      <div class="nav-section">Olympe</div>
+      {{ nav('zeus.home', 'lightning-charge-fill', 'Accueil') }}
+      {% if not student %}{{ nav('cohort.index', 'mortarboard-fill', 'Cohortes', ('cohort.', 'zeus.cohort', 'zeus.course')) }}{% endif %}
+      {{ nav('zeus.classes', 'people', 'Mes classes' if student else 'Classes', 'zeus.klass') }}
+      {% if not student %}{{ nav('zeus.calendar', 'calendar-week', 'Calendrier des cours') }}{% else %}{{ nav('zeus.calendar', 'calendar-week', 'Mon calendrier') }}{% endif %}
+      {{ nav('zeus.roll_calls', 'person-check', 'Mes présences' if student else 'Appels', 'zeus.session') }}
+      <div class="nav-section">Mon compte</div>
+      {{ nav('portal.profile' if student else 'auth.profile', 'person-circle', 'Mon profil') }}
+      <a class="nav-link" href="{{ url_for('portal.home' if student else 'dashboard.index') }}"><i class="bi bi-arrow-left-right" aria-hidden="true"></i><span class="nav-label">Interface classique</span></a>
+    </div>
+  </nav>
+  <main class="main flex-grow-1 p-3 p-lg-4">
+    {% if role == 'admin' and not zeus_link %}
+      <div class="alert alert-warning py-2 small"><i class="bi bi-eye"></i> Mode Zeus désactivé : vous seul le voyez (préparation). Activez-le depuis l'accueil Zeus.</div>
+    {% endif %}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+          {{ message }}<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
+        </div>
+      {% endfor %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+<nav class="bottom-nav d-lg-none" aria-label="Navigation Zeus">
+  {{ bnav('zeus.home', 'lightning-charge-fill', 'Accueil') }}
+  {% if not student %}{{ bnav('cohort.index', 'mortarboard-fill', 'Cohortes', ('cohort.', 'zeus.cohort', 'zeus.course')) }}{% endif %}
+  {{ bnav('zeus.classes', 'people', 'Classes', 'zeus.klass') }}
+  {{ bnav('zeus.calendar', 'calendar-week', 'Calendrier') }}
+  {{ bnav('zeus.roll_calls', 'person-check', 'Présences' if student else 'Appels', 'zeus.session') }}
+</nav>
+<div id="copy-status" class="visually-hidden" role="status" aria-live="polite"></div>
+<script src="{{ url_for('static', filename='vendor/bootstrap.bundle.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

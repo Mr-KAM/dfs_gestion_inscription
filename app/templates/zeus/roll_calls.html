@@ -1,0 +1,20 @@
+{% extends "zeus/base.html" %}
+{% from "_macros.html" import empty, page_head %}
+{% block title %}Appels{% endblock %}
+{% block content %}
+{% call page_head('Appels', eyebrow='Zeus · présences des cohortes', subtitle="Les séances des 30 derniers jours et de la semaine : ouvrez-en une pour faire l'appel (case à cocher ou QR code DFS).") %}{% endcall %}
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
+  <thead><tr><th>Date</th><th>Cours</th><th>Pour</th><th>Coach</th><th>Présents</th></tr></thead>
+  <tbody>
+  {% for s in sessions %}{% set expected = s.expected | length %}
+    <tr><td><a href="{{ url_for('zeus.session', session_id=s.id) }}">{{ s.starts_at | dt('%d/%m/%Y %H:%M') }}</a></td>
+      <td>{{ s.course.name }} <span class="small text-muted">· {{ s.course.cohort.name }}</span></td>
+      <td>{{ s.klass.name if s.klass else 'Toute la cohorte' }}</td>
+      <td>{{ s.coach.display_name if s.coach else '—' }}</td>
+      <td>{% if not s.marks and not s.is_past %}<span class="status status-info">À venir</span>
+        {% else %}<span class="status {{ 'status-success' if s.marks | length >= expected else 'status-warning' }}">{{ s.marks | length }} / {{ expected }}</span>{% endif %}</td></tr>
+  {% else %}
+    <tr><td colspan="5">{{ empty('person-check', 'Aucune séance sur la période.') }}</td></tr>
+  {% endfor %}
+  </tbody></table></div></div>
+{% endblock %}

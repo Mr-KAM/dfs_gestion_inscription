@@ -1,0 +1,42 @@
+{% extends "zeus/base.html" %}
+{% from "_macros.html" import avatar, csrf, empty, page_head %}
+{% block title %}{{ k.name }}{% endblock %}
+{% block content %}
+{% set head_meta %}<span class="status status-info">{{ k.joined | length }} membre(s)</span>{% if k.coach %} <span class="meta"><i class="bi bi-person-workspace"></i>{{ k.coach.display_name }}</span>{% endif %}{% endset %}
+{% call page_head(k.name, eyebrow='Classe · ' ~ cohort.name, back=url_for('zeus.cohort', cohort_id=cohort.id), back_label='Cohorte ' ~ cohort.name, meta=head_meta) %}
+  <a class="btn btn-outline-primary" href="{{ url_for('zeus.calendar', cohort=cohort.id) }}"><i class="bi bi-calendar-week"></i> Calendrier</a>
+{% endcall %}
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card"><div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
+      <thead><tr><th></th><th>Nom et prénoms</th><th>Matricule DFS</th><th>Statut</th>{% if can_manage %}<th></th>{% endif %}</tr></thead>
+      <tbody>
+      {% for m in k.members %}{% set c = m.enrollment.candidate %}
+        <tr><td>{{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 32, zoom=True) }}</td>
+          <td>{{ c.full_name }}</td><td><code>{{ m.enrollment.matricule }}</code></td>
+          <td>{% if m.joined_at %}<span class="status status-success">Membre</span>{% else %}<span class="status status-warning">Invité</span>{% endif %}</td>
+          {% if can_manage %}<td class="text-end"><form method="post" data-confirm="Retirer {{ c.full_name }} de la classe ?">{{ csrf() }}
+            <input type="hidden" name="member_id" value="{{ m.id }}"><button class="btn btn-sm btn-outline-danger" name="action" value="remove" title="Retirer"><i class="bi bi-person-dash"></i></button></form></td>{% endif %}</tr>
+      {% else %}
+        <tr><td colspan="5">{{ empty('people', "Aucun étudiant : invitez les inscrits de la cohorte.") }}</td></tr>
+      {% endfor %}
+      </tbody></table></div></div>
+  </div>
+  {% if can_manage %}
+  <div class="col-lg-5">
+    <form class="card" method="post">{{ csrf() }}
+      <div class="card-header"><i class="bi bi-envelope-paper"></i> Inviter des étudiants inscrits</div>
+      {% if invitable %}
+      <div class="list-group list-group-flush" style="max-height: 420px; overflow-y: auto">
+        {% for e in invitable %}
+        <label class="list-group-item d-flex gap-2 align-items-center"><input class="form-check-input" type="checkbox" name="enrollment_ids" value="{{ e.id }}">
+          <span class="flex-grow-1">{{ e.candidate.full_name }}</span><code>{{ e.matricule }}</code></label>
+        {% endfor %}
+      </div>
+      <div class="card-footer"><button class="btn btn-primary" name="action" value="invite"><i class="bi bi-send"></i> Envoyer les invitations</button></div>
+      {% else %}<div class="card-body text-muted small">Tous les étudiants inscrits de la cohorte sont déjà invités ou membres.</div>{% endif %}
+    </form>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

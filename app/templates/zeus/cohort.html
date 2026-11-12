@@ -1,0 +1,77 @@
+{% extends "zeus/base.html" %}
+{% from "_macros.html" import csrf, empty, page_head, stat %}
+{% block title %}{{ cohort.name }}{% endblock %}
+{% block content %}
+{% set registered = cohort.enrollments | selectattr('matricule') | list | length %}
+{% call page_head(cohort.name, eyebrow='Cohorte de formation', back=url_for('cohort.index'), back_label='Cohortes',
+                  subtitle=cohort.description or None) %}
+  <a class="btn btn-outline-primary" href="{{ url_for('cohort.detail', cohort_id=cohort.id) }}"><i class="bi bi-people"></i> Étudiants et inscriptions</a>
+  <a class="btn btn-primary" href="{{ url_for('zeus.calendar', cohort=cohort.id) }}"><i class="bi bi-calendar-week"></i> Calendrier</a>
+{% endcall %}
+
+<div class="row g-3 mb-4">
+  {{ stat('Inscrits (matricule DFS)', registered, 'mortarboard-fill') }}
+  {{ stat('Classes', classes | length, 'people') }}
+  {{ stat('Cours', courses | length, 'journal-bookmark') }}
+  {{ stat('Coachs', coaches | length, 'person-workspace') }}
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card h-100" id="classes"><div class="card-header"><i class="bi bi-people"></i> Classes</div>
+      <ul class="list-group list-group-flush">
+      {% for k in classes %}
+        <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center gap-2" href="{{ url_for('zeus.klass', class_id=k.id) }}">
+          <span><strong>{{ k.name }}</strong>{% if k.coach %} <span class="small text-muted">· {{ k.coach.display_name }}</span>{% endif %}</span>
+          <span class="status status-info">{{ k.joined | length }} membre(s){% set pending = k.members | length - k.joined | length %}{% if pending %} · {{ pending }} invité(s){% endif %}</span></a>
+      {% else %}
+        <li class="list-group-item text-muted">Aucune classe.</li>
+      {% endfor %}
+      </ul>
+      {% if can_manage %}
+      <form class="card-body border-top d-flex gap-2" method="post" action="{{ url_for('zeus.class_create', cohort_id=cohort.id) }}">{{ csrf() }}
+        <input class="form-control" name="name" maxlength="80" required placeholder="Nom de la nouvelle classe" aria-label="Nom de la classe">
+        <button class="btn btn-primary text-nowrap"><i class="bi bi-plus-lg"></i> Créer</button></form>
+      {% endif %}
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card h-100"><div class="card-header"><i class="bi bi-person-workspace"></i> Coachs de la cohorte</div>
+      <ul class="list-group list-group-flush">
+      {% for cc in cohort.coaches %}
+        <li class="list-group-item d-flex justify-content-between gap-2"><span>{{ cc.user.display_name }} <span class="small text-muted">{{ cc.user.role_label }}</span></span>
+          <span class="status status-info">{{ cc.role }}</span></li>
+      {% else %}
+        <li class="list-group-item text-muted">Aucun coach : l'administrateur les ajoute depuis la page « Étudiants et inscriptions ».</li>
+      {% endfor %}
+      </ul></div>
+  </div>
+</div>
+
+<div class="card mt-3" id="cours"><div class="card-header"><i class="bi bi-journal-bookmark"></i> Cours du programme</div>
+  <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
+    <thead><tr><th>Cours</th><th>Coach</th><th>Volume prévu</th><th>Programmé</th><th>Séances</th></tr></thead>
+    <tbody>
+    {% for course in courses %}
+      <tr><td><a href="{{ url_for('zeus.course', course_id=course.id) }}">{{ course.name }}</a>{% if course.description %}<div class="small text-muted">{{ course.description }}</div>{% endif %}</td>
+        <td>{{ course.coach.display_name if course.coach else '—' }}</td>
+        <td>{{ course.hours }} h</td>
+        <td>{{ '%g' % course.scheduled_hours }} h</td>
+        <td>{{ course.sessions | length }}</td></tr>
+    {% else %}
+      <tr><td colspan="5">{{ empty('journal-bookmark', 'Aucun cours au programme.') }}</td></tr>
+    {% endfor %}
+    </tbody></table></div>
+  {% if can_manage %}
+  <form class="card-body border-top row g-2 align-items-end" method="post" action="{{ url_for('zeus.course_create', cohort_id=cohort.id) }}">{{ csrf() }}
+    <div class="col-md-4"><label class="form-label" for="course-name">Nouveau cours</label><input class="form-control" id="course-name" name="name" maxlength="150" required placeholder="Agriculture de précision"></div>
+    <div class="col-md-3"><label class="form-label" for="course-coach">Coach</label>
+      <select class="form-select" id="course-coach" name="coach_id"><option value="">—</option>
+        {% for u in coaches %}<option value="{{ u.id }}">{{ u.display_name }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><label class="form-label" for="course-hours">Volume (h)</label><input class="form-control" id="course-hours" name="hours" type="number" min="0" max="2000" value="0"></div>
+    <div class="col-md-3"><button class="btn btn-primary w-100"><i class="bi bi-plus-lg"></i> Ajouter le cours</button></div>
+    <div class="col-12"><input class="form-control form-control-sm" name="description" maxlength="255" placeholder="Description (optionnel)" aria-label="Description"></div>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

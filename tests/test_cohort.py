@@ -2,7 +2,7 @@
 import base64
 
 from app.models import Cohort, CohortCoach, Defense, Enrollment, Jury, JuryCandidate, Sas
-from app.services import account_service
+from app.services import account_service, zeus_service
 from app.services.cohort_service import matricule_prefix
 from tests.conftest import login, make_candidate, make_user
 from tests.test_portal import portal_login
@@ -91,10 +91,11 @@ def test_cohort_registration_flow(app, db, client, admin):
     assert CohortCoach.query.count() == 0
     client.post("/logout")
 
-    # Espace Zeus: the registered student sees his DFS matricule.
+    # Espace Zeus (mode on): the registered student sees his DFS matricule, bedroom and equipment.
+    zeus_service.set_enabled(True)
     account = account_service.sync_account(people["ALPHA"]) or people["ALPHA"].account
     account.must_change_password = False
     db.session.commit()
     portal_login(client, "ALPHA@test.ci")
-    html = client.get("/candidat/zeus").get_data(as_text=True)
+    html = client.get("/zeus/").get_data(as_text=True)
     assert f"{prefix}000001" in html and "B3" in html and "PC-07" in html

@@ -1,0 +1,85 @@
+{% extends "zeus/base.html" %}
+{% from "_macros.html" import csrf, empty, stat %}
+{% block title %}Accueil{% endblock %}
+{% block content %}
+{% if splash %}
+<div class="zeus-splash" aria-hidden="true">
+  <svg viewBox="0 0 64 96"><path d="M40 2 8 54h22l-8 40 34-58H34z"/></svg>
+  <b>ZEUS</b><small>Digital Farming School</small>
+  <div class="zeus-flash"></div>
+</div>
+{% endif %}
+
+<div class="zeus-hero">
+  <div class="eyebrow mb-1">Espace Zeus · {{ current_user.role_label }}</div>
+  <h1 class="page-title">Bonjour, {{ e.candidate.full_name if e else current_user.display_name }}</h1>
+  {% if e %}<div class="mt-2">Cohorte de formation {{ e.cohort.name }} · Matricule DFS <code class="fs-5">{{ e.matricule }}</code></div>{% endif %}
+</div>
+
+{% if current_user.role == 'admin' %}
+<form class="card card-body mb-4 d-flex flex-row flex-wrap align-items-center gap-3" method="post" action="{{ url_for('zeus.mode') }}"
+      data-confirm="{{ 'Désactiver le mode Zeus ? Tout le monde revient à l\'interface classique.' if enabled else 'Activer le mode Zeus ? Coachs, accueil, cité et étudiants inscrits y arriveront à la connexion.' }}">
+  {{ csrf() }}<input type="hidden" name="enabled" value="{{ '' if enabled else '1' }}">
+  <i class="bi bi-lightning-charge-fill fs-2 {{ 'text-warning' if enabled else 'text-muted' }}" aria-hidden="true"></i>
+  <div class="flex-grow-1"><strong>Mode Zeus {{ 'activé' if enabled else 'désactivé' }}</strong>
+    <div class="small text-muted">{{ "Les utilisateurs Zeus arrivent ici à la connexion ; l'interface classique reste accessible." if enabled
+       else "Seul l'administrateur voit Zeus : préparez cohortes, classes et cours, puis activez." }}</div></div>
+  <button class="btn {{ 'btn-outline-danger' if enabled else 'btn-primary' }}"><i class="bi bi-power"></i> {{ 'Désactiver' if enabled else 'Activer le mode Zeus' }}</button>
+</form>
+{% endif %}
+
+{% if e %}
+  {% for m in invitations %}
+  <div class="alert alert-warning d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span><i class="bi bi-envelope-paper"></i> Invitation à rejoindre la classe <strong>{{ m.klass.name }}</strong>{% if m.klass.coach %} ({{ m.klass.coach.display_name }}){% endif %}.</span>
+    <form method="post" action="{{ url_for('zeus.answer', member_id=m.id) }}" class="d-flex gap-2">{{ csrf() }}
+      <input type="hidden" name="next" value="{{ url_for('zeus.home') }}">
+      <button class="btn btn-sm btn-primary" name="accept" value="1">Rejoindre</button>
+      <button class="btn btn-sm btn-outline-secondary" name="accept" value="0">Refuser</button></form>
+  </div>
+  {% endfor %}
+  <div class="row g-3 mb-4">
+    <div class="col-md-5 col-lg-4">
+      <div class="card h-100"><div class="card-header"><i class="bi bi-qr-code"></i> Mon QR code DFS</div>
+        <div class="card-body text-center">
+          <div class="qr-code d-inline-block bg-white p-2" role="img" aria-label="QR code du matricule {{ e.matricule }}">{{ matricule_qr(e.candidate, e.matricule) }}</div>
+          <div class="mt-2"><code class="fs-5">{{ e.matricule }}</code></div>
+          <div class="small text-muted mt-1">À présenter au coach pour l'appel.</div>
+        </div></div>
+    </div>
+    <div class="col-md-7 col-lg-8">
+      <div class="card h-100"><div class="card-header"><i class="bi bi-person-vcard"></i> Mon inscription</div>
+        <div class="card-body"><dl class="kv row mb-0">
+          <dt class="col-5 col-md-4">Cohorte</dt><dd class="col-7 col-md-8">{{ e.cohort.name }}</dd>
+          <dt class="col-5 col-md-4">Classes</dt><dd class="col-7 col-md-8">{{ classes | map(attribute='name') | join(', ') or 'Aucune pour le moment' }}</dd>
+          <dt class="col-5 col-md-4">Arrivée</dt><dd class="col-7 col-md-8">{{ e.arrival_date | d }}</dd>
+          <dt class="col-5 col-md-4">Chambre</dt><dd class="col-7 col-md-8">{{ e.bedroom or "En cours d'attribution" }}</dd>
+          <dt class="col-5 col-md-4">Matériel</dt><dd class="col-7 col-md-8">{{ e.equipment or "En cours d'attribution" }}</dd>
+          <dt class="col-5 col-md-4">Ancien matricule</dt><dd class="col-7 col-md-8"><code>{{ e.candidate.matricule }}</code></dd>
+        </dl></div></div>
+    </div>
+  </div>
+{% else %}
+  <div class="group-label">Mes cohortes de formation</div>
+  <div class="row g-3 mb-4">
+  {% for c in cohorts %}
+    {% set registered = c.enrollments | selectattr('matricule') | list | length %}
+    {{ stat(c.name, registered ~ ' inscrit(s)', 'mortarboard-fill', url_for('zeus.cohort', cohort_id=c.id), col='col-12 col-md-6 col-xl-4') }}
+  {% else %}
+    <div class="col-12"><div class="card">{{ empty('mortarboard', "Aucune cohorte de formation." ~ (" Créez l'année académique dans Cohortes." if current_user.role == 'admin' else '')) }}</div></div>
+  {% endfor %}
+  </div>
+{% endif %}
+
+<div class="card"><div class="card-header d-flex justify-content-between align-items-center">
+  <span><i class="bi bi-calendar-week"></i> Séances de la semaine</span><a class="small" href="{{ url_for('zeus.calendar') }}">Calendrier</a></div>
+  <ul class="list-group list-group-flush">
+  {% for s in upcoming %}
+    <a class="list-group-item list-group-item-action zeus-session d-flex justify-content-between flex-wrap gap-2" href="{{ url_for('zeus.session', session_id=s.id) }}">
+      <span><strong>{{ s.course.name }}</strong> · {{ s.klass.name if s.klass else 'toute la cohorte' }}{% if s.room %} · {{ s.room }}{% endif %}</span>
+      <span class="small text-muted">{{ s.starts_at | dt('%d/%m %H:%M') }} – {{ s.ends_at | dt('%H:%M') }}</span></a>
+  {% else %}
+    <li class="list-group-item text-muted">Aucune séance programmée cette semaine.</li>
+  {% endfor %}
+  </ul></div>
+{% endblock %}

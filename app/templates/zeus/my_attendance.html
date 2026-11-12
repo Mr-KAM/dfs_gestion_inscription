@@ -1,0 +1,21 @@
+{% extends "zeus/base.html" %}
+{% from "_macros.html" import empty, page_head, stat %}
+{% block title %}Mes présences{% endblock %}
+{% block content %}
+{% call page_head('Mes présences', eyebrow='Zeus · ' ~ e.matricule) %}{% endcall %}
+{% set present = rows | selectattr(1) | list | length %}
+<div class="row g-3 mb-3">
+  {{ stat('Séances passées', rows | length, 'calendar-check') }}
+  {{ stat('Présent(e)', present, 'person-check', progress=100 * present / (rows | length) if rows else None) }}
+  {{ stat('Absent(e)', rows | length - present, 'person-x') }}
+</div>
+<div class="card"><ul class="list-group list-group-flush">
+{% for s, here in rows %}
+  <li class="list-group-item d-flex justify-content-between flex-wrap gap-2">
+    <span><strong>{{ s.course.name }}</strong> <span class="small text-muted">· {{ s.starts_at | dt('%d/%m/%Y %H:%M') }}</span></span>
+    {% if here %}<span class="status status-success">Présent(e)</span>{% else %}<span class="status status-danger">Absent(e)</span>{% endif %}</li>
+{% else %}
+  <li class="list-group-item">{{ empty('calendar-check', 'Aucune séance passée pour le moment.') }}</li>
+{% endfor %}
+</ul></div>
+{% endblock %}

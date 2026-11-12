@@ -1,0 +1,74 @@
+{% extends "zeus/base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}Calendrier{% endblock %}
+{% block content %}
+{% set DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'] %}
+{% set keep = {'cohort': selected.id} if selected else {} %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <div><div class="eyebrow mb-1">Cours, programmation et calendrier</div>
+    <h1 class="page-title">Semaine du {{ days[0] | dt('%d/%m') }} au {{ days[6] | dt('%d/%m/%Y') }}</h1></div>
+  <div class="d-flex align-items-center gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('zeus.calendar', week=prev, **keep) }}" aria-label="Semaine précédente"><i class="bi bi-chevron-left"></i></a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('zeus.calendar', **keep) }}">Cette semaine</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('zeus.calendar', week=next, **keep) }}" aria-label="Semaine suivante"><i class="bi bi-chevron-right"></i></a>
+  </div>
+</div>
+
+{% if cohorts | length > 1 %}
+<form class="row g-2 mb-3" method="get">
+  <input type="hidden" name="week" value="{{ days[0] | dt('%Y-%m-%d') }}">
+  <div class="col-md-5"><select class="form-select form-select-sm" name="cohort" aria-label="Cohorte" data-autosubmit>
+    <option value="">Toutes mes cohortes</option>
+    {% for c in cohorts %}<option value="{{ c.id }}" {{ 'selected' if selected and selected.id == c.id }}>{{ c.name }}</option>{% endfor %}</select></div>
+</form>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-8">
+  {% for day in days %}{% set key = day | dt('%Y-%m-%d') %}
+    <div class="card mb-2">
+      <div class="card-header py-2"><span class="zeus-day {{ 'is-today' if key == today }}">{{ DAYS[loop.index0] }} {{ day | dt('%d/%m') }}</span></div>
+      <ul class="list-group list-group-flush">
+      {% for s in sessions if (s.starts_at | dt('%Y-%m-%d')) == key %}
+        <a class="list-group-item list-group-item-action zeus-session d-flex justify-content-between flex-wrap gap-2" href="{{ url_for('zeus.session', session_id=s.id) }}">
+          <span><strong>{{ s.starts_at | dt('%H:%M') }} – {{ s.ends_at | dt('%H:%M') }}</strong> · {{ s.course.name }}
+            <span class="small text-muted">· {{ s.klass.name if s.klass else 'toute la cohorte' }}{% if not selected and cohorts | length > 1 %} · {{ s.course.cohort.name }}{% endif %}</span></span>
+          <span class="small text-muted">{{ s.coach.display_name if s.coach else '' }}{% if s.room %} · {{ s.room }}{% endif %}</span></a>
+      {% else %}
+        <li class="list-group-item small text-muted">—</li>
+      {% endfor %}
+      </ul>
+    </div>
+  {% endfor %}
+  </div>
+
+  <div class="col-lg-4">
+  {% set target = selected if selected in manageable else (manageable[0] if manageable | length == 1 else None) %}
+  {% if target %}{% set classes, coaches, courses = forms[target.id] %}
+    <form class="card card-body" method="post">{{ csrf() }}<input type="hidden" name="cohort_id" value="{{ target.id }}">
+      <h2 class="h6"><i class="bi bi-calendar-plus"></i> Programmer une séance · {{ target.name }}</h2>
+      {% if courses %}
+      <div class="mb-2"><label class="form-label" for="course_id">Cours</label>
+        <select class="form-select" id="course_id" name="course_id" required>{% for c in courses %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></div>
+      <div class="mb-2"><label class="form-label" for="class_id">Pour</label>
+        <select class="form-select" id="class_id" name="class_id"><option value="">Toute la cohorte</option>
+          {% for k in classes %}<option value="{{ k.id }}">Classe {{ k.name }}</option>{% endfor %}</select></div>
+      <div class="row g-2 mb-2">
+        <div class="col-6"><label class="form-label" for="starts_at">Début</label><input class="form-control" type="datetime-local" id="starts_at" name="starts_at" required></div>
+        <div class="col-6"><label class="form-label" for="ends_at">Fin</label><input class="form-control" type="datetime-local" id="ends_at" name="ends_at" required></div>
+      </div>
+      <div class="mb-2"><label class="form-label" for="coach_id">Coach</label>
+        <select class="form-select" id="coach_id" name="coach_id"><option value="">Coach du cours</option>
+          {% for u in coaches %}<option value="{{ u.id }}">{{ u.display_name }}</option>{% endfor %}</select></div>
+      <div class="mb-3"><label class="form-label" for="room">Salle</label><input class="form-control" id="room" name="room" maxlength="100"></div>
+      <div><button class="btn btn-primary"><i class="bi bi-lightning-charge-fill"></i> Programmer</button></div>
+      {% else %}
+      <p class="text-muted small mb-0">Ajoutez d'abord un cours au programme de la <a href="{{ url_for('zeus.cohort', cohort_id=target.id) }}#cours">cohorte</a>.</p>
+      {% endif %}
+    </form>
+  {% elif manageable %}
+    <div class="card card-body text-muted small">Choisissez une cohorte pour programmer une séance.</div>
+  {% endif %}
+  </div>
+</div>
+{% endblock %}

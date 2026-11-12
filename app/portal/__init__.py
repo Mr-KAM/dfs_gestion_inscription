@@ -73,16 +73,6 @@ def home():
                            decisions=DECISIONS)
 
 
-@bp.get("/zeus")
-@login_required
-def zeus():
-    """Espace Zeus: students registered in a training cohort, with their DFS matricule."""
-    enrollment = current_user.candidate.enrollment
-    if enrollment is None or not enrollment.matricule:
-        abort(404)
-    return render_template("portal/zeus.html", c=current_user.candidate, e=enrollment)
-
-
 @bp.get("/notifications")
 @login_required
 def notifications():

@@ -59,7 +59,7 @@ def _assign_matricules(session, _context, _instances) -> None:
         candidate.matricule = f"{prefix}{number:06d}"
 
 
-MATRICULE_RE = re.compile(r"^\d{2}CAND\d{6}$")
+MATRICULE_RE = re.compile(r"^\d{2}(CAND|DFS)\d{6}$")  # candidate, or training cohort (Zeus)
 QR_NOISE = string.ascii_letters + string.digits
 QR_TOKEN_MAX = 200
 
@@ -67,7 +67,7 @@ QR_TOKEN_MAX = 200
 QR_UNREADABLE = "QR code illisible : ce n'est pas un QR code matricule DFS."
 QR_FORGED = "QR code refusé : signature invalide (QR code modifié ou non émis par cette application)."
 QR_NONCE = 12  # AES-GCM nonce bytes
-QR_RAW_LEN = QR_NONCE + 22 + 16  # nonce + encrypted 22 bytes + GCM tag = 50 bytes
+QR_RAW_LEN = QR_NONCE + 22 + 16  # nonce + encrypted 22 bytes + GCM tag = 50 bytes (DFS matricule: 1 byte less)
 
 
 def _qr_cipher() -> AESGCM:
@@ -98,7 +98,7 @@ def decode_matricule(token: str) -> str:
         if not token or len(token) > QR_TOKEN_MAX or not token.isascii():
             raise ValueError
         raw = base64.b32decode(token + "=" * (-len(token) % 8))
-        if len(raw) != QR_RAW_LEN:
+        if len(raw) not in (QR_RAW_LEN, QR_RAW_LEN - 1):
             raise ValueError
     except ValueError:  # binascii.Error is a ValueError
         raise BusinessError(QR_UNREADABLE)
@@ -112,12 +112,13 @@ def decode_matricule(token: str) -> str:
     return matricule
 
 
-def matricule_qr(candidate: Candidate) -> Markup:
+def matricule_qr(candidate: Candidate, matricule: str | None = None) -> Markup:
     """Inline SVG QR code (new random noise on every render), used as a Jinja global.
     border=4: the quiet zone required by the QR spec, cameras miss codes without it.
     omitsize: viewBox instead of fixed width/height, so the CSS width SCALES the code (with a fixed
-    size and no viewBox the browser crops it: right/bottom edge cut off, unreadable)."""
-    svg = segno.make(encode_matricule(candidate.matricule), error="m").svg_inline(
+    size and no viewBox the browser crops it: right/bottom edge cut off, unreadable).
+    `matricule`: another matricule of the student (Zeus: his DFS matricule)."""
+    svg = segno.make(encode_matricule(matricule or candidate.matricule), error="m").svg_inline(
         border=4, dark="#000", light="#fff", omitsize=True)
     return Markup(svg)
 

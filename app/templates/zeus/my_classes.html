@@ -1,0 +1,29 @@
+{% extends "zeus/base.html" %}
+{% from "_macros.html" import csrf, empty, page_head %}
+{% block title %}Mes classes{% endblock %}
+{% block content %}
+{% call page_head('Mes classes', eyebrow='Zeus · ' ~ e.cohort.name) %}{% endcall %}
+{% if invitations %}
+<div class="card mb-3"><div class="card-header"><i class="bi bi-envelope-paper"></i> Invitations</div>
+  <ul class="list-group list-group-flush">
+  {% for m in invitations %}
+    <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <span><strong>{{ m.klass.name }}</strong>{% if m.klass.coach %} · {{ m.klass.coach.display_name }}{% endif %} <span class="small text-muted">invité le {{ m.invited_at | dt('%d/%m/%Y') }}</span></span>
+      <form method="post" action="{{ url_for('zeus.answer', member_id=m.id) }}" class="d-flex gap-2">{{ csrf() }}
+        <button class="btn btn-sm btn-primary" name="accept" value="1"><i class="bi bi-check2"></i> Rejoindre</button>
+        <button class="btn btn-sm btn-outline-secondary" name="accept" value="0">Refuser</button></form>
+    </li>
+  {% endfor %}
+  </ul></div>
+{% endif %}
+<div class="row g-3">
+{% for k in classes %}
+  <div class="col-md-6 col-xl-4"><div class="card h-100"><div class="card-body">
+    <h2 class="card-title-lg">{{ k.name }}</h2>
+    <div class="small text-muted">{{ k.coach.display_name if k.coach else 'Coach à venir' }} · {{ k.joined | length }} étudiant(s)</div>
+  </div></div></div>
+{% else %}
+  <div class="col-12"><div class="card">{{ empty('people', 'Vous ne faites encore partie d\'aucune classe.') }}</div></div>
+{% endfor %}
+</div>
+{% endblock %}

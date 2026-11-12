@@ -1,0 +1,58 @@
+{% extends "zeus/base.html" %}
+{% from "_macros.html" import avatar, csrf, empty, page_head, scanner %}
+{% block title %}{{ s.course.name }}{% endblock %}
+{% block content %}
+{% set expected = s.expected %}
+{% set head_meta %}<span class="meta"><i class="bi bi-clock"></i>{{ s.starts_at | dt('%d/%m/%Y %H:%M') }} – {{ s.ends_at | dt('%H:%M') }}</span>
+  <span class="meta"><i class="bi bi-people"></i>{{ s.klass.name if s.klass else 'Toute la cohorte' }}</span>
+  {% if s.room %}<span class="meta"><i class="bi bi-geo-alt"></i>{{ s.room }}</span>{% endif %}
+  {% if s.coach %}<span class="meta"><i class="bi bi-person-workspace"></i>{{ s.coach.display_name }}</span>{% endif %}{% endset %}
+{% call page_head(s.course.name, eyebrow='Séance · ' ~ s.course.cohort.name, back=url_for('zeus.calendar', week=s.starts_at | dt('%Y-%m-%d')), back_label='Calendrier', meta=head_meta) %}
+  {% if can_manage %}<form method="post" data-confirm="Supprimer cette séance et son appel ?">{{ csrf() }}
+    <button class="btn btn-outline-danger" name="action" value="delete"><i class="bi bi-trash"></i> Supprimer</button></form>{% endif %}
+{% endcall %}
+
+{% if me %}
+  <div class="card card-body">
+    {% if me.id in present %}<div class="text-success fs-5"><i class="bi bi-check-circle-fill"></i> Présent(e) à cette séance.</div>
+    {% elif s.is_past %}<div class="text-danger fs-5"><i class="bi bi-x-circle-fill"></i> Absent(e) à cette séance.</div>
+    {% else %}<div>Présentez votre QR code DFS (accueil Zeus) au coach pour l'appel.</div>{% endif %}
+  </div>
+{% elif can_call %}
+<div class="row g-3">
+  <div class="col-lg-7">
+    <form class="card" method="post">{{ csrf() }}
+      <div class="card-header d-flex justify-content-between align-items-center"><span><i class="bi bi-person-check"></i> Appel</span>
+        <span class="status status-info">{{ present | length }} / {{ expected | length }} présent(s)</span></div>
+      <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+        <thead><tr><th>Présent</th><th></th><th>Nom et prénoms</th><th>Matricule DFS</th></tr></thead>
+        <tbody>
+        {% for e in expected | sort(attribute='candidate.full_name') %}{% set c = e.candidate %}
+          <tr><td><input class="form-check-input" type="checkbox" name="present" value="{{ e.id }}" id="p{{ e.id }}" {{ 'checked' if e.id in present }}></td>
+            <td>{{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 32) }}</td>
+            <td><label for="p{{ e.id }}">{{ c.full_name }}</label></td><td><code>{{ e.matricule }}</code></td></tr>
+        {% else %}
+          <tr><td colspan="4">{{ empty('people', "Aucun étudiant attendu : la classe n'a pas encore de membre.") }}</td></tr>
+        {% endfor %}
+        </tbody></table></div>
+      {% if expected %}<div class="card-footer"><button class="btn btn-primary"><i class="bi bi-save"></i> Enregistrer l'appel</button></div>{% endif %}
+    </form>
+  </div>
+  <div class="col-lg-5">
+    <div class="card"><div class="card-header"><i class="bi bi-qr-code-scan"></i> Scanner le QR code DFS</div>
+      <div class="card-body">
+        <p class="small text-muted">L'étudiant présente le QR code de son accueil Zeus : il est marqué présent.</p>
+        {{ scanner(url_for('zeus.session_scan', session_id=s.id), '<i class="bi bi-person-check"></i> Marquer présent' | safe) }}
+      </div></div>
+  </div>
+</div>
+{% else %}
+  <div class="card card-body text-muted">{{ present | length }} présent(s) sur {{ expected | length }} attendu(s).</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+{% if can_call and not me %}
+<script src="{{ url_for('static', filename='vendor/jsQR.js') }}"></script>
+<script src="{{ url_for('static', filename='js/scan.js') }}"></script>
+{% endif %}
+{% endblock %}

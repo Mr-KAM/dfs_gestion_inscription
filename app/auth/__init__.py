@@ -50,6 +50,8 @@ def authenticate(email: str, password: str) -> User | None:
     if valid and user.active:
         login_user(user, remember=False)
         session.permanent = True  # expires after PERMANENT_SESSION_LIFETIME (shared PCs in test rooms)
+        session["zeus_landing"] = True  # dashboard.index: straight to Zeus once, when the mode is on
+        session.pop("zeus_splash", None)  # Zeus home: its loading animation plays again
         user.last_login_at = utcnow()
         audit_service.log("login", user, user=user)
         db.session.commit()

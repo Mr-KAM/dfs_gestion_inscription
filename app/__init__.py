@@ -52,9 +52,10 @@ def create_app(config_overrides: dict | None = None) -> Flask:
     from app.motivation import bp as motivation_bp
     from app.portal import bp as portal_bp
     from app.technical import bp as technical_bp
+    from app.zeus import bp as zeus_bp
 
     for bp in (auth_bp, dashboard_bp, candidates_bp, motivation_bp, technical_bp, kobo_bp, admin_bp, portal_bp, campus_bp, infra_bp,
-               defense_bp, jury_bp, public_results_bp, cohort_bp):
+               defense_bp, jury_bp, public_results_bp, cohort_bp, zeus_bp):
         app.register_blueprint(bp)
     register_cli(app)
     _register_web_helpers(app)
@@ -76,7 +77,7 @@ def _register_web_helpers(app: Flask) -> None:
 
     from app.models import PasswordResetRequest
     from app.models.user import ROLES
-    from app.services import candidate_service, settings_service
+    from app.services import candidate_service, settings_service, zeus_service
 
     @app.get("/health")
     def health():
@@ -113,7 +114,12 @@ def _register_web_helpers(app: Flask) -> None:
         if current_user.is_authenticated and current_user.role == "admin":
             reset_requests = db.session.scalar(select(func.count(PasswordResetRequest.id)).where(
                 PasswordResetRequest.status == "pending"))
-        return {"app_name": settings_service.get("app_name"), "ROLES": ROLES, "reset_requests": reset_requests}
+        # Zeus mode: its own layout on /zeus, and on the cohort pages once the admin has switched it on.
+        zeus_ui = current_user.is_authenticated and (request.blueprint == "zeus" or (
+            request.blueprint == "cohort" and zeus_service.lands_in_zeus(current_user)))
+        return {"app_name": settings_service.get("app_name"), "ROLES": ROLES, "reset_requests": reset_requests,
+                "layout": "zeus/base.html" if zeus_ui else "base.html",
+                "zeus_link": current_user.is_authenticated and zeus_service.lands_in_zeus(current_user)}
 
     app.add_template_global(candidate_service.matricule_qr, "matricule_qr")  # global: visible inside macros
 

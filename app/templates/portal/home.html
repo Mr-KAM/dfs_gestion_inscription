@@ -37,7 +37,7 @@
     {% if c.enrollment.matricule %}<strong>Vous êtes inscrit(e) en cohorte de formation {{ c.enrollment.cohort.name }}.</strong> Matricule DFS : <code class="fs-5">{{ c.enrollment.matricule }}</code>
     {% else %}<strong>Vous êtes éligible à la cohorte de formation {{ c.enrollment.cohort.name }}.</strong> Présentez-vous à l'accueil pour valider votre inscription.{% endif %}
   </div>
-  {% if c.enrollment.matricule %}<a class="btn btn-primary" href="{{ url_for('portal.zeus') }}"><i class="bi bi-lightning-charge"></i> Espace Zeus</a>{% endif %}
+  {% if zeus_link %}<a class="btn btn-primary" href="{{ url_for('zeus.home') }}"><i class="bi bi-lightning-charge-fill"></i> Espace Zeus</a>{% endif %}
 </div>
 {% endif %}
 {% if c.sas %}

@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends layout %}
 {% from "_macros.html" import avatar, csrf, empty, page_head, stat %}
 {% block title %}{{ cohort.name }}{% endblock %}
 {% block content %}
@@ -6,7 +6,9 @@
 {% set registered = cohort.enrollments | selectattr('matricule') | list | length %}
 {% set head_meta %}<span class="status status-info">{{ cohort.enrollments | length }} éligible(s)</span> <span class="status status-success">{{ registered }} inscrit(s)</span>{% endset %}
 {% call page_head(cohort.name, eyebrow='Cohorte de formation', back=url_for('cohort.index'), back_label='Toutes les cohortes',
-                  subtitle=cohort.description or None, meta=head_meta) %}{% endcall %}
+                  subtitle=cohort.description or None, meta=head_meta) %}
+  {% if layout == 'zeus/base.html' %}<a class="btn btn-primary" href="{{ url_for('zeus.cohort', cohort_id=cohort.id) }}"><i class="bi bi-lightning-charge-fill"></i> Classes et cours</a>{% endif %}
+{% endcall %}
 
 {% if is_admin %}
 <div class="card mb-3">

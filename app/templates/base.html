@@ -54,7 +54,7 @@
     <div class="nav flex-column gap-1">
       {% if role == 'candidate' %}
         {{ nav('portal.home', 'house', 'Mon espace') }}
-        {% if current_user.candidate.enrollment and current_user.candidate.enrollment.matricule %}{{ nav('portal.zeus', 'lightning-charge', 'Espace Zeus') }}{% endif %}
+        {% if zeus_link %}{{ nav('zeus.home', 'lightning-charge-fill', 'Espace Zeus') }}{% endif %}
         {{ nav('portal.attendance', 'qr-code-scan', 'Ma présence') }}
         {{ nav('portal.join_class', 'people', 'Ma classe') }}
         {{ nav('portal.exercises', 'journal-code', 'Exercices') }}
@@ -123,6 +123,8 @@
         {{ nav('admin.settings', 'gear', 'Paramètres') }}
       {% endif %}
       {% endif %}
+      {% if zeus_link or role == 'admin' %}<div class="nav-section">Zeus</div>
+        {{ nav('zeus.home', 'lightning-charge-fill', 'Espace Zeus' if zeus_link else 'Mode Zeus (désactivé)') }}{% endif %}
       <div class="nav-section">Mon compte</div>
       {{ nav('jury.index', 'easel2', 'Mes jurys', 'jury.') }}
       {{ nav('auth.profile', 'person-circle', 'Mon profil') }}
