@@ -6,7 +6,8 @@ from datetime import date
 from sqlalchemy import func, select
 
 from app.extensions import db
-from app.models import Candidate, Cohort, Defense, Enrollment, Jury, JuryCandidate
+from app.models import Candidate, Cohort, CohortCoach, Defense, Enrollment, Jury, JuryCandidate, User
+from app.models.user import COACH_ROLES
 from app.services import audit_service
 from app.services.account_service import PHOTO_MAX_BYTES, image_type
 from app.services.candidate_service import BusinessError, today
@@ -47,6 +48,38 @@ def add_eligible(cohort: Cohort, sas_id: int, candidate_ids: list[int]) -> int:
     audit_service.log("cohort_update", cohort, {"eligible": [c.matricule for c in chosen]})
     db.session.commit()
     return len(chosen)
+
+
+def coach_choices(cohort: Cohort) -> list[User]:
+    """Active coaches (technique or métier) not in the cohort yet."""
+    taken = {cc.user_id for cc in cohort.coaches}
+    users = db.session.scalars(select(User).where(User.role.in_(COACH_ROLES), User.active)
+                               .order_by(User.full_name)).all()
+    return [u for u in users if u.id not in taken]
+
+
+def set_coach(cohort: Cohort, user_id: int, role: str) -> CohortCoach:
+    """Admin: give a coach access to the cohort with his role, or change his role."""
+    role = role.strip()[:100]
+    if not role:
+        raise BusinessError("Indiquez le rôle du coach dans la cohorte.")
+    link = next((cc for cc in cohort.coaches if cc.user_id == user_id), None)
+    if link is None:
+        user = db.session.get(User, user_id)
+        if user is None or user.role not in COACH_ROLES or not user.active:
+            raise BusinessError("Choisissez un coach actif.")
+        link = CohortCoach(cohort=cohort, user=user)
+        db.session.add(link)
+    link.role = role
+    audit_service.log("cohort_update", cohort, {"coach": link.user.email, "role": role})
+    db.session.commit()
+    return link
+
+
+def remove_coach(link: CohortCoach) -> None:
+    audit_service.log("cohort_update", link.cohort, {"coach_removed": link.user.email})
+    db.session.delete(link)
+    db.session.commit()
 
 
 def remove(enrollment: Enrollment) -> None:

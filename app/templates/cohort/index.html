@@ -34,6 +34,7 @@
           <span class="status status-info">{{ total }} éligible(s)</span>
         </div>
         <div class="text-muted small flex-grow-1">{{ cohort.description or 'Sans description' }}</div>
+        {% if current_user.is_coach %}{% for cc in cohort.coaches if cc.user_id == current_user.id %}<div><span class="status status-info">Mon rôle : {{ cc.role }}</span></div>{% endfor %}{% endif %}
         <div class="mt-1">{{ progress(cohort.enrollments | selectattr('matricule') | list | length, total, 'Inscrits') }}</div>
       </div>
     </a>

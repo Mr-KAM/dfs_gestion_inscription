@@ -13,6 +13,27 @@ class Cohort(db.Model):
 
     enrollments = db.relationship("Enrollment", back_populates="cohort", cascade="all, delete-orphan",
                                   order_by="Enrollment.id")
+    coaches = db.relationship("CohortCoach", back_populates="cohort", cascade="all, delete-orphan",
+                              order_by="CohortCoach.id")
+
+
+# Suggested in the form; the admin may type any other role.
+COACH_ROLE_SUGGESTIONS = ("Coach référent", "Responsable pédagogique", "Coach technique", "Coach métier", "Tuteur")
+
+
+class CohortCoach(db.Model):
+    """A coach given access to a training cohort by the admin, with his role in it."""
+    __tablename__ = "cohort_coaches"
+
+    id = db.Column(db.Integer, primary_key=True)
+    cohort_id = db.Column(db.Integer, db.ForeignKey("cohorts.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    role = db.Column(db.String(100), nullable=False, default="")
+
+    cohort = db.relationship("Cohort", back_populates="coaches")
+    user = db.relationship("User", backref=db.backref("cohort_roles", cascade="all, delete-orphan"))
+
+    __table_args__ = (db.UniqueConstraint("cohort_id", "user_id", name="uq_cohort_coaches_cohort_user"),)
 
 
 class Enrollment(db.Model):

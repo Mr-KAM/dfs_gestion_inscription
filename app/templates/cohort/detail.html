@@ -39,6 +39,43 @@
 </div>
 {% endif %}
 
+<div class="card mb-3" id="coachs">
+  <div class="card-header"><i class="bi bi-person-workspace"></i> Coachs de la cohorte</div>
+  <ul class="list-group list-group-flush">
+  {% for cc in cohort.coaches %}
+    <li class="list-group-item d-flex flex-wrap align-items-center gap-2">
+      <span class="flex-grow-1"><strong>{{ cc.user.display_name }}</strong> <span class="small text-muted">{{ cc.user.role_label }}</span></span>
+      {% if is_admin %}
+      <form class="d-flex gap-2" method="post" action="{{ url_for('cohort.coaches', cohort_id=cohort.id) }}">
+        {{ csrf() }}<input type="hidden" name="link_id" value="{{ cc.id }}">
+        <input class="form-control form-control-sm" name="role" value="{{ cc.role }}" list="coach-roles" maxlength="100" required aria-label="Rôle de {{ cc.user.display_name }}">
+        <button class="btn btn-sm btn-outline-primary" title="Enregistrer le rôle"><i class="bi bi-save"></i></button>
+        <button class="btn btn-sm btn-outline-danger" name="remove" value="1" formnovalidate title="Retirer l'accès"
+                data-confirm="Retirer l'accès de {{ cc.user.display_name }} à la cohorte ?"><i class="bi bi-person-dash"></i></button>
+      </form>
+      {% else %}<span class="status status-info">{{ cc.role }}</span>{% endif %}
+    </li>
+  {% else %}
+    <li class="list-group-item text-muted">Aucun coach dans cette cohorte.</li>
+  {% endfor %}
+  </ul>
+  {% if is_admin %}
+  <div class="card-body border-top">
+    {% if coach_choices %}
+    <form class="row g-2 align-items-end" method="post" action="{{ url_for('cohort.coaches', cohort_id=cohort.id) }}">{{ csrf() }}
+      <div class="col-md-5"><label class="form-label" for="coach-user">Coach</label>
+        <select class="form-select" id="coach-user" name="user_id" required><option value="">Choisir…</option>
+          {% for u in coach_choices %}<option value="{{ u.id }}">{{ u.display_name }} · {{ u.role_label }}</option>{% endfor %}</select></div>
+      <div class="col-md-5"><label class="form-label" for="coach-role">Rôle dans la cohorte</label>
+        <input class="form-control" id="coach-role" name="role" list="coach-roles" maxlength="100" required placeholder="Coach référent…"></div>
+      <div class="col-md-2"><button class="btn btn-primary w-100"><i class="bi bi-plus-lg"></i> Ajouter</button></div>
+    </form>
+    {% else %}<p class="text-muted small mb-0">Tous les coachs actifs ont déjà accès à cette cohorte.</p>{% endif %}
+    <datalist id="coach-roles">{% for r in role_suggestions %}<option value="{{ r }}">{% endfor %}</datalist>
+  </div>
+  {% endif %}
+</div>
+
 {# ponytail: counted in the template, a cohort holds a few hundred students at most. #}
 {% set all = cohort.enrollments %}
 {% set total, n = all | length, (all | length) or 1 %}
@@ -66,7 +103,7 @@
   {% for e in rows %}{% set c = e.candidate %}
     <tr>
       <td>{{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 32, zoom=True) }}</td>
-      <td><a href="{{ url_for('cohort.enrollment', enrollment_id=e.id) }}">{{ c.full_name }}</a></td>
+      <td>{% if current_user.is_coach %}{{ c.full_name }}{% else %}<a href="{{ url_for('cohort.enrollment', enrollment_id=e.id) }}">{{ c.full_name }}</a>{% endif %}</td>
       <td><code>{{ c.matricule }}</code></td>
       <td>{% if e.matricule %}<code>{{ e.matricule }}</code>{% else %}<span class="status status-warning">À inscrire</span>{% endif %}</td>
       <td>{{ e.arrival_date | d or '—' }}</td>

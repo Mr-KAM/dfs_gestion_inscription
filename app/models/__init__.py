@@ -3,7 +3,7 @@ from app.models.audit import AuditLog, Setting
 from app.models.campus import (ClassInvitation, CoachInvitation, Evaluation, Exercise, ExerciseAnswer,
                                ExerciseSubmission, Incident, Lesson, Media, Notification, SasClass, Visit)
 from app.models.candidate import Candidate
-from app.models.cohort import Cohort, Enrollment
+from app.models.cohort import Cohort, CohortCoach, Enrollment
 from app.models.defense import Defense, DefenseScore, Jury, JuryCandidate, JuryMember
 from app.models.infra import Building, Consumable, ConsumableMovement, Equipment, Level, Space
 from app.models.kobo import KoboSubmission
@@ -17,4 +17,4 @@ __all__ = ["Attendance", "AttendanceSession", "AuditLog", "Setting", "Candidate"
            "TechnicalTestSession", "User", "Room", "Workstation", "Building", "Level", "Space", "Equipment",
            "Consumable", "ConsumableMovement", "ExerciseAnswer", "Media", "DefenseScore",
            "PasswordResetRequest", "Evaluation", "Defense", "Jury", "JuryCandidate", "JuryMember", "CoachInvitation",
-           "Lesson", "Cohort", "Enrollment"]
+           "Lesson", "Cohort", "CohortCoach", "Enrollment"]

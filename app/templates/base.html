@@ -85,7 +85,7 @@
           {{ nav('campus.notifications', 'megaphone', 'Notifications') }}
         {% endif %}
         {{ nav('campus.incidents', 'exclamation-triangle', 'Problèmes étudiants') }}
-        {% if role in ('reception', 'residence') %}{{ nav('cohort.index', 'mortarboard-fill', 'Cohortes de formation', 'cohort.') }}{% endif %}
+        {% if role in ('reception', 'residence') or current_user.cohort_roles %}{{ nav('cohort.index', 'mortarboard-fill', 'Cohortes de formation', 'cohort.') }}{% endif %}
       {% else %}
       {% if role == 'admin' %}<div class="nav-section">Recrutement</div>{% endif %}
       {{ nav('dashboard.index', 'speedometer2', 'Dashboard') }}

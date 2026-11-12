@@ -7,8 +7,9 @@ from flask_login import current_user
 from sqlalchemy import select
 
 from app.extensions import db
-from app.models import Cohort, Enrollment, Sas
-from app.models.user import ROLE_ADMIN, ROLE_RECEPTION, ROLE_RESIDENCE
+from app.models import Cohort, CohortCoach, Enrollment, Sas
+from app.models.cohort import COACH_ROLE_SUGGESTIONS
+from app.models.user import COACH_ROLES, ROLE_ADMIN, ROLE_RECEPTION, ROLE_RESIDENCE
 from app.services import cohort_service
 from app.services.candidate_service import BusinessError
 from app.utils import roles_required
@@ -16,10 +17,16 @@ from app.utils import roles_required
 bp = Blueprint("cohort", __name__, url_prefix="/cohortes")
 
 
+COACH_ENDPOINTS = {"cohort.index", "cohort.detail"}  # coaches: their cohorts, read only
+
+
 @bp.before_request
-@roles_required(ROLE_ADMIN, ROLE_RECEPTION, ROLE_RESIDENCE)
+@roles_required(ROLE_ADMIN, ROLE_RECEPTION, ROLE_RESIDENCE, *COACH_ROLES)
 def require_desk():
-    """Every /cohortes route: admin, reception or residence; creation and eligibility: admin only (below)."""
+    """Every /cohortes route: admin, reception or residence; coaches only see the cohorts the admin gave them;
+    creation, eligibility and coaches: admin only (below)."""
+    if current_user.is_coach and (request.method != "GET" or request.endpoint not in COACH_ENDPOINTS):
+        abort(403)
 
 
 def _require_admin() -> None:
@@ -37,21 +44,48 @@ def index():
             return redirect(url_for("cohort.detail", cohort_id=cohort.id))
         except BusinessError as exc:
             flash(str(exc), "danger")
-    cohorts = db.session.scalars(select(Cohort).order_by(Cohort.created_at.desc())).all()
-    return render_template("cohort/index.html", cohorts=cohorts)
+    stmt = select(Cohort).order_by(Cohort.created_at.desc())
+    if current_user.is_coach:
+        stmt = stmt.join(CohortCoach).where(CohortCoach.user_id == current_user.id)
+    return render_template("cohort/index.html", cohorts=db.session.scalars(stmt).all())
 
 
 @bp.get("/<int:cohort_id>")
 def detail(cohort_id: int):
     cohort = db.get_or_404(Cohort, cohort_id)
+    if current_user.is_coach and not any(cc.user_id == current_user.id for cc in cohort.coaches):
+        abort(404)
     q = request.args.get("q", "").strip().lower()
     rows = [e for e in cohort.enrollments
             if not q or q in " ".join((e.candidate.full_name, e.candidate.matricule, e.matricule or "")).lower()]
     sas_id = request.args.get("sas", type=int)
+    is_admin = current_user.role == ROLE_ADMIN
     return render_template("cohort/detail.html", cohort=cohort, rows=rows, q=q, sas_id=sas_id,
                            sas_list=db.session.scalars(select(Sas).order_by(Sas.name)).all(),
-                           admitted=cohort_service.admitted(sas_id) if sas_id and current_user.role == ROLE_ADMIN
-                           else [])
+                           admitted=cohort_service.admitted(sas_id) if sas_id and is_admin else [],
+                           coach_choices=cohort_service.coach_choices(cohort) if is_admin else [],
+                           role_suggestions=COACH_ROLE_SUGGESTIONS)
+
+
+@bp.post("/<int:cohort_id>/coachs")
+def coaches(cohort_id: int):
+    """Admin: add a coach with his role, change a role (link_id + role) or remove one (link_id + remove)."""
+    _require_admin()
+    cohort = db.get_or_404(Cohort, cohort_id)
+    link = next((cc for cc in cohort.coaches if cc.id == request.form.get("link_id", type=int)), None)
+    try:
+        if link and "remove" in request.form:
+            name = link.user.display_name
+            cohort_service.remove_coach(link)
+            flash(f"{name} n'a plus accès à la cohorte.", "success")
+        else:
+            link = cohort_service.set_coach(cohort, link.user_id if link else request.form.get("user_id", 0, type=int),
+                                            request.form.get("role", ""))
+            flash(f"{link.user.display_name} : {link.role}.", "success")
+    except BusinessError as exc:
+        db.session.rollback()
+        flash(str(exc), "danger")
+    return redirect(url_for("cohort.detail", cohort_id=cohort.id) + "#coachs")
 
 
 @bp.post("/<int:cohort_id>/eligibles")

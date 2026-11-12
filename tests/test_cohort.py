@@ -1,7 +1,7 @@
 """Training cohorts: admitted SAS students made eligible, registered at the desk, DFS matricule, Espace Zeus."""
 import base64
 
-from app.models import Cohort, Defense, Enrollment, Jury, JuryCandidate, Sas
+from app.models import Cohort, CohortCoach, Defense, Enrollment, Jury, JuryCandidate, Sas
 from app.services import account_service
 from app.services.cohort_service import matricule_prefix
 from tests.conftest import login, make_candidate, make_user
@@ -66,8 +66,29 @@ def test_cohort_registration_flow(app, db, client, admin):
     assert "Inscrits (matricule DFS)" in html and "2 · 0 F / 0 M" in html  # 2 eligible, gender not filled
     client.post("/logout")
 
-    login(client, make_user("coach"))
-    assert client.get("/cohortes/").status_code == 403
+    # Coaches: only the cohorts the admin gives them, with their role, read only.
+    coach = make_user("coach")
+    login(client, coach)
+    assert "2026-2027" not in client.get("/cohortes/").get_data(as_text=True)
+    assert client.get(f"/cohortes/{cohort.id}").status_code == 404
+    client.post("/logout")
+    login(client, admin)
+    client.post(f"/cohortes/{cohort.id}/coachs", data={"user_id": reception.id, "role": "X"})  # not a coach
+    client.post(f"/cohortes/{cohort.id}/coachs", data={"user_id": coach.id, "role": "Coach référent"})
+    link = CohortCoach.query.one()
+    assert (link.user_id, link.role) == (coach.id, "Coach référent")
+    client.post(f"/cohortes/{cohort.id}/coachs", data={"link_id": link.id, "role": "Responsable pédagogique"})
+    client.post("/logout")
+    login(client, coach)
+    assert "Responsable pédagogique" in client.get("/profil").get_data(as_text=True)
+    assert "Mon rôle : Responsable pédagogique" in client.get("/cohortes/").get_data(as_text=True)
+    assert "ALPHA" in client.get(f"/cohortes/{cohort.id}").get_data(as_text=True)
+    assert client.get(f"/cohortes/inscription/{alpha.id}").status_code == 403
+    assert client.post(f"/cohortes/{cohort.id}/coachs", data={"link_id": link.id, "remove": "1"}).status_code == 403
+    client.post("/logout")
+    login(client, admin)
+    client.post(f"/cohortes/{cohort.id}/coachs", data={"link_id": link.id, "remove": "1"})
+    assert CohortCoach.query.count() == 0
     client.post("/logout")
 
     # Espace Zeus: the registered student sees his DFS matricule.

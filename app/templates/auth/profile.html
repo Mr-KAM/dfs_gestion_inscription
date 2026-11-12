@@ -50,6 +50,17 @@
         <input class="form-control" id="password_confirm" name="password_confirm" type="password" minlength="8" autocomplete="new-password" required></div>
       <div><button class="btn btn-outline-primary">Modifier le mot de passe</button></div>
     </form>
+    {% if user.is_coach %}
+    <div class="card mt-3"><div class="card-header"><i class="bi bi-mortarboard-fill"></i> Mes cohortes de formation</div>
+      <ul class="list-group list-group-flush">
+      {% for cc in user.cohort_roles %}
+        <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center gap-2"
+           href="{{ url_for('cohort.detail', cohort_id=cc.cohort_id) }}"><strong>{{ cc.cohort.name }}</strong><span class="status status-info">{{ cc.role }}</span></a>
+      {% else %}
+        <li class="list-group-item text-muted small">Aucune cohorte : l'administrateur vous y donne accès.</li>
+      {% endfor %}
+      </ul></div>
+    {% endif %}
   </div>
 </div>
 {% endblock %}
