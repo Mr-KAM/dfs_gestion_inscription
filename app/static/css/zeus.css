@@ -129,6 +129,54 @@ body.zeus {
 }
 @media (max-height: 560px) and (min-width: 992px) { .zeus-login-hero p, .zeus-login-tags { display: none; } }
 
+/* Night mode (zeus.theme, cookie): <html data-bs-theme="dark"> turns Bootstrap 5.3 components dark; the DFS tokens
+   and the surfaces app.css paints white are redefined here. Navy shell unchanged; QR codes and the signature pad
+   keep their white background (scanning, ink). Texts keep at least a 4.5:1 contrast on the night surfaces. */
+[data-bs-theme="dark"] body.zeus {
+  --zeus-bg: #0e1230;
+  --zeus-line: #182046;
+  --zeus-surface: #161b3f;
+  --zeus-surface-2: #1b2149;
+  --dfs-ink: #e4e7f5;
+  --dfs-muted: #a3a9cb;
+  --dfs-border: #2c3366;
+  --dfs-navy: #c3cbf5;
+  --dfs-blue-dark: #a9c0f5;
+  --dfs-blue-light: #1f2858;
+  --bs-body-color: var(--dfs-ink);
+  --bs-body-bg: var(--zeus-bg);
+  --bs-secondary-color: var(--dfs-muted);
+  --bs-border-color: var(--dfs-border);
+  --bs-link-color: #8fb0f0;
+  --bs-link-color-rgb: 143, 176, 240;
+  --bs-link-hover-color: #c3d3ff;
+  --bs-link-hover-color-rgb: 195, 211, 255;
+  color: var(--dfs-ink);
+}
+[data-bs-theme="dark"] .zeus .eyebrow, [data-bs-theme="dark"] .zeus .zeus-day.is-today { color: #8fb0f0; }
+[data-bs-theme="dark"] .zeus .card, [data-bs-theme="dark"] .zeus .card-header, [data-bs-theme="dark"] .zeus .meta,
+[data-bs-theme="dark"] .zeus .chips > .btn { background: var(--zeus-surface); color: var(--dfs-ink); }
+[data-bs-theme="dark"] .zeus .card-footer, [data-bs-theme="dark"] .zeus .table thead th { background: var(--zeus-surface-2); }
+[data-bs-theme="dark"] .zeus .table { --bs-table-bg: var(--zeus-surface); --bs-table-color: var(--dfs-ink);
+  --bs-table-hover-bg: var(--dfs-blue-light); --bs-table-hover-color: var(--dfs-ink); --bs-table-border-color: var(--dfs-border); }
+[data-bs-theme="dark"] .zeus .list-group { --bs-list-group-bg: var(--zeus-surface); --bs-list-group-color: var(--dfs-ink);
+  --bs-list-group-border-color: var(--dfs-border); --bs-list-group-action-hover-bg: var(--dfs-blue-light);
+  --bs-list-group-action-hover-color: var(--dfs-ink); --bs-list-group-action-color: var(--dfs-ink); }
+[data-bs-theme="dark"] .zeus .form-control, [data-bs-theme="dark"] .zeus .form-select { background-color: #10153a; color: var(--dfs-ink); }
+[data-bs-theme="dark"] .zeus .form-control:focus, [data-bs-theme="dark"] .zeus .form-select:focus { background-color: #131942; }
+[data-bs-theme="dark"] .zeus .btn-outline-primary { --bs-btn-color: #a9c0f5; --bs-btn-border-color: #5a7cc4;
+  --bs-btn-hover-color: #fff; --bs-btn-active-bg: var(--zeus-blue); --bs-btn-active-color: #fff; }
+[data-bs-theme="dark"] .zeus .status-success { color: #a6e09e; background: rgba(114, 194, 105, .12); border-color: rgba(114, 194, 105, .4); }
+[data-bs-theme="dark"] .zeus .status-danger { color: #ffa3ad; background: rgba(220, 53, 69, .14); border-color: rgba(220, 53, 69, .45); }
+[data-bs-theme="dark"] .zeus .status-info { border-color: #34417c; }
+[data-bs-theme="dark"] .zeus .status-secondary { color: var(--dfs-muted); background: var(--zeus-surface-2); border-color: var(--dfs-border); }
+[data-bs-theme="dark"] .zeus .status-warning { color: var(--dfs-ink); background: var(--zeus-surface-2); border-color: #5a6398; }
+[data-bs-theme="dark"] .zeus .alert-warning { --bs-alert-color: var(--dfs-ink); --bs-alert-bg: #1c2552; --bs-alert-border-color: #34417c; }
+[data-bs-theme="dark"] .zeus .text-success { color: #a6e09e !important; }
+[data-bs-theme="dark"] .zeus .stat-icon { background: var(--dfs-blue-light); color: #a9c0f5; }
+/* Header switch: moon by day, sun by night. */
+.zeus-theme-toggle { width: 34px; height: 31px; padding: 0; display: inline-grid; place-items: center; }
+
 /* Loading animation of the home page: the kit's bolt is drawn (white), its green half strikes, the screen clears.
    CSS only (CSP: no inline JS). */
 .zeus-splash { position: fixed; inset: 0; z-index: 2000; display: grid; place-content: center; justify-items: center; gap: 1rem;

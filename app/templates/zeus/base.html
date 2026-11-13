@@ -1,5 +1,7 @@
 <!doctype html>
-<html lang="fr">
+{# Night mode: chosen with the header switch (zeus.theme), kept in a cookie, applied server-side (no flash). #}
+{% set night = request.cookies.get('zeus_theme') == 'dark' %}
+<html lang="fr" data-bs-theme="{{ 'dark' if night else 'light' }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -51,6 +53,13 @@
     {% set classic = None if student else url_for('dashboard.index' if role == 'admin' else 'campus.index') %}
     {% if classic %}<a class="btn btn-sm btn-outline-secondary" href="{{ classic }}" title="Interface classique">
       <i class="bi bi-arrow-left-right"></i><span class="d-none d-lg-inline"> Classique</span></a>{% endif %}
+    {% set label = 'Passer en mode jour' if night else 'Passer en mode nuit' %}
+    <form method="post" action="{{ url_for('zeus.theme') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="theme" value="{{ 'light' if night else 'dark' }}"><input type="hidden" name="next" value="{{ request.full_path }}">
+      <button class="btn btn-sm btn-outline-secondary zeus-theme-toggle" title="{{ label }}" aria-label="{{ label }}">
+        <i class="bi bi-{{ 'sun-fill' if night else 'moon-stars-fill' }}" aria-hidden="true"></i></button>
+    </form>
     <form method="post" action="{{ url_for('auth.logout') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button class="btn btn-sm btn-outline-secondary" title="Déconnexion"><i class="bi bi-box-arrow-right"></i><span class="d-none d-lg-inline"> Déconnexion</span></button>

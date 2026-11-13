@@ -6,6 +6,7 @@ from flask import Blueprint, abort, flash, make_response, redirect, render_templ
 from flask import session as cookie_session  # `session` is the session (séance) view below
 from flask_login import current_user, login_required
 
+from app.auth import _safe_next
 from app.extensions import db
 from app.models import (Cohort, ZeusClass, ZeusClassCoach, ZeusClassMember, ZeusClassRole, ZeusCourse,
                         ZeusNotification, ZeusSession)
@@ -61,6 +62,18 @@ def home():
                            notifications=zeus_service.notifications_for(current_user, limit=3) if e else [],
                            classes=zeus_service.classes_for_student(e) if e else [],
                            coach_invitations=[] if e else zeus_service.coach_invitations_for(current_user))
+
+
+THEME_COOKIE_DAYS = 365
+
+
+@bp.post("/theme")
+def theme():
+    """Day / night mode of Zeus, per browser: a cookie read by zeus/base.html (no account setting to keep)."""
+    response = redirect(_safe_next(request.form.get("next")))
+    response.set_cookie("zeus_theme", "dark" if request.form.get("theme") == "dark" else "light",
+                        max_age=THEME_COOKIE_DAYS * 24 * 3600, samesite="Lax", secure=request.is_secure, httponly=True)
+    return response
 
 
 @bp.post("/mode")

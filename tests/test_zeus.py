@@ -254,3 +254,16 @@ def test_class_staff_roles_and_managers(app, db, client, admin):
     assert [c.name for c in ZeusClass.query] == ["Web 1"]
     for url in (f"/zeus/classes/{k.id}", "/zeus/roles-de-classe", "/zeus/classes", "/zeus/calendrier"):
         assert client.get(url).status_code == 200, url
+
+
+def test_night_mode_switch(app, db, client, admin):
+    """Night mode: header switch, kept per browser (cookie), Zeus only; the classic interface stays light."""
+    login(client, admin)
+    assert 'data-bs-theme="light"' in client.get("/zeus/").get_data(as_text=True)
+    page = client.post("/zeus/theme", data={"theme": "dark", "next": "/zeus/classes?x=1"}, follow_redirects=True)
+    assert page.request.full_path == "/zeus/classes?x=1" and 'data-bs-theme="dark"' in page.get_data(as_text=True)
+    assert "Passer en mode jour" in page.get_data(as_text=True)
+    assert "data-bs-theme" not in client.get("/admin/settings").get_data(as_text=True)  # classic: unchanged
+    client.post("/zeus/theme", data={"theme": "light", "next": "https://evil.example/"})  # foreign next: ignored
+    assert client.get_cookie("zeus_theme").value == "light"
+    assert 'data-bs-theme="light"' in client.get("/zeus/").get_data(as_text=True)
