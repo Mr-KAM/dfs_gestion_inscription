@@ -6,12 +6,14 @@ from app.auth import _safe_next, login_attempt
 from app.extensions import db
 from app.models import ClassInvitation, Exercise
 from app.models.defense import DECISIONS
-from app.services import account_service, attendance_service, audit_service, campus_service, defense_service
+from app.services import (account_service, attendance_service, audit_service, campus_service, defense_service,
+                          zeus_service)
 from app.services.candidate_service import BusinessError
 from app.utils import allow_camera
 
 bp = Blueprint("portal", __name__, url_prefix="/candidat")
 PUBLIC_ENDPOINTS = {"portal.login", "portal.signup"}
+ZEUS_KEPT_ENDPOINTS = {"portal.profile", "portal.photo", "portal.password"}  # shown in the Zeus layout
 MAX_SIGNUPS_PER_IP_HOUR = 10  # attempts (accepted or refused): limits spam and email probing
 
 
@@ -25,6 +27,9 @@ def candidates_only():
     if current_user.must_change_password and request.endpoint != "portal.password":
         flash("Pour sécuriser votre compte, choisissez un nouveau mot de passe.", "warning")
         return redirect(url_for("portal.password"))
+    # Zeus mode: a registered student has a single space, Zeus (only his profile and password stay here).
+    if request.endpoint not in ZEUS_KEPT_ENDPOINTS and zeus_service.stays_in_zeus(current_user):
+        return redirect(url_for("zeus.home"))
     return None
 
 

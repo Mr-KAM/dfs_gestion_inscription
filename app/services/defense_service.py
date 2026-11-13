@@ -261,7 +261,10 @@ def attendance(candidate: Candidate) -> tuple[int, int]:
 
 
 def published_results(candidate: Candidate) -> list[JuryCandidate]:
-    """The sheets the student may see (decision and appraisal, never the grades): once the admin has sent the results."""
+    """The sheets the student may see (decision and appraisal, never the grades), once the admin sent the results.
+    None once he is registered in a training cohort (Zeus user): his SAS results are no longer shown to him."""
+    if candidate.enrollment and candidate.enrollment.matricule:
+        return []
     return db.session.scalars(select(JuryCandidate).join(Jury).join(Defense, Defense.id == Jury.defense_id).where(
         JuryCandidate.candidate_id == candidate.id, Defense.results_sent_at.is_not(None))
         .order_by(Defense.results_sent_at.desc())).all()

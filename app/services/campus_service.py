@@ -139,6 +139,8 @@ def notifications_for(candidate: Candidate, limit: int | None = None) -> list[No
     stmt = select(Notification).where(Notification.sas_id == candidate.sas_id, or_(
         Notification.candidate_id == candidate.id,
         Notification.candidate_id.is_(None) & Notification.class_name.in_(("", candidate.sas_class or ""))))
+    if candidate.enrollment and candidate.enrollment.matricule:
+        stmt = stmt.where(Notification.level.is_(None))  # registered in a training cohort: no SAS result message
     stmt = stmt.order_by(Notification.created_at.desc())
     return db.session.scalars(stmt.limit(limit) if limit else stmt).all()
 

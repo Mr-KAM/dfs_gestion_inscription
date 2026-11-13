@@ -44,8 +44,10 @@
       </div>
       {{ avatar(me, url_for('portal.photo' if student else 'auth.photo'), 34) }}
     </a>
-    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('portal.home' if student else 'dashboard.index') }}" title="Interface classique">
-      <i class="bi bi-arrow-left-right"></i><span class="d-none d-lg-inline"> Classique</span></a>
+    {# Students live in Zeus only (no SAS results); staff keep their classic pages (the home brings them back here). #}
+    {% set classic = None if student else url_for('dashboard.index' if role == 'admin' else 'campus.index') %}
+    {% if classic %}<a class="btn btn-sm btn-outline-secondary" href="{{ classic }}" title="Interface classique">
+      <i class="bi bi-arrow-left-right"></i><span class="d-none d-lg-inline"> Classique</span></a>{% endif %}
     <form method="post" action="{{ url_for('auth.logout') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button class="btn btn-sm btn-outline-secondary" title="Déconnexion"><i class="bi bi-box-arrow-right"></i><span class="d-none d-lg-inline"> Déconnexion</span></button>
@@ -61,9 +63,11 @@
       {{ nav('zeus.classes', 'people', 'Mes classes' if student else 'Classes', 'zeus.klass') }}
       {% if not student %}{{ nav('zeus.calendar', 'calendar-week', 'Calendrier des cours') }}{% else %}{{ nav('zeus.calendar', 'calendar-week', 'Mon calendrier') }}{% endif %}
       {{ nav('zeus.roll_calls', 'person-check', 'Mes présences' if student else 'Appels', 'zeus.session') }}
+      {{ nav('zeus.notifications', 'megaphone', 'Notifications') }}
       <div class="nav-section">Mon compte</div>
       {{ nav('portal.profile' if student else 'auth.profile', 'person-circle', 'Mon profil') }}
-      <a class="nav-link" href="{{ url_for('portal.home' if student else 'dashboard.index') }}"><i class="bi bi-arrow-left-right" aria-hidden="true"></i><span class="nav-label">Interface classique</span></a>
+      {% if student %}{{ nav('portal.password', 'key', 'Mot de passe') }}{% endif %}
+      {% if classic %}<a class="nav-link" href="{{ classic }}"><i class="bi bi-arrow-left-right" aria-hidden="true"></i><span class="nav-label">Interface classique</span></a>{% endif %}
     </div>
   </nav>
   <main class="main flex-grow-1 p-3 p-lg-4">
@@ -86,6 +90,7 @@
   {{ bnav('zeus.classes', 'people', 'Classes', 'zeus.klass') }}
   {{ bnav('zeus.calendar', 'calendar-week', 'Calendrier') }}
   {{ bnav('zeus.roll_calls', 'person-check', 'Présences' if student else 'Appels', 'zeus.session') }}
+  {% if student %}{{ bnav('zeus.notifications', 'megaphone', 'Notifs') }}{% endif %}
 </nav>
 <div id="copy-status" class="visually-hidden" role="status" aria-live="polite"></div>
 <script src="{{ url_for('static', filename='vendor/bootstrap.bundle.min.js') }}"></script>

@@ -7,7 +7,7 @@ from flask import session as cookie_session  # `session` is the session (séance
 from flask_login import current_user, login_required
 
 from app.extensions import db
-from app.models import Cohort, ZeusClass, ZeusClassMember, ZeusCourse, ZeusSession
+from app.models import Cohort, ZeusClass, ZeusClassMember, ZeusCourse, ZeusNotification, ZeusSession
 from app.models.user import ROLE_ADMIN, ROLE_TRADE_COACH
 from app.services import candidate_service, zeus_service
 from app.services.candidate_service import BusinessError
@@ -57,6 +57,7 @@ def home():
                            enabled=zeus_service.enabled(),
                            upcoming=zeus_service.sessions_for(current_user, week, week + timedelta(days=7)),
                            invitations=zeus_service.invitations_for(e) if e else [],
+                           notifications=zeus_service.notifications_for(current_user, limit=3) if e else [],
                            classes=zeus_service.classes_for_student(e) if e else [])
 
 
@@ -173,6 +174,39 @@ def answer(member_id: int):
     flash(f"Vous avez rejoint la classe « {name} »." if accept else "Invitation refusée.",
           "success" if accept else "info")
     return _back(url_for("zeus.classes"))
+
+
+# ---- notifications
+
+@bp.route("/notifications", methods=["GET", "POST"])
+def notifications():
+    if request.method == "POST":
+        cohort_id, _, target = request.form.get("target", "").partition("/")  # "3/cohort", "3/class:5"...
+        c = _cohort(int(cohort_id) if cohort_id.isdigit() else 0)
+        if not zeus_service.can_notify(current_user, c):
+            abort(403)
+        try:
+            n = zeus_service.send_notification(c, target, request.form, current_user)
+            flash(f"Notification envoyée : {n.target_label}.", "success")
+        except BusinessError as exc:
+            db.session.rollback()
+            flash(str(exc), "danger")
+        return redirect(url_for("zeus.notifications"))
+    senders = [c for c in zeus_service.cohorts_for(current_user) if zeus_service.can_notify(current_user, c)]
+    return render_template("zeus/notifications.html", notifications=zeus_service.notifications_for(current_user),
+                           targets=[(c, zeus_service.classes_of(c)) for c in senders],
+                           student=zeus_service.student_enrollment(current_user) is not None)
+
+
+@bp.post("/notifications/<int:notification_id>/supprimer")
+def notification_delete(notification_id: int):
+    n = db.get_or_404(ZeusNotification, notification_id)
+    _cohort(n.cohort_id)
+    if current_user.role != ROLE_ADMIN and n.created_by != current_user.id:
+        abort(403)
+    zeus_service.delete_notification(n)
+    flash("Notification supprimée.", "success")
+    return redirect(url_for("zeus.notifications"))
 
 
 # ---- calendar (scheduled sessions)

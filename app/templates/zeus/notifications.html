@@ -1,0 +1,48 @@
+{% extends "zeus/base.html" %}
+{% from "_macros.html" import csrf, empty, page_head %}
+{% block title %}Notifications{% endblock %}
+{% block content %}
+{% call page_head('Notifications', eyebrow='Zeus · ' ~ ('mes messages' if student else 'cohortes de formation')) %}{% endcall %}
+<div class="row g-3">
+  <div class="{{ 'col-lg-7' if targets else 'col-12' }}">
+    <div class="card"><ul class="list-group list-group-flush">
+    {% for n in notifications %}
+      <li class="list-group-item">
+        <div class="d-flex justify-content-between flex-wrap gap-2">
+          <strong>{{ n.title }}{% if student and n.enrollment_id %} <span class="status status-info">Pour vous</span>{% endif %}</strong>
+          <span class="small text-muted">{{ n.created_at | dt }}</span></div>
+        {% if not student %}<div class="small text-muted">{{ n.target_label }}{% if n.author %} · par {{ n.author.display_name }}{% endif %}</div>{% endif %}
+        {% if n.body %}<div class="small mt-1 pre-line">{{ n.body }}</div>{% endif %}
+        {% if not student and (current_user.role == 'admin' or n.created_by == current_user.id) %}
+        <form class="mt-1" method="post" action="{{ url_for('zeus.notification_delete', notification_id=n.id) }}" data-confirm="Supprimer cette notification ?">{{ csrf() }}
+          <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> Supprimer</button></form>
+        {% endif %}
+      </li>
+    {% else %}
+      <li class="list-group-item">{{ empty('megaphone', 'Aucune notification.') }}</li>
+    {% endfor %}
+    </ul></div>
+  </div>
+  {% if targets %}
+  <div class="col-lg-5">
+    <form class="card card-body" method="post">{{ csrf() }}
+      <h2 class="h6"><i class="bi bi-send"></i> Envoyer une notification</h2>
+      <div class="mb-2"><label class="form-label" for="target">Destinataires</label>
+        <select class="form-select" id="target" name="target" required>
+        {% for cohort, classes in targets %}
+          <optgroup label="Cohorte {{ cohort.name }}">
+            <option value="{{ cohort.id }}/cohort">Toute la cohorte {{ cohort.name }}</option>
+            {% for k in classes %}<option value="{{ cohort.id }}/class:{{ k.id }}">Classe {{ k.name }}</option>{% endfor %}
+            {% for e in cohort.enrollments | selectattr('matricule') | sort(attribute='candidate.full_name') %}
+              <option value="{{ cohort.id }}/student:{{ e.id }}">{{ e.candidate.full_name }} · {{ e.matricule }}</option>{% endfor %}
+          </optgroup>
+        {% endfor %}
+        </select></div>
+      <div class="mb-2"><label class="form-label" for="title">Titre</label><input class="form-control" id="title" name="title" maxlength="150" required></div>
+      <div class="mb-3"><label class="form-label" for="body">Message</label><textarea class="form-control" id="body" name="body" rows="5" maxlength="5000"></textarea></div>
+      <div><button class="btn btn-primary"><i class="bi bi-send"></i> Envoyer</button></div>
+    </form>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

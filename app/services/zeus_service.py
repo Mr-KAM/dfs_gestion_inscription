@@ -2,11 +2,11 @@
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from app.extensions import db
 from app.models import (Cohort, Enrollment, User, ZeusAttendance, ZeusClass, ZeusClassMember, ZeusCourse,
-                        ZeusSession)
+                        ZeusNotification, ZeusSession)
 from app.models.user import COACH_ROLES, ROLE_ADMIN, ROLE_COACH, ROLE_RECEPTION, ROLE_RESIDENCE
 from app.models.zeus import METHOD_MANUAL, METHOD_SCAN
 from app.services import audit_service, settings_service
@@ -47,6 +47,11 @@ def can_enter(user) -> bool:
 def lands_in_zeus(user) -> bool:
     """At login, when the admin has switched the mode on."""
     return enabled() and can_enter(user)
+
+
+def stays_in_zeus(user) -> bool:
+    """One login, one interface: every Zeus user but the admin always comes back to Zeus (the admin, once at login)."""
+    return user.role != ROLE_ADMIN and lands_in_zeus(user)
 
 
 def cohorts_for(user) -> list[Cohort]:
@@ -222,6 +227,57 @@ def sessions_for(user, start: datetime, end: datetime, cohort: Cohort | None = N
         mine = {k.id for k in classes_for_student(e)}
         rows = [s for s in rows if s.class_id is None or s.class_id in mine]
     return rows
+
+
+# ---- notifications
+
+def can_notify(user, cohort: Cohort) -> bool:
+    """Admin, reception, or a coach (technique or métier) the admin gave access to the cohort."""
+    return user.role in (ROLE_ADMIN, ROLE_RECEPTION) or any(cc.user_id == user.id for cc in cohort.coaches)
+
+
+def send_notification(cohort: Cohort, target: str, form, user) -> ZeusNotification:
+    """target: "cohort", "class:<id>" (a class of the cohort) or "student:<id>" (a registered student of it)."""
+    title = form.get("title", "").strip()[:150]
+    if not title:
+        raise BusinessError("Le titre est obligatoire.")
+    kind, _, target_id = target.partition(":")
+    n = ZeusNotification(cohort=cohort, title=title, body=form.get("body", "").strip()[:5000], created_by=user.id)
+    if kind == "class":
+        n.klass = next((k for k in classes_of(cohort) if str(k.id) == target_id), None)
+        if n.klass is None:
+            raise BusinessError("Choisissez une classe de la cohorte.")
+    elif kind == "student":
+        n.enrollment = next((e for e in cohort.enrollments if e.matricule and str(e.id) == target_id), None)
+        if n.enrollment is None:
+            raise BusinessError("Choisissez un étudiant inscrit de la cohorte.")
+    db.session.add(n)
+    db.session.flush()
+    audit_service.log("zeus_update", n, {"notification": title, "to": n.target_label})
+    db.session.commit()
+    return n
+
+
+def notifications_for(user, limit: int | None = None) -> list[ZeusNotification]:
+    """Student: his cohort's, his classes' and his own. Staff: everything sent in their cohorts."""
+    cohorts = cohorts_for(user)
+    if not cohorts:
+        return []
+    stmt = select(ZeusNotification).where(ZeusNotification.cohort_id.in_([c.id for c in cohorts]))
+    e = student_enrollment(user)
+    if e:
+        stmt = stmt.where(or_(
+            ZeusNotification.enrollment_id == e.id,
+            ZeusNotification.enrollment_id.is_(None) & (ZeusNotification.class_id.is_(None) | ZeusNotification.class_id
+                                                        .in_([k.id for k in classes_for_student(e)]))))
+    stmt = stmt.order_by(ZeusNotification.created_at.desc(), ZeusNotification.id.desc())
+    return db.session.scalars(stmt.limit(limit) if limit else stmt).all()
+
+
+def delete_notification(n: ZeusNotification) -> None:
+    audit_service.log("zeus_update", n.cohort, {"notification_deleted": n.title})
+    db.session.delete(n)
+    db.session.commit()
 
 
 # ---- roll calls

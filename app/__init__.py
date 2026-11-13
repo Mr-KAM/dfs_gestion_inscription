@@ -79,6 +79,8 @@ def _register_web_helpers(app: Flask) -> None:
     from app.models.user import ROLES
     from app.services import candidate_service, settings_service, zeus_service
 
+    ZEUS_ACCOUNT_PAGES = ("portal.profile", "portal.password", "auth.profile")
+
     @app.get("/health")
     def health():
         try:
@@ -114,9 +116,11 @@ def _register_web_helpers(app: Flask) -> None:
         if current_user.is_authenticated and current_user.role == "admin":
             reset_requests = db.session.scalar(select(func.count(PasswordResetRequest.id)).where(
                 PasswordResetRequest.status == "pending"))
-        # Zeus mode: its own layout on /zeus, and on the cohort pages once the admin has switched it on.
+        # Zeus mode: its own layout on /zeus, and on the cohort pages once the admin has switched it on;
+        # profile / password too for its users (one interface: they never see the classic shell).
         zeus_ui = current_user.is_authenticated and (request.blueprint == "zeus" or (
-            request.blueprint == "cohort" and zeus_service.lands_in_zeus(current_user)))
+            request.blueprint == "cohort" and zeus_service.lands_in_zeus(current_user)) or (
+            request.endpoint in ZEUS_ACCOUNT_PAGES and zeus_service.stays_in_zeus(current_user)))
         return {"app_name": settings_service.get("app_name"), "ROLES": ROLES, "reset_requests": reset_requests,
                 "layout": "zeus/base.html" if zeus_ui else "base.html",
                 "zeus_link": current_user.is_authenticated and zeus_service.lands_in_zeus(current_user)}

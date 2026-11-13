@@ -1,7 +1,7 @@
 """Zeus mode: admin switch, landing at login, classes + invitations, courses, calendar, roll calls by DFS QR code."""
-from app.models import (Cohort, CohortCoach, Enrollment, ZeusAttendance, ZeusClass, ZeusClassMember, ZeusCourse,
-                        ZeusSession)
-from app.services import account_service, zeus_service
+from app.models import (Cohort, CohortCoach, Defense, Enrollment, Jury, JuryCandidate, Notification, Sas,
+                        ZeusAttendance, ZeusClass, ZeusClassMember, ZeusCourse, ZeusSession)
+from app.services import account_service, campus_service, defense_service, zeus_service
 from app.services.candidate_service import decode_matricule, encode_matricule
 from app.utils import utcnow
 from tests.conftest import login, make_candidate, make_user
@@ -44,11 +44,14 @@ def test_zeus_flow(app, db, client, admin):
     assert zeus_service.enabled()
     client.post("/logout")
 
-    # Mode on: the coach lands in Zeus at login, with the loading animation once; then the classic one stays reachable.
+    # Mode on: one login and the coach is in Zeus (loading animation once); home always brings him back there,
+    # his classic SAS pages stay reachable; his profile is shown in the Zeus layout.
     page = client.post("/login", data={"email": coach.email, "password": "Password123!"}, follow_redirects=True)
     assert page.request.path == "/zeus/" and "zeus-splash" in page.get_data(as_text=True)
     assert "zeus-splash" not in client.get("/zeus/").get_data(as_text=True)
-    assert client.get("/").status_code in (200, 302) and client.get("/", follow_redirects=True).request.path != "/zeus/"
+    assert client.get("/", follow_redirects=True).request.path == "/zeus/"
+    assert client.get("/campus/").status_code == 200
+    assert 'class="zeus' in client.get("/profil").get_data(as_text=True)
 
     # Coach technique: creates a class and invites the registered students (a forged id is ignored).
     client.post(f"/zeus/cohortes/{cohort.id}/classes", data={"name": "Web"})
@@ -93,16 +96,44 @@ def test_zeus_flow(app, db, client, admin):
     assert [m.enrollment_id for m in ZeusAttendance.query] == [alpha.id]
     client.post("/logout")
 
-    portal_login(client, "ALPHA@test.ci")
+    # Notifications: to the cohort, to a class, to one student.
+    login(client, coach)
+    client.post("/zeus/notifications", data={"target": f"{cohort.id}/class:{klass.id}", "title": "Salle changée"})
+    client.post("/zeus/notifications", data={"target": f"{cohort.id}/student:{bravo.id}", "title": "Pour Bravo"})
+    # Not registered (no DFS matricule): refused.
+    client.post("/zeus/notifications", data={"target": f"{cohort.id}/student:{pending.id}", "title": "Refus-pending"})
+    client.post("/logout")
+    login(client, make_user("reception"))
+    client.post("/zeus/notifications", data={"target": f"{cohort.id}/cohort", "title": "Rentrée lundi"})
+    client.post("/logout")
+    login(client, outsider)
+    response = client.post("/zeus/notifications", data={"target": f"{cohort.id}/cohort", "title": "Refus-outsider"})
+    assert response.status_code == 404
+    client.post("/logout")
+    titles = ("Salle changée", "Pour Bravo", "Rentrée lundi", "Refus-pending", "Refus-outsider")
+    seen = {}
+    for name in ("ALPHA", "BRAVO"):
+        portal_login(client, f"{name}@test.ci")
+        html = client.get("/zeus/notifications").get_data(as_text=True)
+        seen[name] = {t for t in titles if t in html}
+        client.post("/logout")
+    assert seen == {"ALPHA": {"Salle changée", "Rentrée lundi"}, "BRAVO": {"Pour Bravo", "Rentrée lundi"}}
+
+    # One login, one space: the student is in Zeus; the classic portal sends him back there (profile excepted).
+    page = portal_login(client, "ALPHA@test.ci")
+    assert page.request.path == "/zeus/" and "26DFS000001" in page.get_data(as_text=True)
+    assert "Rentrée lundi" in page.get_data(as_text=True)
+    for url in ("/candidat/", "/candidat/notifications", "/candidat/presence", "/candidat/exercices"):
+        assert client.get(url, follow_redirects=True).request.path == "/zeus/", url
+    assert 'class="zeus' in client.get("/candidat/profil").get_data(as_text=True)
     html = client.get("/zeus/appels").get_data(as_text=True)
     assert "Python" in html and "Présent(e)" in html
-    assert "26DFS000001" in client.get("/zeus/").get_data(as_text=True)
     client.post("/logout")
 
     # Every Zeus page renders for each kind of user (the cohort pages too, in the Zeus layout).
     pages = ["/zeus/", f"/zeus/cohortes/{cohort.id}", f"/zeus/cours/{course.id}", "/zeus/classes",
              f"/zeus/classes/{klass.id}", "/zeus/calendrier", f"/zeus/calendrier?cohort={cohort.id}",
-             f"/zeus/seances/{s.id}", "/zeus/appels", "/cohortes/", f"/cohortes/{cohort.id}"]
+             f"/zeus/seances/{s.id}", "/zeus/appels", "/zeus/notifications", "/cohortes/", f"/cohortes/{cohort.id}"]
     for user in (admin, coach):
         login(client, user)
         for url in pages:
@@ -111,7 +142,8 @@ def test_zeus_flow(app, db, client, admin):
         assert 'class="zeus' in client.get("/cohortes/").get_data(as_text=True)
         client.post("/logout")
     portal_login(client, "ALPHA@test.ci")
-    for url in ("/zeus/", "/zeus/classes", "/zeus/calendrier?week=2026-01-05", f"/zeus/seances/{s.id}", "/zeus/appels"):
+    for url in ("/zeus/", "/zeus/classes", "/zeus/calendrier?week=2026-01-05", f"/zeus/seances/{s.id}", "/zeus/appels",
+                "/zeus/notifications", "/candidat/mot-de-passe"):
         assert client.get(url).status_code == 200, url
     client.post("/logout")
 
@@ -124,3 +156,27 @@ def test_zeus_flow(app, db, client, admin):
         login(client, make_user(role))
         assert client.get("/zeus/").status_code == 403
         client.post("/logout")
+
+
+def test_registered_student_no_longer_sees_his_sas_results(app, db):
+    """SAS defense result and its personal message: hidden once registered in a training cohort (Zeus user)."""
+    sas, cohort = Sas(name="SAS 2026"), Cohort(name="2026-2027")
+    db.session.add_all([sas, cohort])
+    db.session.commit()
+    alpha, charlie = (_student(db, cohort, name, matricule) for name, matricule in (("ALPHA", "26DFS000001"),
+                                                                                  ("CHARLIE", None)))
+    defense = Defense(sas=sas, name="Soutenance", results_sent_at=utcnow())
+    jury = Jury(defense=defense, name="Jury 1")
+    db.session.add_all([defense, jury])
+    db.session.flush()
+    for e in (alpha, charlie):
+        e.candidate.sas = sas
+        db.session.add(JuryCandidate(jury=jury, defense_id=defense.id, candidate=e.candidate,
+                                     sheet={"decision": "admitted"}))
+        db.session.add(Notification(sas=sas, candidate=e.candidate, title="Résultat", level="success"))
+    db.session.add(Notification(sas=sas, title="Info SAS"))
+    db.session.commit()
+    assert defense_service.published_results(alpha.candidate) == []
+    assert [n.title for n in campus_service.notifications_for(alpha.candidate)] == ["Info SAS"]
+    assert len(defense_service.published_results(charlie.candidate)) == 1  # eligible, not registered yet
+    assert {n.title for n in campus_service.notifications_for(charlie.candidate)} == {"Résultat", "Info SAS"}

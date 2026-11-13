@@ -105,6 +105,31 @@ class ZeusSession(db.Model):
         return [e for e in self.course.cohort.enrollments if e.matricule]
 
 
+class ZeusNotification(db.Model):
+    """Message to a whole cohort, one of its classes (class_id) or one student (enrollment_id)."""
+    __tablename__ = "zeus_notifications"
+
+    id = db.Column(db.Integer, primary_key=True)
+    cohort_id = db.Column(db.Integer, db.ForeignKey("cohorts.id", ondelete="CASCADE"), nullable=False, index=True)
+    class_id = db.Column(db.Integer, db.ForeignKey("zeus_classes.id", ondelete="CASCADE"), index=True)
+    enrollment_id = db.Column(db.Integer, db.ForeignKey("cohort_enrollments.id", ondelete="CASCADE"), index=True)
+    title = db.Column(db.String(150), nullable=False)
+    body = db.Column(db.Text, nullable=False, default="")
+    created_by = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow, index=True)
+
+    cohort = db.relationship("Cohort")
+    klass = db.relationship("ZeusClass")
+    enrollment = db.relationship("Enrollment")
+    author = db.relationship("User")
+
+    @property
+    def target_label(self) -> str:
+        if self.enrollment:
+            return self.enrollment.candidate.full_name
+        return f"Classe {self.klass.name}" if self.klass else f"Cohorte {self.cohort.name}"
+
+
 class ZeusAttendance(db.Model):
     """Present at a session (absent = no row once the session is over)."""
     __tablename__ = "zeus_attendances"
@@ -121,4 +146,6 @@ class ZeusAttendance(db.Model):
     session = db.relationship("ZeusSession", back_populates="marks")
     enrollment = db.relationship("Enrollment")
 
-    __table_args__ = (db.UniqueConstraint("session_id", "enrollment_id", name="uq_zeus_attendances_session_enrollment"),)
+    __table_args__ = (
+        db.UniqueConstraint("session_id", "enrollment_id", name="uq_zeus_attendances_session_enrollment"),
+    )

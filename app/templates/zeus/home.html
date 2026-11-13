@@ -38,6 +38,17 @@
       <button class="btn btn-sm btn-outline-secondary" name="accept" value="0">Refuser</button></form>
   </div>
   {% endfor %}
+  {% if notifications %}
+  <div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-megaphone"></i> Dernières notifications</span><a class="small" href="{{ url_for('zeus.notifications') }}">Tout voir</a></div>
+    <ul class="list-group list-group-flush">
+    {% for n in notifications %}
+      <li class="list-group-item"><div class="d-flex justify-content-between flex-wrap gap-2"><strong>{{ n.title }}{% if n.enrollment_id %} <span class="status status-info">Pour vous</span>{% endif %}</strong>
+        <span class="small text-muted">{{ n.created_at | dt }}</span></div>
+        {% if n.body %}<div class="small pre-line">{{ n.body | truncate(300) }}</div>{% endif %}</li>
+    {% endfor %}
+    </ul></div>
+  {% endif %}
   <div class="row g-3 mb-4">
     <div class="col-md-5 col-lg-4">
       <div class="card h-100"><div class="card-header"><i class="bi bi-qr-code"></i> Mon QR code DFS</div>
