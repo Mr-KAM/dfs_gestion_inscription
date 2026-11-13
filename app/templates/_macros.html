@@ -55,6 +55,15 @@
   </form>
 {%- endmacro %}
 
+{# Login pages: keeps the user signed in REMEMBER_COOKIE_DURATION; unticked by default (shared PCs). #}
+{% macro remember_me() -%}
+  <div class="form-check mb-3">
+    <input class="form-check-input" type="checkbox" id="remember" name="remember" value="1" aria-describedby="remember-help">
+    <label class="form-check-label" for="remember">Se souvenir de moi</label>
+    <div class="form-text" id="remember-help">{{ config.REMEMBER_COOKIE_DURATION.days }} jours. À éviter sur un ordinateur partagé.</div>
+  </div>
+{%- endmacro %}
+
 {% macro csrf() -%}
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 {%- endmacro %}

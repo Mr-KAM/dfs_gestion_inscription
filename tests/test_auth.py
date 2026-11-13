@@ -5,7 +5,7 @@ import pytest
 from app.cli import ensure_admin
 from app.models import AuditLog, User
 from app.models.user import ROLE_MOTIVATION
-from tests.conftest import login, make_user
+from tests.conftest import PASSWORD, login, make_user
 
 
 def test_health(client):
@@ -99,3 +99,16 @@ def test_bottom_navigation_per_role(client, app, role, labels):
     assert 'bottom-nav-item active" href="/candidates/" aria-current="page"' in bar  # current page marked
     for href in re.findall(r'href="([^"]+)"', bar):
         assert client.get(href).status_code == 200, href
+
+
+def test_remember_me_cookie_only_when_ticked(client, admin):
+    """'Se souvenir de moi': remember cookie set only when ticked; every login page offers it."""
+    for url in ("/login", "/candidat/connexion"):
+        assert 'name="remember"' in client.get(url).get_data(as_text=True)
+    client.post("/login", data={"email": admin.email, "password": PASSWORD})
+    assert client.get_cookie("remember_token") is None
+    client.post("/logout")
+    client.post("/login", data={"email": admin.email, "password": PASSWORD, "remember": "1"})
+    assert client.get_cookie("remember_token") is not None
+    client.post("/logout")
+    assert client.get_cookie("remember_token") is None  # logout forgets it

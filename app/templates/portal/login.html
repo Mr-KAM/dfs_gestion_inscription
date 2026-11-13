@@ -1,5 +1,5 @@
 {% extends "_auth_layout.html" %}
-{% from "_macros.html" import csrf %}
+{% from "_macros.html" import csrf, remember_me with context %}
 {% block title %}Espace candidat{% endblock %}
 {% block eyebrow %}Recrutement DFS{% endblock %}
 {% block hero_title %}Espace<br>candidat{% endblock %}
@@ -14,6 +14,7 @@
          value="{{ request.form.get('email', '') }}" required autofocus>
   <label class="visually-hidden" for="password">Mot de passe</label>
   <input class="form-control mb-3" type="password" id="password" name="password" placeholder="Mot de passe" autocomplete="current-password" required>
+  {{ remember_me() }}
   <button class="btn btn-primary btn-lg w-100">Se connecter</button>
 </form>
 {% endblock %}

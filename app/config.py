@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 
 from sqlalchemy.engine import URL
 
@@ -45,6 +46,8 @@ class Config:
     SESSION_COOKIE_SECURE = _bool("SESSION_COOKIE_SECURE", IS_PRODUCTION)
     REMEMBER_COOKIE_HTTPONLY = True
     REMEMBER_COOKIE_SECURE = SESSION_COOKIE_SECURE
+    REMEMBER_COOKIE_SAMESITE = "Lax"
+    REMEMBER_COOKIE_DURATION = timedelta(days=int(os.environ.get("REMEMBER_DAYS", "30")))  # "Se souvenir de moi"
     PERMANENT_SESSION_LIFETIME = 12 * 3600  # one recruitment day
 
     WTF_CSRF_TIME_LIMIT = None  # tied to the session instead of 1h

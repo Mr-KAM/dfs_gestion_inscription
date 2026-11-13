@@ -33,8 +33,10 @@ def _safe_next(target: str | None) -> str:
     return url_for("dashboard.index")
 
 
-def authenticate(email: str, password: str) -> User | None:
-    """Log the user in if the credentials are valid; audit both outcomes. Raises LoginBlocked."""
+def authenticate(email: str, password: str, remember: bool = False) -> User | None:
+    """Log the user in if the credentials are valid; audit both outcomes. Raises LoginBlocked.
+    remember: "Se souvenir de moi", a remember-me cookie (REMEMBER_COOKIE_DURATION) beyond the 12 h session.
+    It holds the password fingerprint (User.get_id): a password change or a deactivation still ends it."""
     email = email.strip().lower()[:255]
     if (audit_service.recent_count("login_failed", WINDOW_MINUTES, email=email) >= MAX_FAILS_PER_EMAIL
             or audit_service.recent_count("login_failed", WINDOW_MINUTES, ip=request.remote_addr) >= MAX_FAILS_PER_IP):
@@ -48,7 +50,7 @@ def authenticate(email: str, password: str) -> User | None:
     else:
         valid = user.check_password(password)
     if valid and user.active:
-        login_user(user, remember=False)
+        login_user(user, remember=remember)
         session.permanent = True  # expires after PERMANENT_SESSION_LIFETIME (shared PCs in test rooms)
         session["zeus_landing"] = True  # dashboard.index: straight to Zeus once, when the mode is on
         session.pop("zeus_splash", None)  # Zeus home: its loading animation plays again
@@ -61,10 +63,11 @@ def authenticate(email: str, password: str) -> User | None:
     return None
 
 
-def login_attempt(email: str, password: str) -> User | None:
-    """authenticate() + the user-facing message on failure (shared by staff and candidate login pages)."""
+def login_attempt() -> User | None:
+    """authenticate() with the posted form + the user-facing message on failure (every login page)."""
+    form = request.form
     try:
-        user = authenticate(email, password)
+        user = authenticate(form.get("email", ""), form.get("password", ""), remember=form.get("remember") == "1")
     except LoginBlocked as exc:
         flash(str(exc), "danger")
         return None
@@ -77,7 +80,7 @@ def login_attempt(email: str, password: str) -> User | None:
 def login():
     if current_user.is_authenticated:
         return redirect(url_for("dashboard.index"))
-    if request.method == "POST" and login_attempt(request.form.get("email", ""), request.form.get("password", "")):
+    if request.method == "POST" and login_attempt():
         return redirect(_safe_next(request.args.get("next")))
     return render_template(login_template("auth/login.html"))
 

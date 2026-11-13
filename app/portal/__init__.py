@@ -37,7 +37,7 @@ def candidates_only():
 def login():
     if current_user.is_authenticated:
         return redirect(url_for("dashboard.index"))
-    if request.method == "POST" and login_attempt(request.form.get("email", ""), request.form.get("password", "")):
+    if request.method == "POST" and login_attempt():
         return redirect(_safe_next(request.args.get("next")))  # e.g. back to a scanned check-in QR code
     return render_template(login_template("portal/login.html"))
 
