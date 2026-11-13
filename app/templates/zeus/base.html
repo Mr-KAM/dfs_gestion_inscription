@@ -4,14 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>{% block title %}Zeus{% endblock %} · Zeus · DFS</title>
-  <link rel="icon" href="data:,">
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/zeus/favicon.svg') }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='img/zeus/favicon-32.png') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/zeus/apple-touch-icon-180.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/zeus.css') }}">
   {% block head %}{% endblock %}
 </head>
-{# Zeus mode: the training-cohort interface. Same shell classes as base.html (app.js drawer / rail), "Olympe" theme. #}
+{# Zeus mode: the training-cohort interface. Same shell classes as base.html (app.js drawer / rail), DFS colors and
+   the Zeus-branding kit (static/img/zeus). #}
 <body class="zeus {{ 'sidebar-collapsed' if request.cookies.get('sidebar') == 'collapsed' }}">
 {% from "_macros.html" import avatar %}
 {% set role = current_user.role %}
@@ -30,9 +33,9 @@
 <header class="app-header d-flex align-items-center px-3 gap-3">
   <button type="button" class="sidebar-toggle js-sidebar-toggle" aria-controls="sidebar" aria-expanded="false"
           aria-label="Afficher ou réduire le menu" title="Menu"><i class="bi bi-layout-sidebar" aria-hidden="true"></i></button>
-  <a class="zeus-brand" href="{{ url_for('zeus.home') }}" aria-label="Accueil Zeus">
-    <svg viewBox="0 0 64 96" aria-hidden="true"><path d="M40 2 8 54h22l-8 40 34-58H34z"/></svg>
-    <b>ZEUS</b><small class="d-none d-md-inline">Cohortes de formation</small>
+  <a class="zeus-brand" href="{{ url_for('zeus.home') }}">
+    <img src="{{ url_for('static', filename='img/zeus/zeus-logo-horizontal-fond-sombre.svg') }}" width="82" height="34" alt="Zeus, accueil">
+    <small class="d-none d-md-inline">Cohortes de formation</small>
   </a>
   <div class="ms-auto d-flex align-items-center gap-2 gap-md-3">
     {% set me = current_user.candidate if student else current_user %}
@@ -57,7 +60,7 @@
 <div class="d-flex">
   <nav class="sidebar p-2 flex-shrink-0" id="sidebar" aria-label="Menu Zeus">
     <div class="nav flex-column gap-1">
-      <div class="nav-section">Olympe</div>
+      <div class="nav-section">Zeus</div>
       {{ nav('zeus.home', 'lightning-charge-fill', 'Accueil') }}
       {% if not student %}{{ nav('cohort.index', 'mortarboard-fill', 'Cohortes', ('cohort.', 'zeus.cohort', 'zeus.course')) }}{% endif %}
       {{ nav('zeus.classes', 'people', 'Mes classes' if student else 'Classes', 'zeus.klass') }}

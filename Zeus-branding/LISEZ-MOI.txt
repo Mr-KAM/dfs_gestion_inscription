@@ -1,0 +1,32 @@
+ZEUS - Kit de logo (piste 04, Eclair aux couleurs DFS)
+
+COULEURS (relevees sur le logo DFS, a confirmer avec la charte officielle)
+  Bleu marine  #232A60
+  Bleu         #4268AE
+  Vert         #72C269
+  Blanc        #FFFFFF
+
+TYPOGRAPHIE
+  Nom "Zeus" : Space Grotesk Bold (licence libre OFL), deja vectorise dans les fichiers.
+
+DOSSIERS
+  svg/      Fichiers vectoriels, a privilegier (impression, web, agrandissement sans perte).
+  png/      Images a fond transparent, le chiffre du nom est la largeur en pixels.
+  favicon/  Icones pour site web (favicon.ico, favicon.svg, apple-touch-icon).
+
+FICHIERS
+  zeus-icone                  Icone principale : tuile marine, eclair blanc et vert.
+  zeus-icone-bleu / -vert     Variantes de couleur de la tuile.
+  zeus-icone-app-carre        Carre plein sans coin arrondi, pour les stores d'applications
+                              (iOS et Android arrondissent eux-memes les coins).
+  zeus-eclair-couleur         Eclair seul, marine et vert, pour fond clair.
+  zeus-eclair-marine          Eclair seul, une couleur, pour fond clair.
+  zeus-eclair-blanc           Eclair seul, blanc, pour fond sombre ou photo.
+  zeus-eclair-blanc-vert      Eclair seul, blanc et vert, pour fond marine.
+  zeus-logo-horizontal        Icone + nom, pour fond clair.
+  zeus-logo-horizontal-fond-sombre   Icone bleue + nom blanc, pour fond sombre.
+  zeus-nom-marine / -blanc    Nom seul.
+
+USAGE
+  Laisser autour du logo une marge libre d'au moins un quart de la hauteur de l'icone.
+  Ne pas descendre sous 16 px pour l'icone.

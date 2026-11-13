@@ -1,99 +1,98 @@
-/* Zeus mode, theme "Olympe": storm night (shell), lightning gold (action), electric sky (live), marble (content).
-   Loaded after app.css: the layout classes are shared, only the tokens and the shell's look change. */
+/* Zeus mode, in the DFS colors (Zeus-branding kit, "piste 04"): navy shell, blue actions, green lightning.
+   Loaded after app.css: the layout classes are shared, only the tokens and the shell's look change.
+   Green (#72C269) is too light for text on white: it marks borders, fills and the dark shell only. */
 body.zeus {
-  --zeus-night: #0b1026;
-  --zeus-storm: #1a2150;
-  --zeus-gold: #f2b632;
-  --zeus-gold-dark: #b9810b;
-  --zeus-gold-light: #fdf3da;
-  --zeus-sky: #6fd3ff;
-  --zeus-marble: #f6f4ee;
-  --zeus-vein: #e9e5da;
+  --zeus-navy: #232a60;
+  --zeus-navy-deep: #181d45;
+  --zeus-blue: #4268ae;
+  --zeus-green: #72c269;
+  --zeus-green-dark: #2d7d35;
+  --zeus-bg: #f4f6fb;
+  --zeus-line: #e4e8f2;
   /* app.css reads these tokens everywhere (buttons, links, progress, stat cards...). */
-  --dfs-navy: var(--zeus-night);
-  --dfs-blue: var(--zeus-gold-dark);
-  --dfs-blue-dark: #8f6408;
-  --dfs-blue-light: var(--zeus-gold-light);
-  --dfs-bg: var(--zeus-marble);
-  --dfs-grid: var(--zeus-vein);
-  --dfs-ink: #13152b;
-  --dfs-border: #e3ded0;
-  --bs-link-color: var(--zeus-gold-dark);
-  --bs-link-color-rgb: 185, 129, 11;
-  --bs-link-hover-color: var(--zeus-night);
-  --bs-primary-rgb: 185, 129, 11;
-  background-color: var(--zeus-marble);
-  background-image: radial-gradient(1200px 400px at 100% 0, rgba(242, 182, 50, .10), transparent 60%),
-                    linear-gradient(135deg, transparent 48%, var(--zeus-vein) 49%, transparent 51%);
+  --dfs-navy: var(--zeus-navy);
+  --dfs-blue: var(--zeus-blue);
+  --dfs-blue-light: #e8eef8;
+  --dfs-bg: var(--zeus-bg);
+  --dfs-grid: var(--zeus-line);
+  background-color: var(--zeus-bg);
+  background-image: radial-gradient(1100px 380px at 100% 0, rgba(114, 194, 105, .10), transparent 60%),
+                    linear-gradient(135deg, transparent 48.5%, var(--zeus-line) 49.5%, transparent 50.5%);
   background-size: auto, 220px 220px;
 }
 
-/* Gold buttons with night ink: the lightning is the call to action. */
-.zeus .btn-primary { --bs-btn-color: var(--zeus-night); --bs-btn-bg: var(--zeus-gold); --bs-btn-border-color: var(--zeus-gold);
-  --bs-btn-hover-color: var(--zeus-gold); --bs-btn-hover-bg: var(--zeus-night); --bs-btn-hover-border-color: var(--zeus-night);
-  --bs-btn-active-color: var(--zeus-gold); --bs-btn-active-bg: var(--zeus-night); --bs-btn-active-border-color: var(--zeus-night); }
-.zeus .btn-outline-primary { --bs-btn-color: var(--zeus-night); --bs-btn-border-color: var(--zeus-gold-dark);
-  --bs-btn-hover-color: var(--zeus-night); --bs-btn-hover-bg: var(--zeus-gold); --bs-btn-hover-border-color: var(--zeus-gold); }
-.zeus .eyebrow { color: var(--zeus-gold-dark); }
-.zeus code { color: var(--zeus-storm); }
-.zeus .card { border-color: var(--dfs-border); }
-.zeus .card-header { border-top: 2px solid var(--zeus-gold); }
-.zeus .stat-card { border-top-color: var(--zeus-night); }
-.zeus .row > :nth-child(3n+2) > .stat-card { border-top-color: var(--zeus-gold); }
-.zeus .row > :nth-child(3n) > .stat-card { border-top-color: var(--zeus-sky); }
+.zeus .btn-primary { --bs-btn-bg: var(--zeus-blue); --bs-btn-border-color: var(--zeus-blue);
+  --bs-btn-hover-bg: var(--zeus-navy); --bs-btn-hover-border-color: var(--zeus-navy);
+  --bs-btn-active-bg: var(--zeus-navy); --bs-btn-active-border-color: var(--zeus-navy); }
+.zeus .eyebrow { color: var(--zeus-blue); }
+.zeus .card-header { border-top: 2px solid var(--zeus-green); }
+.zeus .stat-card { border-top-color: var(--zeus-navy); }
+.zeus .row > :nth-child(3n+2) > .stat-card { border-top-color: var(--zeus-blue); }
+.zeus .row > :nth-child(3n) > .stat-card { border-top-color: var(--zeus-green); }
+.zeus .progress { --bs-progress-bar-bg: var(--zeus-green-dark); }
+/* No yellow / orange in Zeus: "pending" and warnings in DFS navy / blue (dashed = not done yet). */
+.zeus .status-warning { color: var(--zeus-navy); background: #eceef7; border: 1px dashed #9aa1cc; }
+.zeus .alert-warning { --bs-alert-color: var(--zeus-navy); --bs-alert-bg: #e8eef8; --bs-alert-border-color: #c9d4ec; border-left-color: var(--zeus-blue); }
+.zeus .text-warning { color: var(--zeus-green-dark) !important; }
+.zeus .btn-warning { --bs-btn-color: #fff; --bs-btn-bg: var(--zeus-blue); --bs-btn-border-color: var(--zeus-blue);
+  --bs-btn-hover-color: #fff; --bs-btn-hover-bg: var(--zeus-navy); --bs-btn-hover-border-color: var(--zeus-navy); }
 
-/* Shell: storm-night header and sidebar. */
-.zeus .app-header { background: linear-gradient(90deg, var(--zeus-night), var(--zeus-storm)); border-bottom: 1px solid #000; color: #fff; }
+/* Shell: navy header and sidebar, green marks the current page. */
+.zeus .app-header { background: linear-gradient(90deg, var(--zeus-navy-deep), var(--zeus-navy)); border-bottom-color: var(--zeus-navy-deep); color: #fff; }
 .zeus .app-header .btn-outline-secondary { --bs-btn-color: #e8e9f5; --bs-btn-border-color: rgba(255, 255, 255, .25);
-  --bs-btn-hover-bg: var(--zeus-gold); --bs-btn-hover-color: var(--zeus-night); --bs-btn-hover-border-color: var(--zeus-gold); }
-.zeus .user-chip, .zeus .user-chip small { color: #fff; }
-.zeus .user-chip small { color: var(--zeus-gold); }
+  --bs-btn-hover-bg: var(--zeus-blue); --bs-btn-hover-color: #fff; --bs-btn-hover-border-color: var(--zeus-blue); }
+.zeus .user-chip { color: #fff; }
+.zeus .user-chip small { color: var(--zeus-green); }
 .zeus .sidebar-toggle { color: #fff; border-color: rgba(255, 255, 255, .25); }
-.zeus .sidebar-toggle:hover { background: rgba(255, 255, 255, .08); border-color: var(--zeus-gold); }
-.zeus-brand { display: flex; align-items: center; gap: .55rem; color: #fff; text-decoration: none; }
-.zeus-brand svg { width: 22px; height: 32px; fill: var(--zeus-gold); filter: drop-shadow(0 0 6px rgba(242, 182, 50, .55)); }
-.zeus-brand b { font-family: var(--font-mono); font-size: 1.05rem; letter-spacing: .45em; }
-.zeus-brand small { font-family: var(--font-mono); font-size: .62rem; letter-spacing: .22em; text-transform: uppercase; color: var(--zeus-sky);
+.zeus .sidebar-toggle:hover { background: rgba(255, 255, 255, .08); border-color: var(--zeus-green); }
+.zeus-brand { display: flex; align-items: center; gap: .8rem; text-decoration: none; }
+.zeus-brand img { height: 34px; width: auto; display: block; }
+.zeus-brand small { font-family: var(--font-mono); font-size: .62rem; letter-spacing: .22em; text-transform: uppercase; color: var(--zeus-green);
   border-left: 1px solid rgba(255, 255, 255, .2); padding-left: .8rem; }
-.zeus .sidebar { background: var(--zeus-night); border-right-color: #000; }
-.zeus .sidebar .nav-link { color: #d9dbee; }
-.zeus .sidebar .nav-link i { color: #8f94bf; }
+.zeus .sidebar { background: var(--zeus-navy); border-right-color: var(--zeus-navy-deep); }
+.zeus .sidebar .nav-link { color: #dfe2f2; }
+.zeus .sidebar .nav-link i { color: #9aa1cc; }
 .zeus .sidebar .nav-link:hover { background: rgba(255, 255, 255, .06); }
-.zeus .sidebar .nav-link.active { background: rgba(242, 182, 50, .14); border-left-color: var(--zeus-gold); color: #fff; }
-.zeus .sidebar .nav-link.active i { color: var(--zeus-gold); }
-.zeus .sidebar .nav-section { color: var(--zeus-sky); }
-.zeus .bottom-nav { background: var(--zeus-night); border-top-color: #000; }
-.zeus .bottom-nav-item { color: #b9bcdc; }
-.zeus .bottom-nav-item.active, .zeus .bottom-nav-item:hover { color: #fff; background: rgba(242, 182, 50, .14); border-top-color: var(--zeus-gold); }
-.zeus .bottom-nav-item.active i { color: var(--zeus-gold); }
+.zeus .sidebar .nav-link.active { background: rgba(114, 194, 105, .16); border-left-color: var(--zeus-green); color: #fff; }
+.zeus .sidebar .nav-link.active i { color: var(--zeus-green); }
+.zeus .sidebar .nav-section { color: var(--zeus-green); }
+.zeus .bottom-nav { background: var(--zeus-navy); border-top-color: var(--zeus-navy-deep); }
+.zeus .bottom-nav-item { color: #c3c7e3; }
+.zeus .bottom-nav-item.active, .zeus .bottom-nav-item:hover,
+.zeus .bottom-nav-item[aria-expanded="true"] { color: #fff; background: rgba(114, 194, 105, .16); border-top-color: var(--zeus-green); }
+.zeus .bottom-nav-item.active i, .zeus .bottom-nav-item[aria-expanded="true"] i { color: var(--zeus-green); }
 
-/* Home hero */
-.zeus-hero { background: linear-gradient(120deg, var(--zeus-night), var(--zeus-storm) 70%, #2a2f6e); color: #fff;
+/* Home hero: navy to blue, the kit's bolt in the corner. */
+.zeus-hero { background: linear-gradient(120deg, var(--zeus-navy-deep), var(--zeus-navy) 60%, var(--zeus-blue)); color: #fff;
   padding: 1.4rem 1.5rem; margin-bottom: 1.5rem; position: relative; overflow: hidden; }
-.zeus-hero::after { content: ""; position: absolute; right: -30px; top: -20px; width: 160px; height: 240px; opacity: .14;
-  background: var(--zeus-gold); clip-path: polygon(60% 0, 10% 55%, 45% 55%, 30% 100%, 90% 38%, 55% 38%); }
-.zeus-hero h1, .zeus-hero .page-title { color: #fff; }
-.zeus-hero .eyebrow { color: var(--zeus-gold); }
-.zeus-hero code { color: var(--zeus-gold); background: rgba(0, 0, 0, .25); padding: .1rem .4rem; }
+.zeus-hero::after { content: ""; position: absolute; right: 10px; top: -10px; width: 150px; height: 150px; opacity: .18;
+  background: var(--zeus-green); clip-path: polygon(24% 16%, 84% 16%, 54% 48%, 78% 48%, 28% 90%, 44% 62%, 30% 62%, 60% 30%, 24% 30%); }
+.zeus-hero .page-title { color: #fff; }
+.zeus-hero .eyebrow { color: var(--zeus-green); }
+.zeus-hero code { color: #fff; background: rgba(0, 0, 0, .25); padding: .1rem .4rem; }
 .zeus-day { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--dfs-muted); }
-.zeus-day.is-today { color: var(--zeus-gold-dark); font-weight: 700; }
-.zeus-session { border-left: 3px solid var(--zeus-gold); }
+.zeus-day.is-today { color: var(--zeus-blue); font-weight: 700; }
+.zeus-session { border-left: 3px solid var(--zeus-green); }
 
-/* Loading animation of the home page: the bolt is drawn, strikes, the storm clears. CSS only (CSP: no inline JS). */
+/* Loading animation of the home page: the kit's bolt is drawn (white), its green half strikes, the screen clears.
+   CSS only (CSP: no inline JS). */
 .zeus-splash { position: fixed; inset: 0; z-index: 2000; display: grid; place-content: center; justify-items: center; gap: 1rem;
-  background: radial-gradient(circle at 50% 45%, var(--zeus-storm), var(--zeus-night) 65%);
+  background: radial-gradient(circle at 50% 45%, var(--zeus-blue), var(--zeus-navy) 45%, var(--zeus-navy-deep));
   animation: zeus-clear .5s ease-in 1.9s forwards; }
-.zeus-splash svg { width: 84px; height: 126px; overflow: visible; }
-.zeus-splash path { fill: transparent; stroke: var(--zeus-gold); stroke-width: 2.5; stroke-linejoin: round;
-  stroke-dasharray: 260; stroke-dashoffset: 260; animation: zeus-draw .9s ease-out .15s forwards, zeus-strike .5s ease-out 1.05s forwards; }
-.zeus-splash .zeus-flash { position: absolute; inset: 0; background: #fff; opacity: 0; animation: zeus-flash .45s ease-out 1.05s; pointer-events: none; }
-.zeus-splash b { font-family: var(--font-mono); color: #fff; font-size: 1.4rem; letter-spacing: .1em; opacity: 0;
+.zeus-splash svg { width: 120px; height: 120px; overflow: visible; }
+.zeus-splash polygon { fill: transparent; stroke-width: 1.6; stroke-linejoin: round; stroke-dasharray: 220; stroke-dashoffset: 220; }
+.zeus-splash .bolt-white { stroke: #fff; animation: zeus-draw .8s ease-out .15s forwards, zeus-fill-white .3s ease-out .95s forwards; }
+.zeus-splash .bolt-green { stroke: var(--zeus-green); animation: zeus-draw .45s ease-out .7s forwards, zeus-strike .45s ease-out 1.05s forwards; }
+.zeus-splash .zeus-flash { position: absolute; inset: 0; background: var(--zeus-green); opacity: 0; animation: zeus-flash .45s ease-out 1.05s;
+  pointer-events: none; }
+.zeus-splash b { font-family: var(--font-sans); color: #fff; font-size: 1.8rem; font-weight: 700; letter-spacing: .1em; opacity: 0;
   animation: zeus-word .7s ease-out 1.1s forwards; }
-.zeus-splash small { font-family: var(--font-mono); color: var(--zeus-sky); font-size: .68rem; letter-spacing: .3em; text-transform: uppercase;
+.zeus-splash small { font-family: var(--font-mono); color: var(--zeus-green); font-size: .68rem; letter-spacing: .3em; text-transform: uppercase;
   opacity: 0; animation: zeus-word .7s ease-out 1.3s forwards; }
 @keyframes zeus-draw { to { stroke-dashoffset: 0; } }
-@keyframes zeus-strike { to { fill: var(--zeus-gold); filter: drop-shadow(0 0 18px rgba(242, 182, 50, .9)); } }
-@keyframes zeus-flash { 0% { opacity: .55; } 100% { opacity: 0; } }
-@keyframes zeus-word { from { opacity: 0; letter-spacing: .1em; } to { opacity: 1; letter-spacing: .6em; } }
+@keyframes zeus-fill-white { to { fill: #fff; } }
+@keyframes zeus-strike { to { fill: var(--zeus-green); filter: drop-shadow(0 0 14px rgba(114, 194, 105, .9)); } }
+@keyframes zeus-flash { 0% { opacity: .35; } 100% { opacity: 0; } }
+@keyframes zeus-word { from { opacity: 0; letter-spacing: .1em; } to { opacity: 1; letter-spacing: .45em; } }
 @keyframes zeus-clear { to { opacity: 0; visibility: hidden; } }
 @media (prefers-reduced-motion: reduce) { .zeus-splash { display: none; } }

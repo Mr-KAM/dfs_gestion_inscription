@@ -4,8 +4,10 @@
 {% block content %}
 {% if splash %}
 <div class="zeus-splash" aria-hidden="true">
-  <svg viewBox="0 0 64 96"><path d="M40 2 8 54h22l-8 40 34-58H34z"/></svg>
-  <b>ZEUS</b><small>Digital Farming School</small>
+  {# The kit's bolt (zeus-eclair-blanc-vert), inline so each half can be animated. #}
+  <svg viewBox="0 0 100 100"><polygon class="bolt-white" points="24,16 84,16 54,48 30,62 60,30 24,30"/>
+    <polygon class="bolt-green" points="54,48 78,48 28,90 44,62 30,62"/></svg>
+  <b>Zeus</b><small>Digital Farming School</small>
   <div class="zeus-flash"></div>
 </div>
 {% endif %}
@@ -20,7 +22,7 @@
 <form class="card card-body mb-4 d-flex flex-row flex-wrap align-items-center gap-3" method="post" action="{{ url_for('zeus.mode') }}"
       data-confirm="{{ 'Désactiver le mode Zeus ? Tout le monde revient à l\'interface classique.' if enabled else 'Activer le mode Zeus ? Coachs, accueil, cité et étudiants inscrits y arriveront à la connexion.' }}">
   {{ csrf() }}<input type="hidden" name="enabled" value="{{ '' if enabled else '1' }}">
-  <i class="bi bi-lightning-charge-fill fs-2 {{ 'text-warning' if enabled else 'text-muted' }}" aria-hidden="true"></i>
+  <i class="bi bi-lightning-charge-fill fs-2 {{ 'text-success' if enabled else 'text-muted' }}" aria-hidden="true"></i>
   <div class="flex-grow-1"><strong>Mode Zeus {{ 'activé' if enabled else 'désactivé' }}</strong>
     <div class="small text-muted">{{ "Les utilisateurs Zeus arrivent ici à la connexion ; l'interface classique reste accessible." if enabled
        else "Seul l'administrateur voit Zeus : préparez cohortes, classes et cours, puis activez." }}</div></div>
