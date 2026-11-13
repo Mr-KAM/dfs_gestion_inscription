@@ -40,6 +40,40 @@
       </div></div>
     </div>
   </div>
+
+  <div class="card mt-3" id="domaines"><div class="card-header">Domaines et emails</div><div class="card-body">
+    <p class="small text-muted">Le domaine par lequel on arrive choisit le site : sur le domaine Zeus, page de connexion Zeus puis
+      espace Zeus. Domaine actuel : <strong>{{ sites[current_site] }}</strong> (<code>{{ request.host }}</code>).
+      Vide = domaine de la requête. Le lien public des résultats utilise toujours le domaine Recrutement.</p>
+    <div class="row g-4">
+    {% for site, label in sites.items() %}
+      <div class="col-lg-6">
+        <h2 class="h6"><i class="bi {{ 'bi-lightning-charge-fill' if site == 'zeus' else 'bi-briefcase' }}"></i> {{ label }}</h2>
+        <div class="mb-3"><label class="form-label" for="{{ site }}_base_url">URL de base</label>
+          <input class="form-control font-monospace" id="{{ site }}_base_url" name="{{ site }}_base_url" type="url"
+                 value="{{ v[site ~ '_base_url'] }}" placeholder="https://{{ 'zeus' if site == 'zeus' else 'recrutement' }}.example.ci"></div>
+        <div class="row g-2 mb-2">
+          <div class="col-8"><label class="form-label" for="smtp_{{ site }}_host">Serveur SMTP</label>
+            <input class="form-control" id="smtp_{{ site }}_host" name="smtp_{{ site }}_host" value="{{ v['smtp_' ~ site ~ '_host'] }}" placeholder="smtp.example.ci"></div>
+          <div class="col-4"><label class="form-label" for="smtp_{{ site }}_port">Port</label>
+            <input class="form-control" id="smtp_{{ site }}_port" name="smtp_{{ site }}_port" inputmode="numeric" value="{{ v['smtp_' ~ site ~ '_port'] }}"></div>
+          <div class="col-6"><label class="form-label" for="smtp_{{ site }}_security">Sécurité</label>
+            <select class="form-select" id="smtp_{{ site }}_security" name="smtp_{{ site }}_security">
+              {% for key, name in securities.items() %}<option value="{{ key }}" {{ 'selected' if v['smtp_' ~ site ~ '_security'] == key }}>{{ name }}</option>{% endfor %}</select></div>
+          <div class="col-6"><label class="form-label" for="smtp_{{ site }}_user">Identifiant</label>
+            <input class="form-control" id="smtp_{{ site }}_user" name="smtp_{{ site }}_user" value="{{ v['smtp_' ~ site ~ '_user'] }}" autocomplete="off"></div>
+          <div class="col-6"><label class="form-label" for="smtp_{{ site }}_password">Mot de passe</label>
+            <input class="form-control" id="smtp_{{ site }}_password" name="smtp_{{ site }}_password" type="password" autocomplete="new-password"
+                   placeholder="{{ '•••••• configuré (vide = inchangé)' if smtp_password_set[site] else 'non configuré' }}"></div>
+          <div class="col-6"><label class="form-label" for="smtp_{{ site }}_sender">Expéditeur</label>
+            <input class="form-control" id="smtp_{{ site }}_sender" name="smtp_{{ site }}_sender" value="{{ v['smtp_' ~ site ~ '_sender'] }}" placeholder="{{ label }} &lt;contact@example.ci&gt;"></div>
+        </div>
+        <button class="btn btn-sm btn-outline-primary" formaction="{{ url_for('admin.settings_test_mail') }}" formnovalidate name="site" value="{{ site }}">
+          <i class="bi bi-envelope-check"></i> Tester (paramètres enregistrés)</button>
+      </div>
+    {% endfor %}
+    </div>
+  </div></div>
   <button class="btn btn-primary mt-3">Enregistrer</button>
 </form>
 {% endblock %}

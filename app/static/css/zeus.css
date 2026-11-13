@@ -74,6 +74,22 @@ body.zeus {
 .zeus-day.is-today { color: var(--zeus-blue); font-weight: 700; }
 .zeus-session { border-left: 3px solid var(--zeus-green); }
 
+/* Login page of the Zeus domain: navy hero with the kit's bolt, white card. Stacks on phones. */
+.zeus-login { min-height: 100dvh; display: grid; grid-template-columns: 1fr; }
+@media (min-width: 992px) { .zeus-login { grid-template-columns: 1.1fr 1fr; } }
+.zeus-login-hero { background: linear-gradient(140deg, var(--zeus-navy-deep), var(--zeus-navy) 55%, var(--zeus-blue)); color: #fff;
+  padding: 2rem 1.5rem; display: flex; flex-direction: column; justify-content: space-between; gap: 2rem; position: relative; overflow: hidden; }
+@media (min-width: 992px) { .zeus-login-hero { padding: 3rem 3.5rem; } }
+.zeus-login-hero img { height: 48px; width: auto; position: relative; }
+.zeus-login-hero > div { position: relative; }
+.zeus-login-hero .eyebrow { color: var(--zeus-green); }
+.zeus-login-hero h1 { color: #fff; font-size: clamp(1.8rem, 4vw, 3rem); font-weight: 700; margin: .4rem 0 .8rem; }
+.zeus-login-hero p { color: #d6dbf0; max-width: 34rem; margin: 0; }
+.zeus-login-bolt { position: absolute; right: -6%; top: 50%; transform: translateY(-50%); width: min(60vw, 420px); height: auto; opacity: .16; }
+.zeus-login-card { background: #fff; padding: 2rem 1.5rem; display: flex; flex-direction: column; justify-content: center;
+  width: 100%; max-width: 30rem; margin: 0 auto; }
+.zeus-login-card h2 { font-weight: 700; }
+
 /* Loading animation of the home page: the kit's bolt is drawn (white), its green half strikes, the screen clears.
    CSS only (CSP: no inline JS). */
 .zeus-splash { position: fixed; inset: 0; z-index: 2000; display: grid; place-content: center; justify-items: center; gap: 1rem;

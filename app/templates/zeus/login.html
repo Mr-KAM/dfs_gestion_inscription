@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Connexion · Zeus · DFS</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/zeus/favicon.svg') }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='img/zeus/favicon-32.png') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/zeus/apple-touch-icon-180.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/zeus.css') }}">
+</head>
+{# Login page of the Zeus domain (site_service.current_site): staff and students alike, one form. #}
+<body class="zeus">
+<main class="zeus-login">
+  <section class="zeus-login-hero">
+    <img src="{{ url_for('static', filename='img/zeus/zeus-logo-horizontal-fond-sombre.svg') }}" width="145" height="60" alt="Zeus">
+    <svg class="zeus-login-bolt" viewBox="0 0 100 100" aria-hidden="true">
+      <polygon points="24,16 84,16 54,48 30,62 60,30 24,30" fill="#fff"/><polygon points="54,48 78,48 28,90 44,62 30,62" fill="#72c269"/></svg>
+    <div>
+      <div class="eyebrow">Digital Farming School</div>
+      <h1>Cohortes de formation</h1>
+      <p>Classes, cours, calendrier, appels et notifications des étudiants inscrits et de leurs coachs.</p>
+    </div>
+  </section>
+  <section class="zeus-login-card" aria-labelledby="login-title">
+    <h2 id="login-title">Connexion à Zeus</h2>
+    <p class="text-muted small mb-4">Étudiants inscrits et équipe DFS : un seul accès.</p>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}<div class="alert alert-{{ category }} py-2">{{ message }}</div>{% endfor %}
+    {% endwith %}
+    <form method="post" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="form-label" for="email">Email</label>
+      <input class="form-control mb-3" type="email" id="email" name="email" autocomplete="username" required autofocus>
+      <label class="form-label" for="password">Mot de passe</label>
+      <input class="form-control mb-4" type="password" id="password" name="password" autocomplete="current-password" required>
+      <button class="btn btn-primary btn-lg w-100"><i class="bi bi-lightning-charge-fill"></i> Entrer dans Zeus</button>
+    </form>
+    <div class="login-links mt-4 small"><a href="{{ url_for('auth.forgot_password') }}">Mot de passe oublié ?</a></div>
+  </section>
+</main>
+</body>
+</html>

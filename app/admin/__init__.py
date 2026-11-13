@@ -4,6 +4,7 @@ import os
 import re
 import time
 import uuid
+from urllib.parse import urlparse
 
 import pandas as pd
 from flask import (Blueprint, abort, current_app, flash, make_response, redirect, render_template, request, send_file,
@@ -22,7 +23,7 @@ from app.models import (AuditLog, Candidate, KoboSubmission, PasswordResetReques
 from app.models.candidate import FILE_MISSING, FILE_NOT_FOUND, FILE_STATUSES
 from app.models.user import COACH_ROLES, ROLE_ADMIN, ROLE_CANDIDATE, ROLE_RESIDENCE, ROLES
 from app.services import (account_service, attendance_service, audit_service, campus_service, candidate_service,
-                          import_service, sas_service, settings_service)
+                          import_service, sas_service, settings_service, site_service)
 from app.services.audit_service import ACTION_LABELS
 from app.utils import allow_camera, utcnow
 
@@ -754,8 +755,11 @@ def audit():
     return render_template("admin/audit.html", page=page, labels=ACTION_LABELS, action=action)
 
 
+SITE_FIELDS = [f"{s}_base_url" for s in settings_service.SITES] + [
+    f"smtp_{s}_{f}" for s in settings_service.SITES for f in settings_service.SMTP_FIELDS if f != "password"]
 SETTINGS_FIELDS = ["campaign_name", "campaign_year", "exam_code_prefix", "exam_code_format",
-                   "technical_duration", "app_name", "timezone"]
+                   "technical_duration", "app_name", "timezone", *SITE_FIELDS]
+SMTP_PASSWORDS = [f"smtp_{s}_password" for s in settings_service.SITES]  # blank in the form = unchanged
 
 
 @bp.route("/settings", methods=["GET", "POST"])
@@ -766,8 +770,9 @@ def settings():
         if error:
             flash(error, "danger")
         else:
-            settings_service.set_many(values)
-            audit_service.log("settings_update", details=values)
+            passwords = {k: request.form[k] for k in SMTP_PASSWORDS if request.form.get(k)}
+            settings_service.set_many({**values, **passwords})
+            audit_service.log("settings_update", details={**values, "smtp_passwords_changed": sorted(passwords)})
             db.session.commit()
             flash("Paramètres enregistrés.", "success")
             return redirect(url_for("admin.settings"))
@@ -776,7 +781,24 @@ def settings():
         "admin/settings.html", v=values, kobo_url=settings_service.get("kobo_base_url"),
         kobo_uid=settings_service.get("kobo_asset_uid"), kobo_token_set=bool(settings_service.get("kobo_token")),
         kobo_last_sync=settings_service.get("kobo_last_sync"), next_code=candidate_service.next_exam_code(),
+        sites=site_service.SITE_LABELS, securities=site_service.SMTP_SECURITIES,
+        smtp_password_set={s: bool(settings_service.get(f"smtp_{s}_password")) for s in settings_service.SITES},
+        current_site=site_service.current_site(),
     )
+
+
+@bp.post("/settings/test-mail")
+def settings_test_mail():
+    """Send a test email to the admin through one domain's SMTP (saved settings)."""
+    site = request.form.get("site") if request.form.get("site") in site_service.SITE_LABELS else site_service.RECRUITMENT
+    try:
+        site_service.send_mail(current_user.email, f"Test SMTP · {site_service.SITE_LABELS[site]}",
+                               "Cet email confirme que l'envoi fonctionne depuis "
+                               f"{site_service.external_url(site, 'auth.login')}.", site)
+        flash(f"Email de test envoyé à {current_user.email} via le SMTP {site_service.SITE_LABELS[site]}.", "success")
+    except candidate_service.BusinessError as exc:
+        flash(str(exc), "danger")
+    return redirect(url_for("admin.settings") + "#domaines")
 
 
 def _validate_settings(values: dict) -> str | None:
@@ -794,4 +816,18 @@ def _validate_settings(values: dict) -> str | None:
         ZoneInfo(values["timezone"])
     except (ZoneInfoNotFoundError, ValueError):
         return "Fuseau horaire inconnu (ex. Africa/Abidjan)."
+    hosts = []
+    for site, label in site_service.SITE_LABELS.items():
+        url = values[f"{site}_base_url"] = values[f"{site}_base_url"].rstrip("/")
+        parts = urlparse(url)
+        if url and (parts.scheme not in ("https", "http") or not parts.hostname or parts.path or parts.query):
+            return f"URL de base {label} invalide : https://domaine (sans chemin), ex. https://zeus.example.ci."
+        hosts.append(parts.hostname)
+        port = values[f"smtp_{site}_port"]
+        if port and not (port.isdigit() and 1 <= int(port) <= 65535):
+            return f"Port SMTP {label} invalide."
+        if values[f"smtp_{site}_security"] not in site_service.SMTP_SECURITIES:
+            return f"Sécurité SMTP {label} invalide."
+    if hosts[0] and hosts[0] == hosts[1]:
+        return "Les domaines Recrutement et Zeus doivent être différents."
     return None

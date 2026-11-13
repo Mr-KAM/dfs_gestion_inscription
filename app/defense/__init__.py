@@ -11,7 +11,7 @@ from app.extensions import db
 from app.models import Defense, Jury, JuryCandidate, JuryMember, Sas
 from app.models.defense import DECISIONS, JURY_ROLES
 from app.models.user import ROLE_ADMIN
-from app.services import audit_service, defense_service
+from app.services import audit_service, defense_service, site_service
 from app.services.candidate_service import BusinessError
 from app.utils import roles_required, utcnow
 
@@ -91,8 +91,9 @@ def global_jury(defense_id: int):
                            sort_args=dict(request.args.to_dict(), defense_id=defense.id),
                            info=defense_service.minutes_info(defense),
                            president=defense_service.minutes_signatories(defense)[0],
-                           public_url=defense.public_token and url_for("public_results.lookup",
-                                                                       token=defense.public_token, _external=True))
+                           # Shared publicly: always on the recruitment domain, even from Zeus.
+                           public_url=defense.public_token and site_service.external_url(
+                               site_service.RECRUITMENT, "public_results.lookup", token=defense.public_token))
 
 
 @bp.post("/<int:defense_id>/resultats")

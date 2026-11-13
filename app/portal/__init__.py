@@ -2,12 +2,12 @@
 from flask import Blueprint, abort, flash, make_response, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user
 
-from app.auth import _safe_next, login_attempt
+from app.auth import _safe_next, login_attempt, login_template
 from app.extensions import db
 from app.models import ClassInvitation, Exercise
 from app.models.defense import DECISIONS
 from app.services import (account_service, attendance_service, audit_service, campus_service, defense_service,
-                          zeus_service)
+                          site_service, zeus_service)
 from app.services.candidate_service import BusinessError
 from app.utils import allow_camera
 
@@ -39,13 +39,15 @@ def login():
         return redirect(url_for("dashboard.index"))
     if request.method == "POST" and login_attempt(request.form.get("email", ""), request.form.get("password", "")):
         return redirect(_safe_next(request.args.get("next")))  # e.g. back to a scanned check-in QR code
-    return render_template("portal/login.html")
+    return render_template(login_template("portal/login.html"))
 
 
 @bp.route("/inscription", methods=["GET", "POST"])
 def signup():
     if current_user.is_authenticated:
         return redirect(url_for("dashboard.index"))
+    if site_service.current_site() == site_service.ZEUS:
+        return redirect(url_for("auth.login"))  # Zeus: registered students only, no sign-up
     if request.method == "POST":
         ip = request.remote_addr
         attempts = sum(audit_service.recent_count(a, 60, ip=ip) for a in ("candidate_signup", "signup_rejected"))

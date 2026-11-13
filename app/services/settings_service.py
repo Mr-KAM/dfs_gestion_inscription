@@ -7,7 +7,12 @@ from app.extensions import db
 from app.models import Setting
 from app.utils import decrypt_secret, encrypt_secret
 
-SECRET_KEYS = {"kobo_token"}
+SITES = ("recruitment", "zeus")
+SMTP_FIELDS = ("host", "port", "user", "password", "sender", "security")
+# Encrypted at rest; empty in the table = the environment value (config key).
+SECRET_ENV = {"kobo_token": lambda cfg: cfg["KOBO_TOKEN"],
+              **{f"smtp_{s}_password": (lambda cfg, s=s: cfg["SMTP"][s]["password"]) for s in SITES}}
+SECRET_KEYS = set(SECRET_ENV)
 KOBO_FIELDS = {
     "kobo_field_cni": "Champ CNI",
     "kobo_field_email": "Champ email",
@@ -32,6 +37,9 @@ def _defaults() -> dict[str, str]:
         "kobo_asset_uid": cfg["KOBO_ASSET_UID"],
         "kobo_last_sync": "",
         **{key: "" for key in KOBO_FIELDS},
+        "recruitment_base_url": cfg["RECRUITMENT_BASE_URL"],
+        "zeus_base_url": cfg["ZEUS_BASE_URL"],
+        **{f"smtp_{s}_{f}": cfg["SMTP"][s][f] for s in SITES for f in SMTP_FIELDS if f != "password"},
     }
 
 
@@ -46,8 +54,8 @@ def _all() -> dict[str, str]:
 
 
 def get(key: str) -> str:
-    if key == "kobo_token":
-        return get_secret(key) or current_app.config["KOBO_TOKEN"]
+    if key in SECRET_ENV:
+        return get_secret(key) or SECRET_ENV[key](current_app.config)
     return _all().get(key, "")
 
 

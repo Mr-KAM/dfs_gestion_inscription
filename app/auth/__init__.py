@@ -8,7 +8,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.extensions import db
 from app.models import Media, User
-from app.services import account_service, audit_service
+from app.services import account_service, audit_service, site_service
 from app.services.candidate_service import BusinessError
 from app.utils import utcnow
 
@@ -79,7 +79,12 @@ def login():
         return redirect(url_for("dashboard.index"))
     if request.method == "POST" and login_attempt(request.form.get("email", ""), request.form.get("password", "")):
         return redirect(_safe_next(request.args.get("next")))
-    return render_template("auth/login.html")
+    return render_template(login_template("auth/login.html"))
+
+
+def login_template(default: str) -> str:
+    """On the Zeus domain, staff and candidate login pages are the same Zeus page."""
+    return "zeus/login.html" if site_service.current_site() == site_service.ZEUS else default
 
 
 @bp.route("/mot-de-passe-oublie", methods=["GET", "POST"])

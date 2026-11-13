@@ -67,4 +67,14 @@ class Config:
     KOBO_TOKEN = os.environ.get("KOBO_TOKEN", "")
     KOBO_ASSET_UID = os.environ.get("KOBO_ASSET_UID", "")
 
+    # The two domains of the app (site_service): defaults of Administration > Paramètres, where the admin may
+    # change them. Empty = the domain the request came in on.
+    RECRUITMENT_BASE_URL = os.environ.get("RECRUITMENT_BASE_URL", "").rstrip("/")
+    ZEUS_BASE_URL = os.environ.get("ZEUS_BASE_URL", "").rstrip("/")
+    # SMTP of each domain (mail_service), same override rule. SECURITY: starttls | ssl | none.
+    SMTP = {site: {key: os.environ.get(f"{site.upper()}_SMTP_{key.upper()}", default)
+                   for key, default in (("host", ""), ("port", "587"), ("user", ""), ("password", ""),
+                                        ("sender", ""), ("security", "starttls"))}
+            for site in ("recruitment", "zeus")}
+
     PER_PAGE = 25

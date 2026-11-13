@@ -3,7 +3,7 @@ from flask_login import current_user, login_required
 
 from app.models.user import (CAMPUS_ROLES, JURY_ONLY_ROLES, ROLE_ADMIN, ROLE_MOTIVATION, ROLE_RESIDENCE,
                              ROLE_SUPERVISOR)
-from app.services import candidate_service, sas_service, timer_service, zeus_service
+from app.services import candidate_service, sas_service, site_service, timer_service, zeus_service
 
 bp = Blueprint("dashboard", __name__)
 
@@ -12,9 +12,12 @@ bp = Blueprint("dashboard", __name__)
 @login_required
 def index():
     """One URL, role-specific dashboard. `?partial=1` returns the polled fragment."""
-    # Zeus mode: its users always land in Zeus; the admin only right after login (he runs the classic side too).
+    # Zeus mode: its users always land in Zeus; the admin right after login (he runs the classic side too), or
+    # whenever he comes in on the Zeus domain (even before the mode is on: he prepares it).
     landing = session.pop("zeus_landing", False)
-    if zeus_service.stays_in_zeus(current_user) or (landing and zeus_service.lands_in_zeus(current_user)):
+    on_zeus_domain = site_service.current_site() == site_service.ZEUS
+    if (zeus_service.stays_in_zeus(current_user) or (landing and zeus_service.lands_in_zeus(current_user))
+            or (on_zeus_domain and current_user.role == ROLE_ADMIN)):
         return redirect(url_for("zeus.home"))
     if current_user.is_candidate:
         return redirect(url_for("portal.home"))
