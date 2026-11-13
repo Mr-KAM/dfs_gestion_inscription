@@ -14,9 +14,11 @@
 </head>
 {# Login page of the Zeus domain (site_service.current_site): staff and students alike, one form. #}
 {% from "_macros.html" import remember_me with context %}
+{% import "_brand.html" as brand %}
 <body class="zeus">
 <main class="zeus-login">
   <section class="zeus-login-hero">
+    {{ brand.pixels() }}
     <img src="{{ url_for('static', filename='img/zeus/zeus-logo-horizontal-fond-sombre.svg') }}" width="145" height="60" alt="Zeus">
     <svg class="zeus-login-bolt" viewBox="0 0 100 100" aria-hidden="true">
       <polygon points="24,16 84,16 54,48 30,62 60,30 24,30" fill="#fff"/><polygon points="54,48 78,48 28,90 44,62 30,62" fill="#72c269"/></svg>
@@ -24,9 +26,17 @@
       <div class="eyebrow">Digital Farming School</div>
       <h1>L'espace de connexion 3.0 à la centrale DFS</h1>
       <p>Classes, cours, calendrier, appels et notifications des étudiants inscrits et de leurs coachs.</p>
+      <ul class="zeus-login-tags" aria-label="Dans Zeus">
+        <li><i class="bi bi-people-fill" aria-hidden="true"></i>Classes</li>
+        <li><i class="bi bi-calendar-week" aria-hidden="true"></i>Calendrier</li>
+        <li><i class="bi bi-qr-code" aria-hidden="true"></i>Appels</li>
+        <li><i class="bi bi-megaphone-fill" aria-hidden="true"></i>Notifications</li>
+      </ul>
     </div>
   </section>
-  <section class="zeus-login-card" aria-labelledby="login-title">
+  <section class="zeus-login-side">
+  {{ brand.edge_glyphs() }}
+  <div class="zeus-login-card" role="region" aria-labelledby="login-title">
     {# DFS logo on white: its wordmark is navy, it would vanish on the navy hero. #}
     <img class="zeus-login-dfs" src="{{ url_for('static', filename='img/logo-dfs.svg') }}" width="197" height="40" alt="Digital Farming School">
     <h2 id="login-title">Connexion à Zeus</h2>
@@ -44,6 +54,7 @@
       <button class="btn btn-primary btn-lg w-100"><i class="bi bi-lightning-charge-fill"></i> Entrer dans Zeus</button>
     </form>
     <div class="login-links mt-4 small"><a href="{{ url_for('auth.forgot_password') }}">Mot de passe oublié ?</a></div>
+  </div>
   </section>
 </main>
 </body>

@@ -74,23 +74,50 @@ body.zeus {
 .zeus-day.is-today { color: var(--zeus-blue); font-weight: 700; }
 .zeus-session { border-left: 3px solid var(--zeus-green); }
 
-/* Login page of the Zeus domain: navy hero with the kit's bolt, white card. Stacks on phones. */
-.zeus-login { min-height: 100dvh; display: grid; grid-template-columns: minmax(0, 1fr); }
-@media (min-width: 992px) { .zeus-login { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); } }
-.zeus-login-hero { background: linear-gradient(140deg, var(--zeus-navy-deep), var(--zeus-navy) 55%, var(--zeus-blue)); color: #fff;
-  padding: 2rem 1.5rem; display: flex; flex-direction: column; justify-content: space-between; gap: 2rem; position: relative; overflow: hidden; }
-@media (min-width: 992px) { .zeus-login-hero { padding: 3rem 3.5rem; } }
-.zeus-login-hero img { height: 48px; width: auto; position: relative; align-self: flex-start; }
-.zeus-login-hero > div { position: relative; }
+/* Login page of the Zeus domain, with the textures of the classic login (48px grid, pixel tiles, D F S glyphs off
+   the edge). >= 992px: navy hero | form on the grid. Below: navy band on top, form card under it (the classic
+   rules of app.css hide pixels and glyphs there). Sizes follow the viewport (clamp), short screens drop extras. */
+.zeus-login { min-height: 100dvh; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; }
+@media (min-width: 992px) { .zeus-login { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); grid-template-rows: none; } }
+.zeus-login-hero { position: relative; overflow: hidden; color: #fff; display: flex; flex-direction: column;
+  justify-content: space-between; gap: clamp(1.25rem, 4vh, 2.5rem); padding: clamp(1.25rem, 4vw, 3.5rem);
+  background-color: var(--zeus-navy);
+  background-image: linear-gradient(rgba(255, 255, 255, .055) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(255, 255, 255, .055) 1px, transparent 1px),
+                    linear-gradient(140deg, var(--zeus-navy-deep), var(--zeus-navy) 55%, var(--zeus-blue));
+  background-size: 48px 48px, 48px 48px, auto; }
+.zeus-login-hero > :not(.pixels):not(.zeus-login-bolt) { position: relative; z-index: 2; }
+/* The classic tiles keep their % positions, inside the empty middle-right box: clear of the logo and the text. */
+.zeus-login-hero .pixels { inset: 16% 0 44% 38%; }
+.zeus-login-hero .pixels i { background: var(--zeus-green); opacity: .45; }
+.zeus-login-hero .pixels i:nth-child(3n) { background: var(--zeus-blue); opacity: .75; }
+.zeus-login-hero img { height: clamp(36px, 5vw, 48px); width: auto; align-self: flex-start; }
 .zeus-login-hero .eyebrow { color: var(--zeus-green); }
-.zeus-login-hero h1 { color: #fff; font-size: clamp(1.8rem, 4vw, 3rem); font-weight: 700; margin: .4rem 0 .8rem; }
+.zeus-login-hero h1 { color: #fff; font-size: clamp(1.6rem, 3.6vw, 3.1rem); font-weight: 700; line-height: 1.05;
+  letter-spacing: -.03em; margin: .5rem 0 .9rem; max-width: 16ch; }
 .zeus-login-hero p { color: #d6dbf0; max-width: 34rem; margin: 0; }
-.zeus-login-bolt { position: absolute; right: -6%; top: 50%; transform: translateY(-50%); width: min(60vw, 420px); height: auto; opacity: .16; }
-/* White over the whole column; the form itself stays at most 28rem wide. */
-.zeus-login-card { background: #fff; display: flex; flex-direction: column; justify-content: center;
-  padding: 2rem max(1.5rem, calc((100% - 28rem) / 2)); }
+.zeus-login-tags { list-style: none; display: flex; flex-wrap: wrap; gap: .4rem; margin: 1.1rem 0 0; padding: 0; }
+.zeus-login-tags li { display: inline-flex; gap: .35rem; align-items: center; padding: .3rem .55rem; font-family: var(--font-mono);
+  font-size: .66rem; letter-spacing: .14em; text-transform: uppercase; border: 1px solid rgba(255, 255, 255, .22);
+  background: rgba(255, 255, 255, .06); }
+.zeus-login-tags i { color: var(--zeus-green); }
+.zeus-login-bolt { position: absolute; z-index: 1; right: -8%; top: 50%; transform: translateY(-50%); width: min(55vw, 420px);
+  height: auto; opacity: .14; }
+.zeus-login-side { position: relative; overflow: hidden; display: grid; place-items: center; padding: clamp(1.25rem, 4vw, 3rem) 16px;
+  background-color: var(--dfs-bg);
+  background-image: linear-gradient(var(--dfs-grid) 1px, transparent 1px), linear-gradient(90deg, var(--dfs-grid) 1px, transparent 1px);
+  background-size: 48px 48px; }
+.zeus-login-side .edge-glyphs { height: min(46vh, 380px); }
+.zeus-login-card { position: relative; z-index: 2; width: 100%; max-width: 28rem; background: #fff; border: 1px solid var(--dfs-border);
+  border-top: 4px solid var(--zeus-green); padding: clamp(1.4rem, 3vw, 2.4rem); box-shadow: 0 18px 40px -24px rgba(24, 29, 69, .35); }
 .zeus-login-card h2 { font-weight: 700; }
-.zeus-login-dfs { height: 40px; width: auto; align-self: flex-start; margin-bottom: 2.2rem; }
+.zeus-login-dfs { height: 36px; width: auto; display: block; margin-bottom: 1.8rem; }
+@media (max-width: 991.98px) { .zeus-login-hero h1 { max-width: none; } }
+@media (max-width: 575.98px) {
+  .zeus-login-hero p { display: none; }
+  .zeus-login-side { place-items: start stretch; padding-top: 1rem; }
+}
+@media (max-height: 560px) and (min-width: 992px) { .zeus-login-hero p, .zeus-login-tags { display: none; } }
 
 /* Loading animation of the home page: the kit's bolt is drawn (white), its green half strikes, the screen clears.
    CSS only (CSP: no inline JS). */
