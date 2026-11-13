@@ -3,7 +3,8 @@
 {% block title %}Classes{% endblock %}
 {% block content %}
 {% call page_head('Classes', eyebrow='Zeus · cohortes de formation',
-                  subtitle="Les coachs techniques créent leurs classes et y invitent les étudiants inscrits de la cohorte.") %}{% endcall %}
+                  subtitle="Le coach qui crée une classe en est le gestionnaire : il invite les étudiants inscrits et d'autres coachs.") %}{% endcall %}
+{% include "zeus/_coach_invitations.html" %}
 {% for cohort, classes, can_manage in cohorts %}
 <div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center">
   <span><i class="bi bi-mortarboard-fill"></i> {{ cohort.name }}</span><a class="small" href="{{ url_for('zeus.cohort', cohort_id=cohort.id) }}">Cohorte</a></div>

@@ -1,0 +1,11 @@
+{# A coach's pending invitations to join a class's teaching staff (zeus home, classes). #}
+{% for link in coach_invitations %}
+<div class="alert alert-warning d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <span><i class="bi bi-envelope-paper"></i> Invitation à rejoindre l'équipe de la classe <strong>{{ link.klass.name }}</strong>
+    ({{ link.klass.cohort.name }}) comme <strong>{{ link.function }}</strong>{% if link.inviter %}, par {{ link.inviter.display_name }}{% endif %}.</span>
+  <form method="post" action="{{ url_for('zeus.answer_coach', link_id=link.id) }}" class="d-flex gap-2">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}">
+    <button class="btn btn-sm btn-primary" name="accept" value="1">Rejoindre</button>
+    <button class="btn btn-sm btn-outline-secondary" name="accept" value="0">Refuser</button></form>
+</div>
+{% endfor %}

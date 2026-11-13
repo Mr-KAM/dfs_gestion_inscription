@@ -1,0 +1,37 @@
+{% extends "zeus/base.html" %}
+{% from "_macros.html" import csrf, empty, page_head %}
+{% block title %}Rôles de classe{% endblock %}
+{% block content %}
+{% call page_head('Rôles de classe', eyebrow='Zeus · administration',
+                  subtitle="Les fonctions qu'un coach peut tenir dans une classe. Être gestionnaire de la classe se règle à part, sur la classe.") %}{% endcall %}
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card"><ul class="list-group list-group-flush">
+    {% for r in roles %}
+      <li class="list-group-item">
+        <form class="row g-2 align-items-center" method="post">{{ csrf() }}<input type="hidden" name="role_id" value="{{ r.id }}">
+          <div class="col-md-4"><input class="form-control form-control-sm" name="name" value="{{ r.name }}" maxlength="80" required aria-label="Nom du rôle"></div>
+          <div class="col-md-5"><input class="form-control form-control-sm" name="description" value="{{ r.description or '' }}" maxlength="255" placeholder="Description" aria-label="Description"></div>
+          <div class="col-md-3 d-flex gap-2 justify-content-end align-items-center">
+            <span class="small text-muted text-nowrap" title="Coachs qui tiennent ce rôle">{{ used[r.id] }} <i class="bi bi-person"></i></span>
+            <button class="btn btn-sm btn-outline-primary" title="Enregistrer"><i class="bi bi-save"></i></button>
+            <button class="btn btn-sm btn-outline-danger" name="delete" value="1" formnovalidate title="Supprimer"
+                    data-confirm="Supprimer le rôle « {{ r.name }} » ? Les {{ used[r.id] }} coach(s) qui le tiennent restent dans leur classe, sans fonction."><i class="bi bi-trash"></i></button>
+          </div>
+        </form>
+      </li>
+    {% else %}
+      <li class="list-group-item">{{ empty('person-badge', 'Aucun rôle : créez le premier ci-contre.') }}</li>
+    {% endfor %}
+    </ul></div>
+  </div>
+  <div class="col-lg-5">
+    <form class="card card-body" method="post">{{ csrf() }}
+      <h2 class="h6"><i class="bi bi-plus-lg"></i> Nouveau rôle</h2>
+      <div class="mb-2"><label class="form-label" for="name">Nom</label><input class="form-control" id="name" name="name" maxlength="80" required placeholder="Formateur principal"></div>
+      <div class="mb-3"><label class="form-label" for="description">Description</label><input class="form-control" id="description" name="description" maxlength="255" placeholder="Ce qu'il fait dans la classe"></div>
+      <div><button class="btn btn-primary"><i class="bi bi-plus-lg"></i> Créer le rôle</button></div>
+    </form>
+  </div>
+</div>
+{% endblock %}

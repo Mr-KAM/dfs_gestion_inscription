@@ -15,10 +15,13 @@ body.zeus {
   --dfs-blue-light: #e8eef8;
   --dfs-bg: var(--zeus-bg);
   --dfs-grid: var(--zeus-line);
+  /* The DFS 48px grid of the classic interface (app.css body), with a faint green glow in the corner. */
+  --zeus-grid: linear-gradient(var(--zeus-line) 1px, transparent 1px), linear-gradient(90deg, var(--zeus-line) 1px, transparent 1px);
+  --zeus-grid-dark: linear-gradient(rgba(255, 255, 255, .05) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(255, 255, 255, .05) 1px, transparent 1px);
   background-color: var(--zeus-bg);
-  background-image: radial-gradient(1100px 380px at 100% 0, rgba(114, 194, 105, .10), transparent 60%),
-                    linear-gradient(135deg, transparent 48.5%, var(--zeus-line) 49.5%, transparent 50.5%);
-  background-size: auto, 220px 220px;
+  background-image: radial-gradient(1100px 380px at 100% 0, rgba(114, 194, 105, .08), transparent 60%), var(--zeus-grid);
+  background-size: auto, 48px 48px, 48px 48px;
 }
 
 .zeus .btn-primary { --bs-btn-bg: var(--zeus-blue); --bs-btn-border-color: var(--zeus-blue);
@@ -49,7 +52,8 @@ body.zeus {
 .zeus-brand img { height: 34px; width: auto; display: block; }
 .zeus-brand small { font-family: var(--font-mono); font-size: .62rem; letter-spacing: .22em; text-transform: uppercase; color: var(--zeus-green);
   border-left: 1px solid rgba(255, 255, 255, .2); padding-left: .8rem; }
-.zeus .sidebar { background: var(--zeus-navy); border-right-color: var(--zeus-navy-deep); }
+.zeus .sidebar { background-color: var(--zeus-navy); background-image: var(--zeus-grid-dark); background-size: 48px 48px;
+  border-right-color: var(--zeus-navy-deep); }
 .zeus .sidebar .nav-link { color: #dfe2f2; }
 .zeus .sidebar .nav-link i { color: #9aa1cc; }
 .zeus .sidebar .nav-link:hover { background: rgba(255, 255, 255, .06); }
@@ -62,9 +66,15 @@ body.zeus {
 .zeus .bottom-nav-item[aria-expanded="true"] { color: #fff; background: rgba(114, 194, 105, .16); border-top-color: var(--zeus-green); }
 .zeus .bottom-nav-item.active i, .zeus .bottom-nav-item[aria-expanded="true"] i { color: var(--zeus-green); }
 
-/* Home hero: navy to blue, the kit's bolt in the corner. */
-.zeus-hero { background: linear-gradient(120deg, var(--zeus-navy-deep), var(--zeus-navy) 60%, var(--zeus-blue)); color: #fff;
-  padding: 1.4rem 1.5rem; margin-bottom: 1.5rem; position: relative; overflow: hidden; }
+/* Home hero: navy to blue on the grid, DFS pixel tiles on its right half, the kit's bolt in the corner. */
+.zeus-hero { color: #fff; padding: 1.4rem 1.5rem; margin-bottom: 1.5rem; position: relative; overflow: hidden;
+  background-image: var(--zeus-grid-dark), linear-gradient(120deg, var(--zeus-navy-deep), var(--zeus-navy) 60%, var(--zeus-blue));
+  background-size: 48px 48px, 48px 48px, auto; }
+.zeus-hero > :not(.pixels) { position: relative; z-index: 2; }
+.zeus-hero .pixels { inset: 0 0 0 55%; }
+.zeus-hero .pixels i { background: var(--zeus-green); opacity: .35; transform: scale(.6); }
+.zeus-hero .pixels i:nth-child(3n) { background: var(--zeus-blue); opacity: .7; }
+@media (max-width: 991.98px) { .zeus-hero .pixels { display: block; inset: 0 0 0 70%; } }
 .zeus-hero::after { content: ""; position: absolute; right: 10px; top: -10px; width: 150px; height: 150px; opacity: .18;
   background: var(--zeus-green); clip-path: polygon(24% 16%, 84% 16%, 54% 48%, 78% 48%, 28% 90%, 44% 62%, 30% 62%, 60% 30%, 24% 30%); }
 .zeus-hero .page-title { color: #fff; }

@@ -2,13 +2,82 @@
 {% from "_macros.html" import avatar, csrf, empty, page_head %}
 {% block title %}{{ k.name }}{% endblock %}
 {% block content %}
-{% set head_meta %}<span class="status status-info">{{ k.joined | length }} membre(s)</span>{% if k.coach %} <span class="meta"><i class="bi bi-person-workspace"></i>{{ k.coach.display_name }}</span>{% endif %}{% endset %}
-{% call page_head(k.name, eyebrow='Classe · ' ~ cohort.name, back=url_for('zeus.cohort', cohort_id=cohort.id), back_label='Cohorte ' ~ cohort.name, meta=head_meta) %}
+{% macro role_options(selected=None) %}<option value="">— Sans fonction —</option>
+  {% for r in roles %}<option value="{{ r.id }}" {{ 'selected' if selected == r.id }}>{{ r.name }}</option>{% endfor %}{% endmacro %}
+{% set head_meta %}<span class="status status-info">{{ k.joined | length }} étudiant(s)</span>
+  <span class="meta"><i class="bi bi-person-workspace"></i>{{ k.staff | length }} coach(s)</span>{% endset %}
+{% call page_head(k.name, eyebrow='Classe · ' ~ cohort.name, back=url_for('zeus.cohort', cohort_id=cohort.id), back_label='Cohorte ' ~ cohort.name,
+                  subtitle=k.description or None, meta=head_meta) %}
   <a class="btn btn-outline-primary" href="{{ url_for('zeus.calendar', cohort=cohort.id) }}"><i class="bi bi-calendar-week"></i> Calendrier</a>
+  {% if is_admin %}<button class="btn btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#edit-class"
+          aria-expanded="false" aria-controls="edit-class"><i class="bi bi-pencil"></i> Modifier</button>{% endif %}
 {% endcall %}
+
+{% if is_admin %}
+<div class="collapse" id="edit-class">
+  <div class="card mb-3"><div class="card-header"><i class="bi bi-pencil"></i> Informations de la classe</div>
+    <form class="card-body row g-2 align-items-end" method="post">{{ csrf() }}
+      <div class="col-md-4"><label class="form-label" for="name">Nom</label><input class="form-control" id="name" name="name" value="{{ k.name }}" maxlength="80" required></div>
+      <div class="col-md-6"><label class="form-label" for="description">Description</label><input class="form-control" id="description" name="description" value="{{ k.description or '' }}" maxlength="255"></div>
+      <div class="col-md-2"><button class="btn btn-primary w-100" name="action" value="edit"><i class="bi bi-save"></i> Enregistrer</button></div>
+    </form>
+    <form class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2" method="post"
+          data-confirm="Supprimer la classe « {{ k.name }} », ses invitations et ses séances programmées ?">{{ csrf() }}
+      <span class="small text-muted">Supprimer la classe retire aussi ses séances. Refusé si un appel a déjà été fait.</span>
+      <button class="btn btn-sm btn-outline-danger" name="action" value="delete"><i class="bi bi-trash"></i> Supprimer la classe</button></form>
+  </div>
+</div>
+{% endif %}
+
 <div class="row g-3">
   <div class="col-lg-7">
-    <div class="card"><div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
+    <div class="card mb-3" id="equipe"><div class="card-header"><i class="bi bi-person-workspace"></i> Équipe pédagogique</div>
+      <ul class="list-group list-group-flush">
+      {% for link in k.coaches %}{% set editable = can_manage and (is_admin or not link.is_manager) %}
+        <li class="list-group-item">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span><strong>{{ link.user.display_name }}</strong> <span class="small text-muted">{{ link.user.role_label }}</span>
+              {% if link.is_manager %}<span class="status status-success">Gestionnaire</span>{% endif %}
+              {% if not link.accepted_at %}<span class="status status-warning">Invitation envoyée</span>{% endif %}</span>
+            <span class="status status-info">{{ link.function }}</span>
+          </div>
+          {% if editable %}
+          <form class="d-flex flex-wrap gap-2 mt-2 align-items-center" method="post">{{ csrf() }}<input type="hidden" name="link_id" value="{{ link.id }}">
+            <select class="form-select form-select-sm w-auto" name="role_id" aria-label="Fonction de {{ link.user.display_name }}">{{ role_options(link.role_id) }}</select>
+            {% if is_admin %}<label class="form-check mb-0 small"><input class="form-check-input" type="checkbox" name="is_manager" value="1" {{ 'checked' if link.is_manager }}> Gestionnaire</label>{% endif %}
+            <button class="btn btn-sm btn-outline-primary" name="action" value="coach_update" title="Enregistrer"><i class="bi bi-save"></i></button>
+            <button class="btn btn-sm btn-outline-danger" name="action" value="coach_remove" title="Retirer de la classe"
+                    data-confirm="Retirer {{ link.user.display_name }} de la classe ?"><i class="bi bi-person-dash"></i></button>
+          </form>
+          {% endif %}
+        </li>
+      {% else %}
+        <li class="list-group-item text-muted">Aucun coach dans cette classe.</li>
+      {% endfor %}
+      </ul>
+      {% if can_manage %}
+      <div class="card-body border-top">
+        {% if coach_choices %}
+        <form class="row g-2 align-items-end" method="post">{{ csrf() }}
+          <div class="col-md-5"><label class="form-label" for="coach-user">{{ 'Ajouter un coach' if is_admin else 'Inviter un coach' }}</label>
+            <select class="form-select" id="coach-user" name="user_id" required><option value="">Choisir…</option>
+              {% for u in coach_choices %}<option value="{{ u.id }}">{{ u.display_name }} · {{ u.role_label }}</option>{% endfor %}</select></div>
+          <div class="col-md-4"><label class="form-label" for="coach-role">Fonction dans la classe</label>
+            <select class="form-select" id="coach-role" name="role_id">{{ role_options() }}</select></div>
+          <div class="col-md-3"><button class="btn btn-primary w-100" name="action" value="coach_add">
+            <i class="bi bi-{{ 'person-plus' if is_admin else 'send' }}"></i> {{ 'Ajouter' if is_admin else 'Inviter' }}</button></div>
+          {% if is_admin %}<div class="col-12"><label class="form-check small mb-0"><input class="form-check-input" type="checkbox" name="is_manager" value="1">
+            Gestionnaire de la classe (pouvoirs d'un coach du SAS : étudiants, séances, appels, notifications, invitation de coachs)</label></div>{% endif %}
+        </form>
+        {% else %}<p class="small text-muted mb-0">Tous les coachs actifs sont déjà dans la classe ou invités.</p>{% endif %}
+        {% if is_admin %}<p class="small text-muted mb-0 mt-2">Fonctions : <a href="{{ url_for('zeus.class_roles') }}">rôles de classe</a>.
+          Un coach ajouté par l'administrateur fait partie de la classe tout de suite ; invité par un gestionnaire, il accepte depuis Zeus.</p>{% endif %}
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="card"><div class="card-header"><i class="bi bi-people"></i> Étudiants</div>
+      <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
       <thead><tr><th></th><th>Nom et prénoms</th><th>Matricule DFS</th><th>Statut</th>{% if can_manage %}<th></th>{% endif %}</tr></thead>
       <tbody>
       {% for m in k.members %}{% set c = m.enrollment.candidate %}

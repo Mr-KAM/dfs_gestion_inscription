@@ -1,6 +1,7 @@
 """Zeus mode: admin switch, landing at login, classes + invitations, courses, calendar, roll calls by DFS QR code."""
 from app.models import (Cohort, CohortCoach, Defense, Enrollment, Jury, JuryCandidate, Notification, Sas,
-                        ZeusAttendance, ZeusClass, ZeusClassMember, ZeusCourse, ZeusSession)
+                        ZeusAttendance, ZeusClass, ZeusClassCoach, ZeusClassMember, ZeusClassRole, ZeusCourse,
+                        ZeusNotification, ZeusSession)
 from app.services import account_service, campus_service, defense_service, zeus_service
 from app.services.candidate_service import decode_matricule, encode_matricule
 from app.utils import utcnow
@@ -56,7 +57,7 @@ def test_zeus_flow(app, db, client, admin):
     # Coach technique: creates a class and invites the registered students (a forged id is ignored).
     client.post(f"/zeus/cohortes/{cohort.id}/classes", data={"name": "Web"})
     klass = ZeusClass.query.one()
-    assert klass.coach_id == coach.id
+    assert klass.coach == coach and klass.staff[0].is_manager  # the creator manages it
     client.post(f"/zeus/classes/{klass.id}", data={"action": "invite",
                                                    "enrollment_ids": [alpha.id, bravo.id, pending.id]})
     assert {m.enrollment_id for m in ZeusClassMember.query} == {alpha.id, bravo.id}
@@ -180,3 +181,76 @@ def test_registered_student_no_longer_sees_his_sas_results(app, db):
     assert [n.title for n in campus_service.notifications_for(alpha.candidate)] == ["Info SAS"]
     assert len(defense_service.published_results(charlie.candidate)) == 1  # eligible, not registered yet
     assert {n.title for n in campus_service.notifications_for(charlie.candidate)} == {"Résultat", "Info SAS"}
+
+
+def test_class_staff_roles_and_managers(app, db, client, admin):
+    """Admin: class roles, edit / delete a class, coaches with a function, managers. A manager has a SAS coach's
+    powers on his class and invites coaches; a plain coach of the class does roll calls and writes to it."""
+    zeus_service.set_enabled(True)
+    cohort = Cohort(name="2026-2027")
+    db.session.add(cohort)
+    alpha = _student(db, cohort, "ALPHA", "26DFS000001")
+    lead, helper = make_user("coach", "lead@test.ci"), make_user("trade_coach", "helper@test.ci")
+
+    login(client, admin)
+    for name in ("Formateur principal", "Assistant"):
+        client.post("/zeus/roles-de-classe", data={"name": name})
+    main_role, assistant = (ZeusClassRole.query.filter_by(name=n).one() for n in ("Formateur principal", "Assistant"))
+    client.post(f"/zeus/cohortes/{cohort.id}/classes", data={"name": "Web"})
+    k = ZeusClass.query.one()
+    assert k.coaches == []  # created by the admin: no manager yet
+    client.post(f"/zeus/classes/{k.id}", data={"action": "edit", "name": "Web 1", "description": "Matin"})
+    client.post(f"/zeus/classes/{k.id}", data={"action": "coach_add", "user_id": lead.id, "role_id": main_role.id,
+                                               "is_manager": "1"})
+    client.post(f"/zeus/cohortes/{cohort.id}/cours", data={"name": "Python", "hours": "20"})
+    client.post("/logout")
+    db.session.expire_all()
+    assert (k.name, k.description, k.coach, k.staff[0].function) == ("Web 1", "Matin", lead, "Formateur principal")
+
+    # The manager (no cohort-level access: the class alone opens Zeus to him) runs the class.
+    login(client, lead)
+    assert client.get("/zeus/").status_code == 200
+    client.post(f"/zeus/classes/{k.id}", data={"action": "invite", "enrollment_ids": [alpha.id]})
+    client.post(f"/zeus/classes/{k.id}", data={"action": "coach_add", "user_id": helper.id, "role_id": assistant.id,
+                                               "is_manager": "1"})  # a manager cannot name a manager
+    assert client.post(f"/zeus/classes/{k.id}", data={"action": "edit", "name": "X"}).status_code == 403
+    assert client.post(f"/zeus/classes/{k.id}", data={"action": "delete"}).status_code == 403
+    course = ZeusCourse.query.one()
+    slot = {"cohort_id": cohort.id, "course_id": course.id, "starts_at": "2026-01-05T08:00", "ends_at": "2026-01-05T10:00"}
+    assert client.post("/zeus/calendrier", data=slot).status_code == 403  # whole cohort: cohort level only
+    client.post("/zeus/calendrier", data={**slot, "class_id": k.id})
+    client.post("/logout")
+    db.session.expire_all()
+    invite = ZeusClassCoach.query.filter_by(user_id=helper.id).one()
+    assert (invite.accepted_at, invite.is_manager, invite.function) == (None, False, "Assistant")
+    s = ZeusSession.query.one()
+
+    portal_login(client, "ALPHA@test.ci")
+    client.post(f"/zeus/invitations/{ZeusClassMember.query.one().id}", data={"accept": "1"})
+    client.post("/logout")
+
+    # The invited coach answers in Zeus, then calls the roll and writes to the class, not to the whole cohort.
+    login(client, helper)
+    assert "Invitation à rejoindre l'équipe de la classe" in client.get("/zeus/").get_data(as_text=True)
+    client.post(f"/zeus/invitations-coach/{invite.id}", data={"accept": "1"})
+    assert client.post(f"/zeus/classes/{k.id}", data={"action": "invite", "enrollment_ids": []}).status_code == 403
+    client.post(f"/zeus/seances/{s.id}", data={"present": [alpha.id]})
+    client.post("/zeus/notifications", data={"target": f"{cohort.id}/class:{k.id}", "title": "Cours décalé"})
+    client.post("/zeus/notifications", data={"target": f"{cohort.id}/cohort", "title": "Refus-cohorte"})
+    client.post("/logout")
+    assert ZeusAttendance.query.count() == 1
+    assert [n.title for n in ZeusNotification.query] == ["Cours décalé"]
+
+    # Admin: deleting a role keeps its coaches (no function); a class with a roll call cannot be deleted.
+    login(client, admin)
+    client.post("/zeus/roles-de-classe", data={"role_id": assistant.id, "delete": "1"})
+    html = client.post(f"/zeus/classes/{k.id}", data={"action": "delete"}, follow_redirects=True).get_data(as_text=True)
+    assert "des appels ont été faits" in html
+    client.post(f"/zeus/cohortes/{cohort.id}/classes", data={"name": "Vide"})
+    empty = ZeusClass.query.filter_by(name="Vide").one()
+    client.post(f"/zeus/classes/{empty.id}", data={"action": "delete"})
+    db.session.expire_all()
+    assert ZeusClassCoach.query.filter_by(user_id=helper.id).one().function == "Coach"
+    assert [c.name for c in ZeusClass.query] == ["Web 1"]
+    for url in (f"/zeus/classes/{k.id}", "/zeus/roles-de-classe", "/zeus/classes", "/zeus/calendrier"):
+        assert client.get(url).status_code == 200, url

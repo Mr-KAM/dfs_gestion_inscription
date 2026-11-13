@@ -29,11 +29,11 @@
       <h2 class="h6"><i class="bi bi-send"></i> Envoyer une notification</h2>
       <div class="mb-2"><label class="form-label" for="target">Destinataires</label>
         <select class="form-select" id="target" name="target" required>
-        {% for cohort, classes in targets %}
+        {% for cohort, classes, full in targets %}
           <optgroup label="Cohorte {{ cohort.name }}">
-            <option value="{{ cohort.id }}/cohort">Toute la cohorte {{ cohort.name }}</option>
+            {% if full %}<option value="{{ cohort.id }}/cohort">Toute la cohorte {{ cohort.name }}</option>{% endif %}
             {% for k in classes %}<option value="{{ cohort.id }}/class:{{ k.id }}">Classe {{ k.name }}</option>{% endfor %}
-            {% for e in cohort.enrollments | selectattr('matricule') | sort(attribute='candidate.full_name') %}
+            {% for e in (cohort.enrollments if full else []) | selectattr('matricule') | sort(attribute='candidate.full_name') %}
               <option value="{{ cohort.id }}/student:{{ e.id }}">{{ e.candidate.full_name }} · {{ e.matricule }}</option>{% endfor %}
           </optgroup>
         {% endfor %}

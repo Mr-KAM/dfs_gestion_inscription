@@ -5,8 +5,8 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import or_, select
 
 from app.extensions import db
-from app.models import (Cohort, Enrollment, User, ZeusAttendance, ZeusClass, ZeusClassMember, ZeusCourse,
-                        ZeusNotification, ZeusSession)
+from app.models import (Cohort, Enrollment, User, ZeusAttendance, ZeusClass, ZeusClassCoach, ZeusClassMember,
+                        ZeusClassRole, ZeusCourse, ZeusNotification, ZeusSession)
 from app.models.user import COACH_ROLES, ROLE_ADMIN, ROLE_COACH, ROLE_RECEPTION, ROLE_RESIDENCE
 from app.models.zeus import METHOD_MANUAL, METHOD_SCAN
 from app.services import audit_service, settings_service
@@ -36,11 +36,12 @@ def student_enrollment(user) -> Enrollment | None:
 
 
 def can_enter(user) -> bool:
-    """Zeus users: admin, reception, residence, the coaches of a cohort, the registered students."""
+    """Zeus users: admin, reception, residence, the coaches of a cohort or of a class (an invitation to answer
+    counts), the registered students."""
     if user.role in DESK_ROLES:
         return True
     if user.role in COACH_ROLES:
-        return bool(user.cohort_roles)
+        return bool(user.cohort_roles or user.zeus_class_links)
     return student_enrollment(user) is not None
 
 
@@ -57,8 +58,10 @@ def stays_in_zeus(user) -> bool:
 def cohorts_for(user) -> list[Cohort]:
     if user.role in DESK_ROLES:
         return db.session.scalars(select(Cohort).order_by(Cohort.created_at.desc())).all()
-    if user.role in COACH_ROLES:
-        return [cc.cohort for cc in user.cohort_roles]
+    if user.role in COACH_ROLES:  # the cohorts the admin gave him, and those of the classes he teaches in
+        cohorts = [cc.cohort for cc in user.cohort_roles]
+        cohorts += [link.klass.cohort for link in user.zeus_class_links if link.accepted_at]
+        return list(dict.fromkeys(cohorts))
     e = student_enrollment(user)
     return [e.cohort] if e else []
 
@@ -68,17 +71,43 @@ def can_see(user, cohort: Cohort) -> bool:
 
 
 def can_manage(user, cohort: Cohort) -> bool:
-    """Classes, courses, sessions: the admin, or a coach technique the admin gave access to the cohort."""
+    """Cohort level (create classes, courses, any session): the admin, or a coach technique of the cohort."""
     return user.role == ROLE_ADMIN or (user.role == ROLE_COACH and any(cc.user_id == user.id for cc in cohort.coaches))
 
 
+def class_link(user, klass: ZeusClass) -> ZeusClassCoach | None:
+    """The user's accepted place in the class's teaching staff."""
+    return next((c for c in klass.coaches if c.user_id == user.id and c.accepted_at), None)
+
+
+def can_manage_class(user, klass: ZeusClass) -> bool:
+    """A SAS coach's powers on the class: students, sessions, roll calls, notifications; invites coaches.
+    The admin, or a manager of the class (named by the admin; the coach who created it)."""
+    link = class_link(user, klass)
+    return user.role == ROLE_ADMIN or bool(link and link.is_manager)
+
+
+def can_teach_class(user, klass: ZeusClass) -> bool:
+    """Any coach of the class (roll calls of its sessions, notifications to it), managers included."""
+    return can_manage_class(user, klass) or class_link(user, klass) is not None
+
+
+def can_schedule(user, cohort: Cohort, klass: ZeusClass | None = None) -> bool:
+    """Programme a session: for the whole cohort (cohort level), or for a class one manages."""
+    return can_manage(user, cohort) or (klass is not None and can_manage_class(user, klass))
+
+
 def can_call(user, session: ZeusSession) -> bool:
-    """Roll call: whoever manages the cohort, or the coach (technique or métier) giving the session."""
-    return can_manage(user, session.course.cohort) or session.coach_id == user.id
+    """Roll call: cohort level, the coach giving the session, or a coach of the session's class."""
+    return (can_manage(user, session.course.cohort) or session.coach_id == user.id
+            or (session.klass is not None and can_teach_class(user, session.klass)))
 
 
 def cohort_coaches(cohort: Cohort) -> list[User]:
-    return [cc.user for cc in cohort.coaches]
+    """The cohort's coaches and its classes' coaches (course / session coach choices)."""
+    users = [cc.user for cc in cohort.coaches]
+    users += [c.user for k in classes_of(cohort) for c in k.staff]
+    return list(dict.fromkeys(users))
 
 
 # ---- classes and invitations
@@ -89,12 +118,129 @@ def create_class(cohort: Cohort, name: str, user) -> ZeusClass:
         raise BusinessError("Indiquez le nom de la classe.")
     if any(k.name == name for k in classes_of(cohort)):
         raise BusinessError(f"La classe « {name} » existe déjà dans cette cohorte.")
-    klass = ZeusClass(cohort=cohort, name=name, coach_id=user.id if user.role in COACH_ROLES else None)
+    klass = ZeusClass(cohort=cohort, name=name)
     db.session.add(klass)
+    if user.role in COACH_ROLES:  # the coach who creates it manages it
+        db.session.add(ZeusClassCoach(klass=klass, user=user, is_manager=True, invited_by=user.id, accepted_at=utcnow()))
     db.session.flush()
     audit_service.log("zeus_update", klass, {"class": name, "cohort": cohort.name})
     db.session.commit()
     return klass
+
+
+def update_class(klass: ZeusClass, form) -> None:
+    """Admin: name and description."""
+    name = form.get("name", "").strip()[:80]
+    if not name:
+        raise BusinessError("Indiquez le nom de la classe.")
+    if any(k.name == name and k.id != klass.id for k in classes_of(klass.cohort)):
+        raise BusinessError(f"La classe « {name} » existe déjà dans cette cohorte.")
+    audit_service.log("zeus_update", klass, {"class_renamed": [klass.name, name]})
+    klass.name, klass.description = name, form.get("description", "").strip()[:255]
+    db.session.commit()
+
+
+def delete_class(klass: ZeusClass) -> None:
+    """Admin. Its sessions go with it; refused once a roll call was taken in one of them (attendance history)."""
+    sessions = db.session.scalars(select(ZeusSession).where(ZeusSession.class_id == klass.id)).all()
+    if any(s.marks for s in sessions):
+        raise BusinessError(f"Suppression impossible : des appels ont été faits dans les séances de « {klass.name} ». "
+                            "Retirez plutôt ses étudiants.")
+    audit_service.log("zeus_update", klass.cohort, {"class_deleted": klass.name, "sessions": len(sessions)})
+    db.session.delete(klass)
+    db.session.commit()
+
+
+# ---- teaching staff of a class, and the catalogue of class roles
+
+def class_roles() -> list[ZeusClassRole]:
+    return db.session.scalars(select(ZeusClassRole).order_by(ZeusClassRole.name)).all()
+
+
+def save_class_role(form, role: ZeusClassRole | None = None) -> ZeusClassRole:
+    name = form.get("name", "").strip()[:80]
+    if not name:
+        raise BusinessError("Indiquez le nom du rôle.")
+    if db.session.scalar(select(ZeusClassRole.id).where(ZeusClassRole.name == name,
+                                                        ZeusClassRole.id != (role.id if role else 0))):
+        raise BusinessError(f"Le rôle « {name} » existe déjà.")
+    role = role or ZeusClassRole()
+    role.name, role.description = name, form.get("description", "").strip()[:255]
+    db.session.add(role)
+    db.session.flush()
+    audit_service.log("zeus_update", role, {"class_role": name})
+    db.session.commit()
+    return role
+
+
+def delete_class_role(role: ZeusClassRole) -> None:
+    """The coaches holding it keep their place in the class, without function (FK SET NULL)."""
+    audit_service.log("zeus_update", details={"class_role_deleted": role.name})
+    db.session.delete(role)
+    db.session.commit()
+
+
+def coach_choices(klass: ZeusClass) -> list[User]:
+    """Active coaches (technique or métier) not yet in the class's staff or invited to it."""
+    taken = {c.user_id for c in klass.coaches}
+    return [u for u in db.session.scalars(select(User).where(User.role.in_(COACH_ROLES), User.active)
+                                          .order_by(User.full_name)) if u.id not in taken]
+
+
+def _class_role(role_id) -> ZeusClassRole | None:
+    if not role_id:
+        return None
+    role = db.session.get(ZeusClassRole, role_id)
+    if role is None:
+        raise BusinessError("Rôle de classe inconnu.")
+    return role
+
+
+def add_coach(klass: ZeusClass, form, user) -> ZeusClassCoach:
+    """Admin: added at once (no invitation), possibly as manager. A class manager: invites (he answers in Zeus),
+    never as manager."""
+    coach = next((u for u in coach_choices(klass) if u.id == form.get("user_id", type=int)), None)
+    if coach is None:
+        raise BusinessError("Choisissez un coach actif qui n'est pas encore dans la classe.")
+    by_admin = user.role == ROLE_ADMIN
+    link = ZeusClassCoach(klass=klass, user=coach, role=_class_role(form.get("role_id", type=int)),
+                          is_manager=by_admin and form.get("is_manager") == "1", invited_by=user.id,
+                          accepted_at=utcnow() if by_admin else None)
+    db.session.add(link)
+    audit_service.log("zeus_update", klass, {"coach_added" if by_admin else "coach_invited": coach.email,
+                                             "function": link.function, "manager": link.is_manager})
+    db.session.commit()
+    return link
+
+
+def update_coach(link: ZeusClassCoach, form, user) -> None:
+    """Function (admin, or a manager for a non-manager coach); manager or not: admin only."""
+    link.role = _class_role(form.get("role_id", type=int))
+    if user.role == ROLE_ADMIN:
+        link.is_manager = form.get("is_manager") == "1"
+    audit_service.log("zeus_update", link.klass, {"coach": link.user.email, "function": link.function,
+                                                  "manager": link.is_manager})
+    db.session.commit()
+
+
+def remove_coach(link: ZeusClassCoach) -> None:
+    audit_service.log("zeus_update", link.klass, {"coach_removed": link.user.email})
+    db.session.delete(link)
+    db.session.commit()
+
+
+def coach_invitations_for(user) -> list[ZeusClassCoach]:
+    return [link for link in user.zeus_class_links if not link.accepted_at]
+
+
+def answer_coach(link: ZeusClassCoach, accept: bool) -> None:
+    audit_service.log("zeus_update", link.klass, {"coach_answer": "accepted" if accept else "declined",
+                                                  "coach": link.user.email})
+    if accept:
+        link.accepted_at = utcnow()
+    else:
+        db.session.delete(link)
+    db.session.commit()
 
 
 def classes_of(cohort: Cohort) -> list[ZeusClass]:
@@ -236,6 +382,17 @@ def can_notify(user, cohort: Cohort) -> bool:
     return user.role in (ROLE_ADMIN, ROLE_RECEPTION) or any(cc.user_id == user.id for cc in cohort.coaches)
 
 
+def notification_targets(user) -> list[tuple[Cohort, list[ZeusClass], bool]]:
+    """(cohort, classes he may write to, whole cohort and its students too?) for the send form."""
+    targets = []
+    for cohort in cohorts_for(user):
+        full = can_notify(user, cohort)
+        classes = [k for k in classes_of(cohort) if full or can_teach_class(user, k)]
+        if full or classes:
+            targets.append((cohort, classes, full))
+    return targets
+
+
 def send_notification(cohort: Cohort, target: str, form, user) -> ZeusNotification:
     """target: "cohort", "class:<id>" (a class of the cohort) or "student:<id>" (a registered student of it)."""
     title = form.get("title", "").strip()[:150]
@@ -251,6 +408,8 @@ def send_notification(cohort: Cohort, target: str, form, user) -> ZeusNotificati
         n.enrollment = next((e for e in cohort.enrollments if e.matricule and str(e.id) == target_id), None)
         if n.enrollment is None:
             raise BusinessError("Choisissez un étudiant inscrit de la cohorte.")
+    if not (can_notify(user, cohort) or (n.klass is not None and can_teach_class(user, n.klass))):
+        raise BusinessError("Vous ne pouvez écrire qu'aux classes dont vous êtes coach.")
     db.session.add(n)
     db.session.flush()
     audit_service.log("zeus_update", n, {"notification": title, "to": n.target_label})

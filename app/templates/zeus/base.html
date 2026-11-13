@@ -67,6 +67,7 @@
       {% if not student %}{{ nav('zeus.calendar', 'calendar-week', 'Calendrier des cours') }}{% else %}{{ nav('zeus.calendar', 'calendar-week', 'Mon calendrier') }}{% endif %}
       {{ nav('zeus.roll_calls', 'person-check', 'Mes présences' if student else 'Appels', 'zeus.session') }}
       {{ nav('zeus.notifications', 'megaphone', 'Notifications') }}
+      {% if role == 'admin' %}{{ nav('zeus.class_roles', 'person-badge', 'Rôles de classe') }}{% endif %}
       <div class="nav-section">Mon compte</div>
       {{ nav('portal.profile' if student else 'auth.profile', 'person-circle', 'Mon profil') }}
       {% if student %}{{ nav('portal.password', 'key', 'Mot de passe') }}{% endif %}

@@ -1,5 +1,6 @@
 {% extends "zeus/base.html" %}
 {% from "_macros.html" import csrf, empty, stat %}
+{% import "_brand.html" as brand %}
 {% block title %}Accueil{% endblock %}
 {% block content %}
 {% if splash %}
@@ -13,6 +14,7 @@
 {% endif %}
 
 <div class="zeus-hero">
+  {{ brand.pixels() }}
   <div class="eyebrow mb-1">Espace Zeus · {{ current_user.role_label }}</div>
   <h1 class="page-title">Bonjour, {{ e.candidate.full_name if e else current_user.display_name }}</h1>
   {% if e %}<div class="mt-2">Cohorte de formation {{ e.cohort.name }} · Matricule DFS <code class="fs-5">{{ e.matricule }}</code></div>{% endif %}
@@ -73,6 +75,7 @@
     </div>
   </div>
 {% else %}
+  {% include "zeus/_coach_invitations.html" %}
   <div class="group-label">Mes cohortes de formation</div>
   <div class="row g-3 mb-4">
   {% for c in cohorts %}

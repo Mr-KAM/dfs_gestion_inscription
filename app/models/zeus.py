@@ -6,26 +6,73 @@ from app.utils import as_utc, utcnow
 METHOD_SCAN, METHOD_MANUAL = "scan", "manual"
 
 
+class ZeusClassRole(db.Model):
+    """A function a coach may hold in a class ("Formateur principal", "Assistant"...): catalogue kept by the admin."""
+    __tablename__ = "zeus_class_roles"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(80), unique=True, nullable=False)
+    description = db.Column(db.String(255), default="")
+
+
 class ZeusClass(db.Model):
-    """Created by the admin or a coach technique of the cohort; students join on invitation."""
+    """Created by the admin or a coach technique of the cohort (then its manager); students join on invitation."""
     __tablename__ = "zeus_classes"
 
     id = db.Column(db.Integer, primary_key=True)
     cohort_id = db.Column(db.Integer, db.ForeignKey("cohorts.id", ondelete="CASCADE"), nullable=False, index=True)
     name = db.Column(db.String(80), nullable=False)
-    coach_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
+    description = db.Column(db.String(255), default="")
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
 
     cohort = db.relationship("Cohort")
-    coach = db.relationship("User")
     members = db.relationship("ZeusClassMember", back_populates="klass", cascade="all, delete-orphan",
                               order_by="ZeusClassMember.id")
+    coaches = db.relationship("ZeusClassCoach", back_populates="klass", cascade="all, delete-orphan",
+                              order_by="ZeusClassCoach.id")
 
     __table_args__ = (db.UniqueConstraint("cohort_id", "name", name="uq_zeus_classes_cohort_name"),)
 
     @property
     def joined(self) -> list:
         return [m for m in self.members if m.joined_at]
+
+    @property
+    def staff(self) -> list:
+        """Coaches who accepted (or were added by the admin), managers first."""
+        return sorted((c for c in self.coaches if c.accepted_at), key=lambda c: not c.is_manager)
+
+    @property
+    def coach(self):
+        """The main coach shown in the lists: the first manager."""
+        return next((c.user for c in self.staff if c.is_manager), None)
+
+
+class ZeusClassCoach(db.Model):
+    """A coach of a class, with his function in it. The manager has a SAS coach's powers on the class (students,
+    roll calls, notifications, sessions) and invites other coaches. accepted_at empty = invitation pending."""
+    __tablename__ = "zeus_class_coaches"
+
+    id = db.Column(db.Integer, primary_key=True)
+    class_id = db.Column(db.Integer, db.ForeignKey("zeus_classes.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    role_id = db.Column(db.Integer, db.ForeignKey("zeus_class_roles.id", ondelete="SET NULL"))
+    is_manager = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
+    invited_by = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
+    invited_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    accepted_at = db.Column(db.DateTime(timezone=True))
+
+    klass = db.relationship("ZeusClass", back_populates="coaches")
+    user = db.relationship("User", foreign_keys=[user_id],
+                           backref=db.backref("zeus_class_links", cascade="all, delete-orphan"))
+    role = db.relationship("ZeusClassRole")
+    inviter = db.relationship("User", foreign_keys=[invited_by])
+
+    __table_args__ = (db.UniqueConstraint("class_id", "user_id", name="uq_zeus_class_coaches_class_user"),)
+
+    @property
+    def function(self) -> str:
+        return self.role.name if self.role else ("Gestionnaire" if self.is_manager else "Coach")
 
 
 class ZeusClassMember(db.Model):
