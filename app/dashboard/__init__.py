@@ -12,12 +12,14 @@ bp = Blueprint("dashboard", __name__)
 @login_required
 def index():
     """One URL, role-specific dashboard. `?partial=1` returns the polled fragment."""
-    # Zeus mode: its users always land in Zeus; the admin right after login (he runs the classic side too), or
-    # whenever he comes in on the Zeus domain (even before the mode is on: he prepares it).
+    # Zeus mode: its users come back to Zeus here; the admin only right after login (on the Zeus domain even with
+    # the mode off: he prepares it). ?classique=1, Zeus's "Classique" button: always the classic side, and it also
+    # drops a landing flag left by a login that went straight to a Zeus page.
     landing = session.pop("zeus_landing", False)
-    on_zeus_domain = site_service.current_site() == site_service.ZEUS
-    if (zeus_service.stays_in_zeus(current_user) or (landing and zeus_service.lands_in_zeus(current_user))
-            or (on_zeus_domain and current_user.role == ROLE_ADMIN)):
+    if request.args.get("classique") != "1" and (
+            zeus_service.stays_in_zeus(current_user)
+            or (landing and (zeus_service.lands_in_zeus(current_user) or (
+                current_user.role == ROLE_ADMIN and site_service.current_site() == site_service.ZEUS)))):
         return redirect(url_for("zeus.home"))
     if current_user.is_candidate:
         return redirect(url_for("portal.home"))

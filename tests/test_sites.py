@@ -97,3 +97,32 @@ def test_mail_goes_through_the_domain_smtp(app, db, monkeypatch):
     db.session.commit()
     site_service.send_mail("a@test.ci", "Sujet", "Corps", site="zeus")
     assert sent == [("smtp.zeus.ci", 587), "starttls", ("zeus", "pw"), ("Zeus <z@zeus.ci>", "a@test.ci", "Sujet")]
+
+
+def test_classic_button_leaves_zeus(client, admin, db):
+    """The "Classique" button of Zeus always reaches the classic interface: on the Zeus domain too, and even when
+    the login went straight to a Zeus page (landing flag not consumed yet)."""
+    settings_service.set_many({"zeus_base_url": ZEUS, "recruitment_base_url": RECRUIT})
+    zeus_service.set_enabled(True)
+    db.session.commit()
+    for base in (ZEUS, RECRUIT):
+        client.post("/login?next=/zeus/", base_url=base, data={"email": admin.email, "password": PASSWORD})
+        html = client.get("/zeus/", base_url=base).get_data(as_text=True)
+        classic = html.split('title="Interface classique"')[0].rsplit('href="', 1)[1].split('"')[0]
+        page = client.get(classic, base_url=base, follow_redirects=True)
+        assert page.request.path == "/", (base, classic)  # the admin dashboard, not /zeus/
+        assert client.get("/", base_url=base).status_code == 200  # and he stays there
+        client.post("/logout", base_url=base)
+
+
+def test_classic_button_for_a_coach(client, db):
+    """A coach of a cohort: Zeus is his home, the button still reaches his classic SAS pages."""
+    from app.models import CohortCoach
+    from tests.conftest import make_user
+    zeus_service.set_enabled(True)
+    coach = make_user("coach")
+    db.session.add(CohortCoach(cohort=Cohort(name="2026-2027"), user=coach, role="Tuteur"))
+    db.session.commit()
+    login(client, coach)
+    assert client.get("/", follow_redirects=True).request.path == "/zeus/"
+    assert client.get("/?classique=1", follow_redirects=True).request.path == "/campus/"

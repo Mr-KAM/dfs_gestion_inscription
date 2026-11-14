@@ -50,7 +50,7 @@
       {{ avatar(me, url_for('portal.photo' if student else 'auth.photo'), 34) }}
     </a>
     {# Students live in Zeus only (no SAS results); staff keep their classic pages (the home brings them back here). #}
-    {% set classic = None if student else url_for('dashboard.index' if role == 'admin' else 'campus.index') %}
+    {% set classic = None if student else url_for('dashboard.index', classique=1) %}
     {% if classic %}<a class="btn btn-sm btn-outline-secondary" href="{{ classic }}" title="Interface classique">
       <i class="bi bi-arrow-left-right"></i><span class="d-none d-lg-inline"> Classique</span></a>{% endif %}
     {% set label = 'Passer en mode jour' if night else 'Passer en mode nuit' %}
