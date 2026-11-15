@@ -17,13 +17,12 @@ ROLE_RESIDENCE = "residence"    # residence: bedrooms and equipment
 ROLE_TRADE_COACH = "trade_coach"  # coach métier: like a coach in the classes he is invited to, creates none, no follow-up evaluation
 ROLE_PARTNER = "partner"          # external partner: jury member only
 ROLE_CME = "cme"                  # conseiller médiation emploi: jury member only
-# Direction, finance and library: jury space + profile, like partner / CME, until their own pages are defined.
-ROLE_DG = "dg"
+ROLE_DG = "dg"                    # direction: statistics (recruitment, SAS, juries, cohorts) + activities calendar
 ROLE_DGA = "dga"
 ROLE_DF = "df"
 ROLE_DFA = "dfa"
 ROLE_DAF = "daf"
-ROLE_LIBRARIAN = "librarian"
+ROLE_LIBRARIAN = "librarian"      # the library: books, loan requests, borrowers
 ROLES = {
     ROLE_ADMIN: "Administrateur",
     ROLE_SUPERVISOR: "Superviseur",
@@ -48,9 +47,11 @@ TECHNICAL_ROLES = (ROLE_ADMIN, ROLE_SUPERVISOR, ROLE_TECHNICAL)
 RECRUITMENT_ROLES = (ROLE_ADMIN, ROLE_SUPERVISOR, ROLE_MOTIVATION, ROLE_TECHNICAL)  # candidate list / files
 CAMPUS_ROLES = (ROLE_ADMIN, ROLE_COACH, ROLE_TRADE_COACH, ROLE_RECEPTION, ROLE_RESIDENCE)  # SAS life (/campus)
 COACH_ROLES = (ROLE_COACH, ROLE_TRADE_COACH)  # teach in their classes (coach_classes); only ROLE_COACH creates them
-# ponytail: jury space + profile only, until their own pages are defined.
-JURY_ONLY_ROLES = (ROLE_PARTNER, ROLE_CME,
-                   ROLE_DG, ROLE_DGA, ROLE_DF, ROLE_DFA, ROLE_DAF, ROLE_LIBRARIAN)
+DIRECTION_ROLES = (ROLE_DG, ROLE_DGA)            # read every statistic, plan the activities
+PLANNER_ROLES = (ROLE_ADMIN, *DIRECTION_ROLES)  # activities calendar: create, delete, see all
+LIBRARY_ROLES = (ROLE_ADMIN, ROLE_LIBRARIAN)    # manage the library
+# ponytail: jury space + profile (+ the library, open to all) only, until their own pages are defined.
+JURY_ONLY_ROLES = (ROLE_PARTNER, ROLE_CME, ROLE_DF, ROLE_DFA, ROLE_DAF, ROLE_LIBRARIAN)
 
 # Candidates log in to their own space only; never part of ROLES / ALL_ROLES.
 ROLE_CANDIDATE = "candidate"
@@ -122,8 +123,12 @@ class User(UserMixin, db.Model):
 
     @property
     def is_jury_only(self) -> bool:
-        """Partner, CME, direction, finance, library: jury space + profile."""
+        """Partner, CME, finance, library: jury space + profile."""
         return self.role in JURY_ONLY_ROLES
+
+    @property
+    def is_direction(self) -> bool:
+        return self.role in DIRECTION_ROLES
 
     @property
     def display_name(self) -> str:

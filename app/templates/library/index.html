@@ -1,0 +1,65 @@
+{% extends layout %}
+{% from "_macros.html" import csrf, empty, page_head, status %}
+{% block title %}Bibliothèque{% endblock %}
+{% block content %}
+{% call page_head('Bibliothèque', eyebrow='Livres numériques et physiques',
+                  subtitle='Les livres numériques s\'ouvrent par leur lien ; les livres physiques se demandent au responsable de la bibliothèque.') %}
+  {% if current_user.role in ('admin', 'librarian') %}<a class="btn btn-primary" href="{{ url_for('library.manage') }}"><i class="bi bi-gear"></i> Gérer la bibliothèque</a>{% endif %}
+{% endcall %}
+<div class="row g-3">
+  <div class="col-lg-8">
+    <form class="card card-body mb-3 row g-2 align-items-end mx-0 flex-row" method="get">
+      <div class="col-md-7"><label class="form-label" for="q">Rechercher</label>
+        <input class="form-control" id="q" name="q" value="{{ q }}" placeholder="Titre, auteur, catégorie, cote…"></div>
+      <div class="col-md-3"><label class="form-label" for="kind">Type</label>
+        <select class="form-select" id="kind" name="kind"><option value="">Tous</option>
+          {% for k, label in kinds.items() %}<option value="{{ k }}" {{ 'selected' if kind == k }}>{{ label }}</option>{% endfor %}</select></div>
+      <div class="col-md-2"><button class="btn btn-outline-primary w-100"><i class="bi bi-search"></i> Filtrer</button></div>
+    </form>
+    <div class="card"><ul class="list-group list-group-flush">
+    {% for b in books %}
+      <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div class="min-w-0">
+          <div><i class="bi bi-{{ 'cloud' if b.is_digital else 'book' }}" aria-hidden="true"></i> <strong>{{ b.title }}</strong>
+            <span class="status status-{{ 'info' if b.is_digital else 'secondary' }}">{{ kinds[b.kind] }}</span></div>
+          <div class="small text-muted">{{ b.author }}{% if b.category %} · {{ b.category }}{% endif %}{% if b.reference %} · {{ b.reference }}{% endif %}</div>
+          {% if b.description %}<div class="small mt-1">{{ b.description | truncate(200) }}</div>{% endif %}
+        </div>
+        {% if b.is_digital %}
+          <a class="btn btn-sm btn-outline-primary" href="{{ b.url }}" target="_blank" rel="noopener noreferrer"><i class="bi bi-box-arrow-up-right"></i> Lire</a>
+        {% else %}
+          <div class="d-flex align-items-center gap-2">
+            <span class="small {{ 'text-success' if b.available > 0 else 'text-danger' }}">{{ b.available }} / {{ b.copies }} disponible(s)</span>
+            {% if b.id in open_ids %}<span class="status status-warning">Demande en cours</span>
+            {% else %}<form method="post" action="{{ url_for('library.request_loan', book_id=b.id) }}">{{ csrf() }}
+              <button class="btn btn-sm btn-primary"><i class="bi bi-hand-index"></i> Demander</button></form>{% endif %}
+          </div>
+        {% endif %}
+      </li>
+    {% else %}
+      <li class="list-group-item">{{ empty('book', 'Aucun livre ' ~ ('trouvé.' if q or kind else 'dans le catalogue pour le moment.')) }}</li>
+    {% endfor %}
+    </ul></div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card"><div class="card-header"><i class="bi bi-bookmark"></i> Mes demandes et emprunts</div>
+      <ul class="list-group list-group-flush">
+      {% for loan in mine %}
+        <li class="list-group-item small">
+          <div class="d-flex justify-content-between gap-2"><strong>{{ loan.book.title }}</strong>{{ status(loan.badge) }}</div>
+          <div class="text-muted">Demandé le {{ loan.requested_at | dt('%d/%m/%Y') }}
+            {% if loan.borrowed_at %} · emprunté le {{ loan.borrowed_at | dt('%d/%m/%Y') }}{% endif %}
+            {% if loan.due_on and loan.status == 'borrowed' %} · à rendre le {{ loan.due_on | d }}{% if loan.is_late(today) %} <strong class="text-danger">en retard</strong>{% endif %}{% endif %}
+            {% if loan.returned_at %} · rendu le {{ loan.returned_at | dt('%d/%m/%Y') }}{% endif %}</div>
+          {% if loan.note %}<div>{{ loan.note }}</div>{% endif %}
+          {% if loan.status == 'requested' %}
+          <form class="mt-1" method="post" action="{{ url_for('library.cancel', loan_id=loan.id) }}">{{ csrf() }}
+            <button class="btn btn-sm btn-outline-secondary">Annuler la demande</button></form>{% endif %}
+        </li>
+      {% else %}
+        <li class="list-group-item small text-muted">Aucune demande pour le moment.</li>
+      {% endfor %}
+      </ul></div>
+  </div>
+</div>
+{% endblock %}

@@ -29,13 +29,19 @@
     <div class="card mb-2">
       <div class="card-header py-2"><span class="zeus-day {{ 'is-today' if key == today }}">{{ DAYS[loop.index0] }} {{ day | dt('%d/%m') }}</span></div>
       <ul class="list-group list-group-flush">
+      {% set ns = namespace(n=0) %}
+      {% for a in activities if (a.starts_at | dt('%Y-%m-%d')) == key %}{% set ns.n = ns.n + 1 %}
+        <li class="list-group-item zeus-session d-flex justify-content-between flex-wrap gap-2">
+          <span><i class="bi bi-calendar-event" aria-hidden="true"></i> <strong>{{ a.starts_at | dt('%H:%M') }} – {{ a.ends_at | dt('%H:%M') }}</strong> · {{ a.title }} <span class="status status-info">Activité</span></span>
+          <span class="small text-muted">{{ a.place }}</span></li>
+      {% endfor %}
       {% for s in sessions if (s.starts_at | dt('%Y-%m-%d')) == key %}
         <a class="list-group-item list-group-item-action zeus-session d-flex justify-content-between flex-wrap gap-2" href="{{ url_for('zeus.session', session_id=s.id) }}">
           <span><strong>{{ s.starts_at | dt('%H:%M') }} – {{ s.ends_at | dt('%H:%M') }}</strong> · {{ s.course.name }}
             <span class="small text-muted">· {{ s.klass.name if s.klass else 'toute la cohorte' }}{% if not selected and cohorts | length > 1 %} · {{ s.course.cohort.name }}{% endif %}</span></span>
           <span class="small text-muted">{{ s.coach.display_name if s.coach else '' }}{% if s.room %} · {{ s.room }}{% endif %}</span></a>
       {% else %}
-        <li class="list-group-item small text-muted">—</li>
+        {% if not ns.n %}<li class="list-group-item small text-muted">—</li>{% endif %}
       {% endfor %}
       </ul>
     </div>

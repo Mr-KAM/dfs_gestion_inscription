@@ -1,0 +1,32 @@
+{# One loan of a list: who, which book, dates, and the librarian's actions. `show` = 'book' | 'user' | 'both'. #}
+{% from "_macros.html" import csrf, status %}
+<li class="list-group-item">
+  <div class="d-flex justify-content-between flex-wrap gap-2">
+    <span>{% if show != 'user' %}<a href="{{ url_for('library.reader', user_id=loan.user_id) }}"><strong>{{ loan.user.display_name }}</strong></a>
+      <span class="small text-muted">{{ loan.user.role_label }}</span>{% endif %}
+      {% if show == 'both' %} · {% endif %}
+      {% if show != 'book' %}<a href="{{ url_for('library.book', book_id=loan.book_id) }}">{{ loan.book.title }}</a>{% endif %}</span>
+    <span>{{ status(loan.badge) }}{% if loan.is_late(today) %} <span class="status status-danger">En retard</span>{% endif %}</span>
+  </div>
+  <div class="small text-muted">Demandé le {{ loan.requested_at | dt }}
+    {% if loan.borrowed_at %} · emprunté le {{ loan.borrowed_at | dt }}{% endif %}
+    {% if loan.due_on %} · retour prévu le {{ loan.due_on | d }}{% endif %}
+    {% if loan.returned_at %} · rendu le {{ loan.returned_at | dt }}{% endif %}
+    {% if loan.decider %} · traité par {{ loan.decider.display_name }}{% endif %}</div>
+  {% if loan.note %}<div class="small">{{ loan.note }}</div>{% endif %}
+  {% if loan.status == 'requested' %}
+  <form class="row g-2 align-items-end mt-1" method="post" action="{{ url_for('library.loan', loan_id=loan.id) }}">{{ csrf() }}
+    <input type="hidden" name="next" value="{{ request.full_path }}">
+    <div class="col-sm-4"><label class="form-label small mb-0" for="due-{{ loan.id }}">Retour prévu le</label>
+      <input class="form-control form-control-sm" type="date" id="due-{{ loan.id }}" name="due_on"></div>
+    <div class="col-sm-4"><input class="form-control form-control-sm" name="note" maxlength="300" placeholder="Note (facultative)" aria-label="Note"></div>
+    <div class="col-sm-4 d-flex gap-1">
+      <button class="btn btn-sm btn-success" name="action" value="accept" {{ 'disabled' if loan.book.available < 1 }}><i class="bi bi-check2"></i> Valider</button>
+      <button class="btn btn-sm btn-outline-danger" name="action" value="refuse"><i class="bi bi-x"></i> Refuser</button></div>
+  </form>
+  {% elif loan.status == 'borrowed' %}
+  <form class="mt-1" method="post" action="{{ url_for('library.loan', loan_id=loan.id) }}">{{ csrf() }}
+    <input type="hidden" name="next" value="{{ request.full_path }}">
+    <button class="btn btn-sm btn-outline-success" name="action" value="return"><i class="bi bi-box-arrow-in-down"></i> Enregistrer le retour</button></form>
+  {% endif %}
+</li>

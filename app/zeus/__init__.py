@@ -11,7 +11,7 @@ from app.extensions import db
 from app.models import (Cohort, ZeusClass, ZeusClassCoach, ZeusClassMember, ZeusClassRole, ZeusCourse,
                         ZeusNotification, ZeusSession)
 from app.models.user import ROLE_ADMIN, ROLE_TRADE_COACH
-from app.services import candidate_service, zeus_service
+from app.services import candidate_service, direction_service, zeus_service
 from app.services.candidate_service import BusinessError
 from app.utils import allow_camera
 
@@ -326,7 +326,8 @@ def calendar():
                            today=candidate_service.today().isoformat(),
                            cohorts=zeus_service.cohorts_for(current_user), manageable=manageable,
                            prev=(start - timedelta(days=7)).date().isoformat(),
-                           next=(start + timedelta(days=7)).date().isoformat(), forms=forms)
+                           next=(start + timedelta(days=7)).date().isoformat(), forms=forms,
+                           activities=direction_service.activities_for(current_user, start, start + timedelta(days=7)))
 
 
 # ---- sessions and roll calls

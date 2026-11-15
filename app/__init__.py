@@ -46,16 +46,18 @@ def create_app(config_overrides: dict | None = None) -> Flask:
     from app.dashboard import bp as dashboard_bp
     from app.defense import bp as defense_bp
     from app.defense import public_bp as public_results_bp
+    from app.direction import bp as direction_bp
     from app.jury import bp as jury_bp
     from app.infra import bp as infra_bp
     from app.kobo import bp as kobo_bp
+    from app.library import bp as library_bp
     from app.motivation import bp as motivation_bp
     from app.portal import bp as portal_bp
     from app.technical import bp as technical_bp
     from app.zeus import bp as zeus_bp
 
     for bp in (auth_bp, dashboard_bp, candidates_bp, motivation_bp, technical_bp, kobo_bp, admin_bp, portal_bp, campus_bp, infra_bp,
-               defense_bp, jury_bp, public_results_bp, cohort_bp, zeus_bp):
+               defense_bp, jury_bp, public_results_bp, cohort_bp, zeus_bp, direction_bp, library_bp):
         app.register_blueprint(bp)
     register_cli(app)
     _register_web_helpers(app)
@@ -79,7 +81,8 @@ def _register_web_helpers(app: Flask) -> None:
     from app.models.user import ROLES
     from app.services import candidate_service, settings_service, zeus_service
 
-    ZEUS_ACCOUNT_PAGES = ("portal.profile", "portal.password", "auth.profile")
+    # Zeus users never see the classic shell: their account pages, the library and the activities in Zeus too.
+    ZEUS_ACCOUNT_PAGES = ("portal.profile", "portal.password", "auth.profile", "direction.activities")
 
     @app.get("/health")
     def health():
@@ -120,7 +123,8 @@ def _register_web_helpers(app: Flask) -> None:
         # profile / password too for its users (one interface: they never see the classic shell).
         zeus_ui = current_user.is_authenticated and (request.blueprint == "zeus" or (
             request.blueprint == "cohort" and zeus_service.lands_in_zeus(current_user)) or (
-            request.endpoint in ZEUS_ACCOUNT_PAGES and zeus_service.stays_in_zeus(current_user)))
+            (request.endpoint in ZEUS_ACCOUNT_PAGES or request.blueprint == "library")
+            and zeus_service.stays_in_zeus(current_user)))
         return {"app_name": settings_service.get("app_name"), "ROLES": ROLES, "reset_requests": reset_requests,
                 "layout": "zeus/base.html" if zeus_ui else "base.html",
                 "zeus_link": current_user.is_authenticated and zeus_service.lands_in_zeus(current_user)}

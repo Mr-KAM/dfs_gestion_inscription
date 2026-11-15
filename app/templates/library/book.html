@@ -1,0 +1,29 @@
+{% extends layout %}
+{% from "_macros.html" import csrf, page_head %}
+{% block title %}{{ b.title }}{% endblock %}
+{% block content %}
+{% call page_head(b.title, eyebrow='Livre ' ~ kinds[b.kind] | lower, back=url_for('library.manage'), back_label='Gestion de la bibliothèque',
+                  subtitle=None if b.is_digital else (b.available ~ ' exemplaire(s) disponible(s) sur ' ~ b.copies)) %}
+  {% if b.is_digital %}<a class="btn btn-outline-primary" href="{{ b.url }}" target="_blank" rel="noopener noreferrer"><i class="bi bi-box-arrow-up-right"></i> Ouvrir</a>{% endif %}
+{% endcall %}
+<div class="row g-3">
+  <div class="col-lg-5">
+    <form class="card card-body mb-3" method="post">{{ csrf() }}<input type="hidden" name="action" value="save">
+      <h2 class="h6"><i class="bi bi-pencil"></i> Modifier</h2>
+      {% include "library/_book_fields.html" %}
+      <div><button class="btn btn-primary"><i class="bi bi-check2"></i> Enregistrer</button></div>
+    </form>
+    <form method="post" data-confirm="Supprimer « {{ b.title }} » et son historique d'emprunts ?">{{ csrf() }}<input type="hidden" name="action" value="delete">
+      <button class="btn btn-outline-danger"><i class="bi bi-trash"></i> Supprimer du catalogue</button></form>
+  </div>
+  {% if not b.is_digital %}
+  <div class="col-lg-7">
+    <div class="card"><div class="card-header"><i class="bi bi-clock-history"></i> Historique des emprunts · {{ b.loans | length }}</div>
+      <ul class="list-group list-group-flush">
+      {% for loan in b.loans %}{% set show = 'book' %}{% include "library/_loan_row.html" %}
+      {% else %}<li class="list-group-item small text-muted">Jamais emprunté.</li>{% endfor %}
+      </ul></div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

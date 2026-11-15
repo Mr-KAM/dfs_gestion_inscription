@@ -59,10 +59,16 @@
         {{ nav('portal.join_class', 'people', 'Ma classe') }}
         {{ nav('portal.exercises', 'journal-code', 'Exercices') }}
         {{ nav('portal.notifications', 'megaphone', 'Notifications') }}
+        {{ nav('library.index', 'book', 'Bibliothèque', 'library.') }}
+        {{ nav('direction.activities', 'calendar-event', 'Activités') }}
         {{ nav('portal.profile', 'person-circle', 'Mon profil') }}
         {{ nav('portal.password', 'key', 'Mot de passe') }}
       {% else %}
-      {% if current_user.is_jury_only %}{# jury space only: "Mes jurys" + profile below #}
+      {% if current_user.is_direction %}
+        {{ nav('dashboard.index', 'speedometer2', 'Tableau de bord') }}
+        {{ nav('cohort.index', 'mortarboard-fill', 'Cohortes de formation', 'cohort.') }}
+      {% elif current_user.is_jury_only %}{# jury space (+ the library) only: "Mes jurys" + profile below #}
+        {% if role == 'librarian' %}{{ nav('library.manage', 'journals', 'Gestion bibliothèque', 'library.book') }}{% endif %}
       {% elif role in ('coach', 'trade_coach', 'reception', 'residence') %}
         {{ nav('campus.index', 'house-door', 'Vie du SAS') }}
         {% if role == 'residence' %}
@@ -125,6 +131,10 @@
       {% endif %}
       {% if zeus_link or role == 'admin' %}<div class="nav-section">Zeus</div>
         {{ nav('zeus.home', 'lightning-charge-fill', 'Espace Zeus' if zeus_link else 'Mode Zeus (désactivé)') }}{% endif %}
+      <div class="nav-section">Ressources</div>
+      {{ nav('direction.activities', 'calendar-event', 'Calendrier des activités') }}
+      {{ nav('library.index', 'book', 'Bibliothèque', 'library.index') }}
+      {% if role == 'admin' %}{{ nav('library.manage', 'journals', 'Gestion bibliothèque', 'library.book') }}{% endif %}
       <div class="nav-section">Mon compte</div>
       {{ nav('jury.index', 'easel2', 'Mes jurys', 'jury.') }}
       {{ nav('auth.profile', 'person-circle', 'Mon profil') }}
@@ -150,7 +160,15 @@
     {{ bnav('portal.exercises', 'journal-code', 'Exercices') }}
     {{ bnav('portal.notifications', 'megaphone', 'Notifs') }}
     {{ bnav('portal.profile', 'person-circle', 'Profil') }}
+  {% elif current_user.is_direction %}
+    {{ bnav('dashboard.index', 'speedometer2', 'Accueil') }}
+    {{ bnav('cohort.index', 'mortarboard-fill', 'Cohortes', 'cohort.') }}
+    {{ bnav('direction.activities', 'calendar-event', 'Activités') }}
+    {{ bnav('library.index', 'book', 'Biblio', 'library.') }}
+    {{ bnav('auth.profile', 'person-circle', 'Profil') }}
   {% elif current_user.is_jury_only %}
+    {% if role == 'librarian' %}{{ bnav('library.manage', 'journals', 'Gestion', 'library.book') }}{% endif %}
+    {{ bnav('library.index', 'book', 'Biblio', 'library.index') }}
     {{ bnav('jury.index', 'easel2', 'Mes jurys', 'jury.') }}
     {{ bnav('auth.profile', 'person-circle', 'Profil') }}
   {% elif role in ('coach', 'trade_coach', 'reception', 'residence') %}

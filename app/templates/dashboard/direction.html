@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% from "_macros.html" import empty, stat %}
+{% block title %}Tableau de bord{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <div><div class="eyebrow mb-1">Direction générale · vue d'ensemble</div><h1 class="page-title">Tableau de bord</h1></div>
+  <a class="btn btn-primary" href="{{ url_for('direction.activities') }}"><i class="bi bi-calendar-plus"></i> Calendrier des activités</a>
+</div>
+
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between"><span><i class="bi bi-calendar-event"></i> Prochaines activités</span>
+    <a class="small" href="{{ url_for('direction.activities') }}">Tout le calendrier <i class="bi bi-arrow-right"></i></a></div>
+  <ul class="list-group list-group-flush">
+  {% for a in activities %}
+    <li class="list-group-item d-flex justify-content-between flex-wrap gap-2">
+      <span><strong>{{ a.starts_at | dt('%d/%m %H:%M') }}</strong> · {{ a.title }}{% if a.place %} <span class="small text-muted">· {{ a.place }}</span>{% endif %}</span>
+    </li>
+  {% else %}
+    <li class="list-group-item">{{ empty('calendar', 'Aucune activité à venir.') }}</li>
+  {% endfor %}
+  </ul>
+</div>
+
+<div class="eyebrow mb-1">Recrutement</div><h2 class="h5">Sélection des candidats</h2>
+{% include "dashboard/_admin_stats.html" %}
+
+{% include "dashboard/_sas_stats.html" %}
+
+<div class="mt-4 mb-2"><div class="eyebrow mb-1">Jurys de sélection</div><h2 class="h5 mb-0">Soutenances SAS</h2></div>
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead><tr><th>Soutenance</th><th>SAS</th><th class="text-end">Jurys</th><th class="text-end">Délibérés</th>
+        <th class="text-end">Étudiants</th><th class="text-end">Décidés</th>
+        {% for label in decision_labels %}<th class="text-end">{{ label }}</th>{% endfor %}</tr></thead>
+      <tbody>
+      {% for r in defenses %}
+        <tr><td class="fw-semibold">{{ r.defense.name }}{% if r.defense.starts_at %}<div class="small text-muted">{{ r.defense.starts_at | dt('%d/%m/%Y') }}</div>{% endif %}</td>
+          <td>{{ r.defense.sas.name }}</td><td class="text-end">{{ r.juries }}</td><td class="text-end">{{ r.validated }}</td>
+          <td class="text-end">{{ r.students }}</td><td class="text-end">{{ r.decided }}</td>
+          {% for n in r.decisions.values() %}<td class="text-end">{{ n }}</td>{% endfor %}</tr>
+      {% else %}
+        <tr><td colspan="{{ 6 + decision_labels | length }}" class="text-center text-muted py-4">Aucune soutenance.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="mt-4 mb-2 d-flex justify-content-between align-items-end flex-wrap gap-2">
+  <div><div class="eyebrow mb-1">Formation</div><h2 class="h5 mb-0">Cohortes de formation</h2></div>
+  <a class="small" href="{{ url_for('cohort.index') }}">Toutes les cohortes <i class="bi bi-arrow-right"></i></a>
+</div>
+<div class="row g-3">
+{% for r in cohorts %}{% set n = r.eligible or 1 %}
+  {{ stat(r.cohort.name, r.registered ~ ' / ' ~ r.eligible ~ ' inscrits · ' ~ r.women ~ ' F / ' ~ r.men ~ ' M', 'mortarboard-fill',
+          url_for('cohort.detail', cohort_id=r.cohort.id), progress=100 * r.registered / n, col='col-md-6 col-xl-4', compact=True) }}
+{% else %}
+  <div class="col-12">{{ empty('mortarboard', 'Aucune cohorte de formation.') }}</div>
+{% endfor %}
+</div>
+{% endblock %}

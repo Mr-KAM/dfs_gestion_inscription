@@ -1,15 +1,16 @@
+{% set admin = current_user.role == 'admin' %}
 {% from "_macros.html" import stat %}
 {% set t = sas_stats.totals %}
 <div class="d-flex justify-content-between align-items-end mt-4 mb-2 flex-wrap gap-2">
   <div><div class="eyebrow mb-1">Étape suivante</div><h2 class="h5 mb-0">SAS</h2></div>
-  <a class="small" href="{{ url_for('admin.sas_list') }}">Gérer les SAS <i class="bi bi-arrow-right"></i></a>
+  {% if admin %}<a class="small" href="{{ url_for('admin.sas_list') }}">Gérer les SAS <i class="bi bi-arrow-right"></i></a>{% endif %}
 </div>
 <div class="row g-3 mb-3">
-  {{ stat('Étudiants admis au SAS', t.students, 'mortarboard', url_for('admin.sas_list')) }}
-  {{ stat('Classes', t.classes, 'people', url_for('campus.classes')) }}
-  {{ stat('Exercices à corriger', t.to_review, 'journal-check', url_for('campus.exercises')) }}
+  {{ stat('Étudiants admis au SAS', t.students, 'mortarboard', url_for('admin.sas_list') if admin) }}
+  {{ stat('Classes', t.classes, 'people', url_for('campus.classes') if admin) }}
+  {{ stat('Exercices à corriger', t.to_review, 'journal-check', url_for('campus.exercises') if admin) }}
   {{ stat("Heures d'absence", t.absent_hours ~ ' h', 'calendar-x') }}
-  {{ stat('Incidents ouverts', t.open_incidents, 'exclamation-octagon', url_for('campus.incidents')) }}
+  {{ stat('Incidents ouverts', t.open_incidents, 'exclamation-octagon', url_for('campus.incidents') if admin) }}
 </div>
 <div class="card">
   <div class="card-header">Résumé par SAS</div>
@@ -23,7 +24,7 @@
       <tbody>
       {% for r in sas_stats.rows %}{% set n = r.students or 1 %}
         <tr>
-          <td class="fw-semibold"><a href="{{ url_for('admin.sas_detail', sas_id=r.sas.id) }}">{{ r.sas.name }}</a></td>
+          <td class="fw-semibold">{% if admin %}<a href="{{ url_for('admin.sas_detail', sas_id=r.sas.id) }}">{{ r.sas.name }}</a>{% else %}{{ r.sas.name }}{% endif %}</td>
           <td class="text-end">{{ r.students }}</td><td class="text-end">{{ r.classes }}</td>
           {% for k in ('with_class', 'with_bedroom', 'with_equipment') %}
           <td class="text-end">{{ r[k] }} <span class="small text-muted">({{ (100 * r[k] / n) | round | int }} %)</span></td>
@@ -37,7 +38,7 @@
           <td class="text-end">{% if r.open_incidents %}<strong class="text-danger">{{ r.open_incidents }}</strong>{% else %}0{% endif %}</td>
         </tr>
       {% else %}
-        <tr><td colspan="13" class="text-center text-muted py-4">Aucun SAS. <a href="{{ url_for('admin.sas_list') }}">Créer un SAS</a></td></tr>
+        <tr><td colspan="13" class="text-center text-muted py-4">Aucun SAS.{% if admin %} <a href="{{ url_for('admin.sas_list') }}">Créer un SAS</a>{% endif %}</td></tr>
       {% endfor %}
       </tbody>
     </table>

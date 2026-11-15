@@ -1,0 +1,28 @@
+{# Fields of the book form; `b` is the book being edited (None: a new one, its type chosen here). #}
+{% if not b %}
+<div class="mb-2"><label class="form-label" for="kind">Type</label>
+  <select class="form-select" id="kind" name="kind" required>
+    {% for k, label in kinds.items() %}<option value="{{ k }}">{{ label }}</option>{% endfor %}</select></div>
+{% endif %}
+<div class="mb-2"><label class="form-label" for="title">Titre</label>
+  <input class="form-control" id="title" name="title" maxlength="200" required value="{{ b.title if b else '' }}"></div>
+<div class="row g-2 mb-2">
+  <div class="col-md-6"><label class="form-label" for="author">Auteur</label>
+    <input class="form-control" id="author" name="author" maxlength="200" value="{{ b.author if b else '' }}"></div>
+  <div class="col-md-6"><label class="form-label" for="category">Catégorie</label>
+    <input class="form-control" id="category" name="category" maxlength="100" value="{{ b.category if b else '' }}" placeholder="Agronomie, informatique, archives…"></div>
+</div>
+<div class="row g-2 mb-2">
+  <div class="col-md-6"><label class="form-label" for="reference">Cote / ISBN</label>
+    <input class="form-control" id="reference" name="reference" maxlength="50" value="{{ b.reference if b else '' }}"></div>
+  {% if not b or not b.is_digital %}
+  <div class="col-md-6"><label class="form-label" for="copies">Exemplaires (physique)</label>
+    <input class="form-control" id="copies" name="copies" type="number" min="0" value="{{ b.copies if b else 1 }}"></div>
+  {% endif %}
+</div>
+{% if not b or b.is_digital %}
+<div class="mb-2"><label class="form-label" for="url">Lien (numérique)</label>
+  <input class="form-control" id="url" name="url" type="url" maxlength="500" value="{{ b.url if b else '' }}" placeholder="https://…"></div>
+{% endif %}
+<div class="mb-3"><label class="form-label" for="description">Description</label>
+  <textarea class="form-control" id="description" name="description" rows="2">{{ b.description if b else '' }}</textarea></div>

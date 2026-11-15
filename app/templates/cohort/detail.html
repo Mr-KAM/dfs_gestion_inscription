@@ -105,7 +105,7 @@
   {% for e in rows %}{% set c = e.candidate %}
     <tr>
       <td>{{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 32, zoom=True) }}</td>
-      <td>{% if current_user.is_coach %}{{ c.full_name }}{% else %}<a href="{{ url_for('cohort.enrollment', enrollment_id=e.id) }}">{{ c.full_name }}</a>{% endif %}</td>
+      <td>{% if current_user.is_coach or current_user.is_direction %}{{ c.full_name }}{% else %}<a href="{{ url_for('cohort.enrollment', enrollment_id=e.id) }}">{{ c.full_name }}</a>{% endif %}</td>
       <td><code>{{ c.matricule }}</code></td>
       <td>{% if e.matricule %}<code>{{ e.matricule }}</code>{% else %}<span class="status status-warning">À inscrire</span>{% endif %}</td>
       <td>{{ e.arrival_date | d or '—' }}</td>

@@ -1,0 +1,38 @@
+{% extends layout %}
+{% from "_macros.html" import csrf, page_head %}
+{% block title %}{{ reader.display_name }}{% endblock %}
+{% block content %}
+{% call page_head(reader.display_name, eyebrow='Lecteur · ' ~ reader.role_label, back=url_for('library.manage'), back_label='Gestion de la bibliothèque') %}{% endcall %}
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card"><div class="card-header"><i class="bi bi-clock-history"></i> Ses emprunts · {{ loans | length }}</div>
+      <ul class="list-group list-group-flush">
+      {% for loan in loans %}{% set show = 'user' %}{% include "library/_loan_row.html" %}
+      {% else %}<li class="list-group-item small text-muted">Aucun emprunt.</li>{% endfor %}
+      </ul></div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card card-body mb-3">
+      <h2 class="h6"><i class="bi bi-person-lines-fill"></i> Contact</h2>
+      <dl class="kv row mb-0 small">
+        <dt class="col-4">Email</dt><dd class="col-8 text-break"><a href="mailto:{{ contact.email }}">{{ contact.email }}</a></dd>
+        <dt class="col-4">Téléphone</dt><dd class="col-8">{% if contact.phone %}<a href="tel:{{ contact.phone }}">{{ contact.phone }}</a>{% else %}<span class="text-muted">non renseigné</span>{% endif %}</dd>
+        {% if contact.enrollment %}<dt class="col-4">Matricule DFS</dt><dd class="col-8">{{ contact.enrollment.matricule }} · {{ contact.enrollment.cohort.name }}</dd>{% endif %}
+      </dl>
+    </div>
+    {% if contact.enrollment %}
+    <form class="card card-body" method="post">{{ csrf() }}
+      <h2 class="h6"><i class="bi bi-lightning-charge-fill"></i> Notification dans Zeus</h2>
+      <div class="mb-2"><label class="form-label" for="title">Titre</label>
+        <input class="form-control" id="title" name="title" maxlength="150" required value="Bibliothèque : rappel de retour"></div>
+      <div class="mb-3"><label class="form-label" for="body">Message</label>
+        <textarea class="form-control" id="body" name="body" rows="4">{% for loan in loans if loan.status == 'borrowed' %}Merci de rapporter « {{ loan.book.title }} »{% if loan.due_on %} (retour prévu le {{ loan.due_on | d }}){% endif %}.
+{% endfor %}</textarea></div>
+      <div><button class="btn btn-primary"><i class="bi bi-send"></i> Envoyer dans Zeus</button></div>
+    </form>
+    {% else %}
+    <p class="small text-muted">Pas d'espace Zeus (personnel ou étudiant non inscrit en cohorte) : contactez cette personne par email ou téléphone.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

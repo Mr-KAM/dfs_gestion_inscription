@@ -125,7 +125,7 @@ def test_jury_rates_deliberates_and_prints(app, db, client, admin):
 
 
 def test_jury_only_profiles(app, db, client, admin):
-    for role in ("partner", "cme", "dg", "dga", "df", "dfa", "daf", "librarian"):
+    for role in ("partner", "cme", "df", "dfa", "daf"):  # dg / dga: test_direction; librarian: test_library
         user = make_user(role, f"{role}@test.ci")
         login(client, user)
         assert client.get("/").headers["Location"].endswith("/jury/")

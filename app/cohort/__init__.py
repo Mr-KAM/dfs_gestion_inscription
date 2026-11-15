@@ -9,7 +9,7 @@ from sqlalchemy import select
 from app.extensions import db
 from app.models import Cohort, CohortCoach, Enrollment, Sas
 from app.models.cohort import COACH_ROLE_SUGGESTIONS
-from app.models.user import COACH_ROLES, ROLE_ADMIN, ROLE_RECEPTION, ROLE_RESIDENCE
+from app.models.user import COACH_ROLES, DIRECTION_ROLES, ROLE_ADMIN, ROLE_RECEPTION, ROLE_RESIDENCE
 from app.services import cohort_service
 from app.services.candidate_service import BusinessError
 from app.utils import roles_required
@@ -17,15 +17,16 @@ from app.utils import roles_required
 bp = Blueprint("cohort", __name__, url_prefix="/cohortes")
 
 
-COACH_ENDPOINTS = {"cohort.index", "cohort.detail"}  # coaches: their cohorts, read only
+COACH_ENDPOINTS = {"cohort.index", "cohort.detail"}  # coaches: their cohorts, read only; direction: all of them
 
 
 @bp.before_request
-@roles_required(ROLE_ADMIN, ROLE_RECEPTION, ROLE_RESIDENCE, *COACH_ROLES)
+@roles_required(ROLE_ADMIN, ROLE_RECEPTION, ROLE_RESIDENCE, *COACH_ROLES, *DIRECTION_ROLES)
 def require_desk():
     """Every /cohortes route: admin, reception or residence; coaches only see the cohorts the admin gave them;
-    creation, eligibility and coaches: admin only (below)."""
-    if current_user.is_coach and (request.method != "GET" or request.endpoint not in COACH_ENDPOINTS):
+    the direction reads them all; creation, eligibility and coaches: admin only (below)."""
+    if ((current_user.is_coach or current_user.is_direction)
+            and (request.method != "GET" or request.endpoint not in COACH_ENDPOINTS)):
         abort(403)
 
 

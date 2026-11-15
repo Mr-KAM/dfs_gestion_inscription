@@ -1,9 +1,12 @@
 from flask import Blueprint, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required
 
-from app.models.user import (CAMPUS_ROLES, JURY_ONLY_ROLES, ROLE_ADMIN, ROLE_MOTIVATION, ROLE_RESIDENCE,
-                             ROLE_SUPERVISOR)
-from app.services import candidate_service, sas_service, site_service, timer_service, zeus_service
+from app.models.defense import DECISIONS
+from app.models.user import (CAMPUS_ROLES, DIRECTION_ROLES, JURY_ONLY_ROLES, ROLE_ADMIN, ROLE_LIBRARIAN,
+                             ROLE_MOTIVATION, ROLE_RESIDENCE, ROLE_SUPERVISOR)
+from app.services import (candidate_service, direction_service, sas_service, site_service, timer_service,
+                          zeus_service)
+from app.utils import utcnow
 
 bp = Blueprint("dashboard", __name__)
 
@@ -23,6 +26,14 @@ def index():
         return redirect(url_for("zeus.home"))
     if current_user.is_candidate:
         return redirect(url_for("portal.home"))
+    if current_user.role == ROLE_LIBRARIAN:
+        return redirect(url_for("library.manage"))
+    if current_user.role in DIRECTION_ROLES:
+        return render_template("dashboard/direction.html", stats=candidate_service.admin_stats(),
+                               groups=candidate_service.group_summary(), sas_stats=sas_service.dashboard_stats(),
+                               defenses=direction_service.defense_stats(), cohorts=direction_service.cohort_stats(),
+                               activities=direction_service.activities_for(current_user, utcnow(), limit=6),
+                               decision_labels=DECISIONS.values())
     if current_user.role in JURY_ONLY_ROLES:
         return redirect(url_for("jury.index"))
     if current_user.role == ROLE_RESIDENCE:

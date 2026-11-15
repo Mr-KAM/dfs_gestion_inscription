@@ -1,3 +1,4 @@
+from app.models.activity import Activity
 from app.models.attendance import Attendance, AttendanceSession
 from app.models.audit import AuditLog, Setting
 from app.models.campus import (ClassInvitation, CoachInvitation, Evaluation, Exercise, ExerciseAnswer,
@@ -7,6 +8,7 @@ from app.models.cohort import Cohort, CohortCoach, Enrollment
 from app.models.defense import Defense, DefenseScore, Jury, JuryCandidate, JuryMember
 from app.models.infra import Building, Consumable, ConsumableMovement, Equipment, Level, Space
 from app.models.kobo import KoboSubmission
+from app.models.library import Book, BookLoan
 from app.models.sas import Sas
 from app.models.technical_test import TechnicalTestSession
 from app.models.user import PasswordResetRequest, User
@@ -20,4 +22,5 @@ __all__ = ["Attendance", "AttendanceSession", "AuditLog", "Setting", "Candidate"
            "Consumable", "ConsumableMovement", "ExerciseAnswer", "Media", "DefenseScore",
            "PasswordResetRequest", "Evaluation", "Defense", "Jury", "JuryCandidate", "JuryMember", "CoachInvitation",
            "Lesson", "Cohort", "CohortCoach", "Enrollment", "ZeusAttendance", "ZeusClass", "ZeusClassMember",
-           "ZeusCourse", "ZeusNotification", "ZeusSession", "ZeusClassCoach", "ZeusClassRole"]
+           "ZeusCourse", "ZeusNotification", "ZeusSession", "ZeusClassCoach", "ZeusClassRole", "Activity", "Book",
+           "BookLoan"]

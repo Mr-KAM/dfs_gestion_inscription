@@ -1,0 +1,78 @@
+{% extends layout %}
+{% from "_macros.html" import csrf %}
+{% block title %}Calendrier des activités{% endblock %}
+{% block content %}
+{% set DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'] %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <div><div class="eyebrow mb-1">Calendrier des activités{{ '' if planner else ' · celles qui me concernent' }}</div>
+    <h1 class="page-title">Semaine du {{ days[0] | dt('%d/%m') }} au {{ days[6] | dt('%d/%m/%Y') }}</h1></div>
+  <div class="d-flex align-items-center gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('direction.activities', week=prev) }}" aria-label="Semaine précédente"><i class="bi bi-chevron-left"></i></a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('direction.activities') }}">Cette semaine</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('direction.activities', week=next) }}" aria-label="Semaine suivante"><i class="bi bi-chevron-right"></i></a>
+  </div>
+</div>
+<div class="row g-3">
+  <div class="{{ 'col-lg-7' if planner else 'col-12' }}">
+  {% for day in days %}{% set key = day | dt('%Y-%m-%d') %}
+    <div class="card mb-2">
+      <div class="card-header py-2"><span class="zeus-day {{ 'is-today' if key == today }}">{{ DAYS[loop.index0] }} {{ day | dt('%d/%m') }}</span></div>
+      <ul class="list-group list-group-flush">
+      {% for a in activities if (a.starts_at | dt('%Y-%m-%d')) == key %}
+        <li class="list-group-item">
+          <div class="d-flex justify-content-between flex-wrap gap-2">
+            <span><strong>{{ a.starts_at | dt('%H:%M') }} – {{ a.ends_at | dt('%d/%m %H:%M' if (a.ends_at | dt('%Y-%m-%d')) != key else '%H:%M') }}</strong> · {{ a.title }}</span>
+            {% if a.place %}<span class="small text-muted"><i class="bi bi-geo-alt"></i> {{ a.place }}</span>{% endif %}
+          </div>
+          {% if a.description %}<div class="small mt-1 pre-line">{{ a.description }}</div>{% endif %}
+          <div class="small text-muted mt-1"><i class="bi bi-people"></i> {{ audience(a) }}{% if a.author %} · par {{ a.author.display_name }}{% endif %}</div>
+          {% if planner %}
+          <form class="mt-1" method="post" action="{{ url_for('direction.delete', activity_id=a.id) }}" data-confirm="Supprimer cette activité ?">{{ csrf() }}
+            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> Supprimer</button></form>
+          {% endif %}
+        </li>
+      {% else %}
+        <li class="list-group-item small text-muted">—</li>
+      {% endfor %}
+      </ul>
+    </div>
+  {% endfor %}
+  </div>
+  {% if planner %}
+  <div class="col-lg-5">
+    <form class="card card-body" method="post">{{ csrf() }}
+      <h2 class="h6"><i class="bi bi-calendar-plus"></i> Ajouter une activité</h2>
+      <div class="mb-2"><label class="form-label" for="title">Titre</label>
+        <input class="form-control" id="title" name="title" maxlength="150" required placeholder="Réunion de direction, visite officielle…"></div>
+      <div class="row g-2 mb-2">
+        <div class="col-6"><label class="form-label" for="starts_at">Début</label><input class="form-control" type="datetime-local" id="starts_at" name="starts_at" required></div>
+        <div class="col-6"><label class="form-label" for="ends_at">Fin</label><input class="form-control" type="datetime-local" id="ends_at" name="ends_at" required></div>
+      </div>
+      <div class="mb-2"><label class="form-label" for="place">Lieu</label><input class="form-control" id="place" name="place" maxlength="150"></div>
+      <div class="mb-2"><label class="form-label" for="description">Description</label>
+        <textarea class="form-control" id="description" name="description" rows="3"></textarea></div>
+      <fieldset class="mb-2"><legend class="form-label fs-6 mb-1">Qui est concerné ?</legend>
+        <div class="form-check"><input class="form-check-input" type="checkbox" id="everyone" name="everyone" value="1">
+          <label class="form-check-label fw-semibold" for="everyone">Tout le monde</label></div>
+        <div class="small text-muted mt-2 mb-1">ou des profils :</div>
+        <div class="row row-cols-1 row-cols-sm-2 g-0">
+        {% for key, label in roles.items() %}
+          <div class="col form-check"><input class="form-check-input" type="checkbox" id="role-{{ key }}" name="roles" value="{{ key }}">
+            <label class="form-check-label small" for="role-{{ key }}">{{ 'Étudiants' if key == 'candidate' else label }}</label></div>
+        {% endfor %}
+        </div>
+      </fieldset>
+      <div class="mb-3"><label class="form-label" for="user_ids">et / ou des personnes</label>
+        <select class="form-select" id="user_ids" name="user_ids" multiple size="8">
+        {% for role, group in people | groupby('role') %}
+          <optgroup label="{{ 'Étudiants' if role == 'candidate' else roles[role] }}">
+          {% for u in group %}<option value="{{ u.id }}">{{ u.display_name }}</option>{% endfor %}</optgroup>
+        {% endfor %}
+        </select>
+        <div class="form-text">Ctrl (ou Cmd) + clic pour en choisir plusieurs. Les personnes non désignées ne voient pas l'activité.</div></div>
+      <div><button class="btn btn-primary"><i class="bi bi-check2"></i> Ajouter au calendrier</button></div>
+    </form>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
