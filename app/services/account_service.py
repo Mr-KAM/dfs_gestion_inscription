@@ -238,6 +238,7 @@ def update_staff_profile(user: User, form, photo=None) -> None:
     """A staff member (coach, reception...) edits his name, phone and photo. Email and role stay with the admin."""
     data = _read_photo(form, photo)
     user.full_name = " ".join(form.get("full_name", "").split())[:200]
+    user.gender = form.get("gender") if form.get("gender") in ("F", "M") else None
     user.phone = norm_phone(form.get("phone")) or None
     _apply_photo(user, form, data)
     audit_service.log("profile_update", user, {"photo": "removed" if form.get("remove_photo") else bool(data)})

@@ -7,6 +7,7 @@
   <div class="col-md-6 col-xl-4">
     <form class="card card-body h-100" method="get" action="{{ url_for('admin.export_download', kind=kind) }}">
       <h2 class="h6 fw-bold">{{ label }}</h2>
+      {% if help[kind] %}<p class="small text-muted mb-2">{{ help[kind] }}</p>{% endif %}
       {% if kind == 'group' %}
         <select class="form-select form-select-sm mb-2" name="group" required aria-label="Groupe">
           <option value="">Choisir un groupe</option>{% for g in groups %}<option>{{ g }}</option>{% endfor %}</select>

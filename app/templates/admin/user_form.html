@@ -6,9 +6,12 @@
 {% set f = request.form %}
 <form class="card card-body" method="post" style="max-width: 640px" autocomplete="off">
   {{ csrf() }}
-  <div class="mb-3">
-    <label class="form-label" for="full_name">Nom complet</label>
-    <input class="form-control" id="full_name" name="full_name" value="{{ f.get('full_name', user.full_name or '') }}">
+  <div class="row g-2 mb-3">
+    <div class="col-sm-9"><label class="form-label" for="full_name">Nom complet</label>
+      <input class="form-control" id="full_name" name="full_name" value="{{ f.get('full_name', user.full_name or '') }}"></div>
+    <div class="col-sm-3"><label class="form-label" for="gender">Genre</label>
+      <select class="form-select" id="gender" name="gender">{% set g = f.get('gender', user.gender or '') %}
+        <option value="">—</option><option value="F" {{ 'selected' if g == 'F' }}>F</option><option value="M" {{ 'selected' if g == 'M' }}>M</option></select></div>
   </div>
   <div class="mb-3">
     <label class="form-label" for="email">Email <span class="text-danger">*</span></label>

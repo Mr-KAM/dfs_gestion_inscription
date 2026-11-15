@@ -26,7 +26,10 @@
         <div class="col-md-6"><label class="form-label" for="full_name">Nom complet</label>
           <input class="form-control" id="full_name" name="full_name" maxlength="200" autocomplete="name"
                  value="{{ request.form.get('full_name', user.full_name or '') }}"></div>
-        <div class="col-md-6"><label class="form-label" for="phone">Téléphone</label>
+        <div class="col-md-2"><label class="form-label" for="gender">Genre</label>
+          <select class="form-select" id="gender" name="gender">{% set g = request.form.get('gender', user.gender or '') %}
+            <option value="">—</option><option value="F" {{ 'selected' if g == 'F' }}>F</option><option value="M" {{ 'selected' if g == 'M' }}>M</option></select></div>
+        <div class="col-md-4"><label class="form-label" for="phone">Téléphone</label>
           <input class="form-control" id="phone" name="phone" type="tel" autocomplete="tel"
                  value="{{ request.form.get('phone', user.phone or '') }}"></div>
       </div>

@@ -17,6 +17,13 @@ ROLE_RESIDENCE = "residence"    # residence: bedrooms and equipment
 ROLE_TRADE_COACH = "trade_coach"  # coach métier: like a coach in the classes he is invited to, creates none, no follow-up evaluation
 ROLE_PARTNER = "partner"          # external partner: jury member only
 ROLE_CME = "cme"                  # conseiller médiation emploi: jury member only
+# Direction, finance and library: jury space + profile, like partner / CME, until their own pages are defined.
+ROLE_DG = "dg"
+ROLE_DGA = "dga"
+ROLE_DF = "df"
+ROLE_DFA = "dfa"
+ROLE_DAF = "daf"
+ROLE_LIBRARIAN = "librarian"
 ROLES = {
     ROLE_ADMIN: "Administrateur",
     ROLE_SUPERVISOR: "Superviseur",
@@ -28,6 +35,12 @@ ROLES = {
     ROLE_TRADE_COACH: "Coach métier",
     ROLE_PARTNER: "Partenaire",
     ROLE_CME: "Conseiller médiation emploi (CME)",
+    ROLE_DG: "Directeur général",
+    ROLE_DGA: "Directeur général adjoint",
+    ROLE_DF: "Directeur financier",
+    ROLE_DFA: "Directeur financier adjoint",
+    ROLE_DAF: "Directeur administratif et financier",
+    ROLE_LIBRARIAN: "Responsable bibliothèque",
 }
 # Who may do what. The supervisor combines both tester profiles, without any admin right.
 MOTIVATION_ROLES = (ROLE_ADMIN, ROLE_SUPERVISOR, ROLE_MOTIVATION)
@@ -36,7 +49,8 @@ RECRUITMENT_ROLES = (ROLE_ADMIN, ROLE_SUPERVISOR, ROLE_MOTIVATION, ROLE_TECHNICA
 CAMPUS_ROLES = (ROLE_ADMIN, ROLE_COACH, ROLE_TRADE_COACH, ROLE_RECEPTION, ROLE_RESIDENCE)  # SAS life (/campus)
 COACH_ROLES = (ROLE_COACH, ROLE_TRADE_COACH)  # teach in their classes (coach_classes); only ROLE_COACH creates them
 # ponytail: jury space + profile only, until their own pages are defined.
-JURY_ONLY_ROLES = (ROLE_PARTNER, ROLE_CME)
+JURY_ONLY_ROLES = (ROLE_PARTNER, ROLE_CME,
+                   ROLE_DG, ROLE_DGA, ROLE_DF, ROLE_DFA, ROLE_DAF, ROLE_LIBRARIAN)
 
 # Candidates log in to their own space only; never part of ROLES / ALL_ROLES.
 ROLE_CANDIDATE = "candidate"
@@ -59,7 +73,8 @@ class User(UserMixin, db.Model):
     # use_alter: users <-> candidates reference each other (motivation_completed_by), so this FK is added last.
     candidate_id = db.Column(db.Integer, db.ForeignKey("candidates.id", ondelete="CASCADE", use_alter=True), unique=True)
 
-    # Own profile (any staff member): phone + photo (JPEG / PNG / WebP, deferred: never loaded with lists).
+    # Own profile (any staff member): gender, phone, photo (JPEG / PNG / WebP, deferred: never loaded with lists).
+    gender = db.Column(db.String(1))  # F / M, as Candidate.gender; None = not given
     phone = db.Column(db.String(30))
     photo = db.deferred(db.Column(db.LargeBinary))
     photo_type = db.Column(db.String(20))
@@ -104,6 +119,11 @@ class User(UserMixin, db.Model):
     def is_coach(self) -> bool:
         """Coach technique or coach métier."""
         return self.role in COACH_ROLES
+
+    @property
+    def is_jury_only(self) -> bool:
+        """Partner, CME, direction, finance, library: jury space + profile."""
+        return self.role in JURY_ONLY_ROLES
 
     @property
     def display_name(self) -> str:

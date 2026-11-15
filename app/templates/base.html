@@ -62,7 +62,7 @@
         {{ nav('portal.profile', 'person-circle', 'Mon profil') }}
         {{ nav('portal.password', 'key', 'Mot de passe') }}
       {% else %}
-      {% if role in ('partner', 'cme') %}{# jury space only: "Mes jurys" + profile below #}
+      {% if current_user.is_jury_only %}{# jury space only: "Mes jurys" + profile below #}
       {% elif role in ('coach', 'trade_coach', 'reception', 'residence') %}
         {{ nav('campus.index', 'house-door', 'Vie du SAS') }}
         {% if role == 'residence' %}
@@ -150,7 +150,7 @@
     {{ bnav('portal.exercises', 'journal-code', 'Exercices') }}
     {{ bnav('portal.notifications', 'megaphone', 'Notifs') }}
     {{ bnav('portal.profile', 'person-circle', 'Profil') }}
-  {% elif role in ('partner', 'cme') %}
+  {% elif current_user.is_jury_only %}
     {{ bnav('jury.index', 'easel2', 'Mes jurys', 'jury.') }}
     {{ bnav('auth.profile', 'person-circle', 'Profil') }}
   {% elif role in ('coach', 'trade_coach', 'reception', 'residence') %}

@@ -20,10 +20,10 @@ from app.campus import attendance_form_context
 from app.extensions import db
 from app.models import (AuditLog, Candidate, KoboSubmission, PasswordResetRequest, Room, Sas,
                         TechnicalTestSession, User, Workstation)
-from app.models.candidate import FILE_MISSING, FILE_NOT_FOUND, FILE_STATUSES
+from app.models.candidate import FILE_MISSING, FILE_NOT_FOUND
 from app.models.user import COACH_ROLES, ROLE_ADMIN, ROLE_CANDIDATE, ROLE_RESIDENCE, ROLES
 from app.services import (account_service, attendance_service, audit_service, campus_service, candidate_service,
-                          import_service, sas_service, settings_service, site_service)
+                          export_service, import_service, sas_service, settings_service, site_service)
 from app.services.audit_service import ACTION_LABELS
 from app.utils import allow_camera, utcnow
 
@@ -101,6 +101,7 @@ def _user_from_form(user: User, creating: bool) -> None:
         raise candidate_service.BusinessError("Un utilisateur utilise déjà cet email.")
     user.email, user.role = email, role
     user.full_name = request.form.get("full_name", "").strip()[:200]
+    user.gender = request.form.get("gender") if request.form.get("gender") in ("F", "M") else None
     user.coach_classes = sorted(set(request.form.getlist("coach_classes"))) if role in COACH_ROLES else []
     password = request.form.get("password", "")
     if creating or password:
@@ -650,6 +651,8 @@ def import_results_confirm():
 # ------------------------------------------------------------------ exports
 
 EXPORTS = {
+    "team": "Équipe : utilisateurs",
+    "students": "Candidats et étudiants : fiche complète",
     "all": "Tous les candidats",
     "motivation": "Motivation terminée",
     "technical": "Tests techniques",
@@ -657,11 +660,19 @@ EXPORTS = {
     "absent": "Candidats absents",
     "nonconform": "Dossiers non conformes",
 }
+# Whole-population exports, built apart from the recruitment lists (_export_query).
+EXPORT_BUILDERS = {"team": export_service.team_rows, "students": export_service.student_rows}
+EXPORT_HELP = {
+    "team": "Nom, genre, email, téléphone, rôle, état du compte, dernière connexion, classes SAS, cohortes et classes Zeus.",
+    "students": "Identité, dossier, motivation, test technique, SAS, décision de soutenance, cohorte (matricule DFS, "
+                "arrivée, chambre, matériel), classes Zeus, compte en ligne.",
+}
 
 
 @bp.get("/exports")
 def exports():
-    return render_template("admin/exports.html", exports=EXPORTS, groups=candidate_service.distinct_groups())
+    return render_template("admin/exports.html", exports=EXPORTS, groups=candidate_service.distinct_groups(),
+                           help=EXPORT_HELP)
 
 
 def _export_query(kind: str, group: str | None):
@@ -686,28 +697,6 @@ def _export_query(kind: str, group: str | None):
     return stmt
 
 
-def _export_row(c: Candidate) -> dict:
-    s = c.latest_session
-    fmt = current_app.jinja_env.filters["dt"]
-    return {
-        "Matricule": c.matricule, "N°": c.candidate_number, "Nom": c.full_name, "Email": c.email, "Téléphone": c.phone,
-        "Groupe": c.group_name, "Date": c.scheduled_date, "Ordre": c.passage_order, "CNI": c.cni,
-        "Kobo": c.kobo_badge[1], "Dossier physique": FILE_STATUSES.get(c.physical_file_status, ""),
-        "Numéro pièce": c.piece_number, "Code examen": c.exam_code,
-        "Motivation": "Oui" if c.motivation_completed else "Non",
-        "Motivation le": fmt(c.motivation_completed_at),
-        "Motivation validée": "Oui" if c.motivation_passed else "Non",
-        "Salle": s.room.name if s else "", "Ordinateur": s.workstation.name if s else "",
-        "Début test": fmt(s.started_at) if s else "", "Fin test": fmt(s.finished_at) if s else "",
-        "Durée prévue (min)": s.duration_seconds // 60 if s else "",
-        "Durée effective (min)": round(s.elapsed_seconds() / 60, 1) if s else "",
-        "Statut test": s.status_badge[1] if s else "",
-        "Technique terminé": "Oui" if c.technical_completed else "Non",
-        "Technique validé": "Oui" if c.technical_passed else "Non",
-        "Statut global": c.global_status,
-    }
-
-
 
 
 FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
@@ -725,8 +714,10 @@ def _neutralize(value):
 def export_download(kind: str):
     if kind not in EXPORTS:
         return redirect(url_for("admin.exports"))
-    group = request.args.get("group")
-    rows = [{k: _neutralize(v) for k, v in _export_row(c).items()} for c in db.session.scalars(_export_query(kind, group))]
+    group = request.args.get("group") if kind == "group" else None
+    raw = (EXPORT_BUILDERS[kind]() if kind in EXPORT_BUILDERS
+           else [export_service.recruitment_row(c) for c in db.session.scalars(_export_query(kind, group))])
+    rows = [{k: _neutralize(v) for k, v in r.items()} for r in raw]
     df = pd.DataFrame(rows)
     fmt = "xlsx" if request.args.get("format") == "xlsx" else "csv"
     audit_service.log("export", details={"kind": kind, "group": group, "format": fmt, "rows": len(rows)})
