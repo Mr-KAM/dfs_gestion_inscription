@@ -1,5 +1,5 @@
 {% extends "zeus/base.html" %}
-{% from "_macros.html" import empty, page_head, stat %}
+{% from "_macros.html" import csrf, empty, page_head, scanner, stat %}
 {% block title %}Mes présences{% endblock %}
 {% block content %}
 {% call page_head('Mes présences', eyebrow='Zeus · ' ~ e.matricule) %}{% endcall %}
@@ -9,13 +9,36 @@
   {{ stat('Présent(e)', present, 'person-check', progress=100 * present / (rows | length) if rows else None) }}
   {{ stat('Absent(e)', rows | length - present, 'person-x') }}
 </div>
-<div class="card"><ul class="list-group list-group-flush">
-{% for s, here in rows %}
-  <li class="list-group-item d-flex justify-content-between flex-wrap gap-2">
-    <span><strong>{{ s.course.name }}</strong> <span class="small text-muted">· {{ s.starts_at | dt('%d/%m/%Y %H:%M') }}</span></span>
-    {% if here %}<span class="status status-success">Présent(e)</span>{% else %}<span class="status status-danger">Absent(e)</span>{% endif %}</li>
-{% else %}
-  <li class="list-group-item">{{ empty('calendar-check', 'Aucune séance passée pour le moment.') }}</li>
-{% endfor %}
-</ul></div>
+<div class="row g-3">
+  <div class="col-lg-5 order-lg-2">
+    {% if code %}
+    <form class="card card-body mb-3 text-center" method="post" action="{{ url_for('zeus.roll_calls') }}">
+      {{ csrf() }}<input type="hidden" name="token" value="{{ code }}">
+      <p class="mb-2">QR code de l'appel lu · matricule <code>{{ e.matricule }}</code></p>
+      <button class="btn btn-success btn-lg"><i class="bi bi-check2-circle"></i> Confirmer ma présence</button>
+    </form>
+    {% endif %}
+    <div class="card"><div class="card-header"><i class="bi bi-qr-code-scan"></i> Scanner le QR code de l'appel</div>
+      <div class="card-body">
+        <p class="small text-muted">Scannez le QR code affiché par le coach, ici ou avec l'appareil photo de votre téléphone :
+          votre présence est enregistrée sous votre matricule DFS <code>{{ e.matricule }}</code>.</p>
+        {{ scanner(url_for('zeus.roll_calls'), '<i class="bi bi-check2"></i> Valider' | safe, 'Rempli automatiquement') }}
+      </div></div>
+  </div>
+  <div class="col-lg-7">
+    <div class="card"><ul class="list-group list-group-flush">
+    {% for s, here in rows %}
+      <li class="list-group-item d-flex justify-content-between flex-wrap gap-2">
+        <span><strong>{{ s.course.name }}</strong> <span class="small text-muted">· {{ s.starts_at | dt('%d/%m/%Y %H:%M') }}</span></span>
+        {% if here %}<span class="status status-success">Présent(e)</span>{% else %}<span class="status status-danger">Absent(e)</span>{% endif %}</li>
+    {% else %}
+      <li class="list-group-item">{{ empty('calendar-check', 'Aucune séance passée pour le moment.') }}</li>
+    {% endfor %}
+    </ul></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/jsQR.js') }}"></script>
+<script src="{{ url_for('static', filename='js/scan.js') }}"></script>
 {% endblock %}

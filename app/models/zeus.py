@@ -3,7 +3,7 @@ Students are identified by their enrollment (DFS matricule), never by the SAS ta
 from app.extensions import db
 from app.utils import as_utc, utcnow
 
-METHOD_SCAN, METHOD_MANUAL = "scan", "manual"
+METHOD_SCAN, METHOD_MANUAL, METHOD_SELF = "scan", "manual", "self"  # self: the student scanned the coach's QR
 
 
 class ZeusClassRole(db.Model):

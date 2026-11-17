@@ -56,3 +56,12 @@ def test_library_flow(app, db, client):
     db.session.refresh(coach_loan)
     assert student_loan.status == "returned" and student_loan.returned_at and coach_loan.status == "borrowed"
     assert "rendu le" in client.get(f"/bibliotheque/livres/{book.id}").get_data(as_text=True)
+
+
+def test_library_opens_in_the_interface_one_comes_from(app, db, client, admin):
+    login(client, admin)
+    client.get("/zeus/")
+    html = client.get("/bibliotheque/gestion").get_data(as_text=True)
+    assert 'aria-label="Menu Zeus"' in html and "Gestion bibliothèque" in html  # from Zeus: in Zeus
+    client.get("/?classique=1")
+    assert 'aria-label="Menu Zeus"' not in client.get("/bibliotheque/").get_data(as_text=True)  # classic: classic

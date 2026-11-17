@@ -84,6 +84,41 @@ body.zeus {
 .zeus-day.is-today { color: var(--zeus-blue); font-weight: 700; }
 .zeus-session { border-left: 3px solid var(--zeus-green); }
 
+/* Week calendar: 7 columns from 1200px, one row per day below (date on the left, events on the right). */
+.zeus-week { --wk-surface: #fff; --wk-course: #eaf0fa; --wk-activity: #ecf7ea;
+  display: grid; gap: .5rem; grid-template-columns: minmax(0, 1fr); }
+.zeus-wday { display: grid; grid-template-columns: 4.25rem minmax(0, 1fr); background: var(--wk-surface);
+  border: 1px solid var(--zeus-line); }
+.zeus-wday > header { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .1rem;
+  padding: .5rem .25rem; border-right: 1px solid var(--zeus-line); }
+.zeus-wday > header span { font-family: var(--font-mono); font-size: .66rem; letter-spacing: .16em; text-transform: uppercase; color: var(--dfs-muted); }
+.zeus-wday > header b { font-size: 1.35rem; line-height: 1; color: var(--dfs-navy); }
+.zeus-wday.is-today { border-color: var(--zeus-blue); box-shadow: 0 0 0 1px var(--zeus-blue); }
+.zeus-wday.is-today > header { background: var(--zeus-navy); }
+.zeus-wday.is-today > header span { color: var(--zeus-green); }
+.zeus-wday.is-today > header b { color: #fff; }
+.zeus-wday.is-weekend:not(.is-today) { background: transparent; }
+.zeus-wday-body { display: flex; flex-direction: column; gap: .4rem; padding: .5rem; min-width: 0; }
+.zeus-event { display: flex; flex-direction: column; gap: .1rem; padding: .4rem .55rem; border-left: 3px solid;
+  color: var(--dfs-ink); text-decoration: none; overflow-wrap: anywhere; }
+.zeus-event time { font-family: var(--font-mono); font-size: .7rem; color: var(--dfs-muted); }
+.zeus-event strong { font-size: .88rem; line-height: 1.25; }
+.zeus-event small { font-size: .74rem; color: var(--dfs-muted); }
+.zeus-event.is-course { background: var(--wk-course); border-color: var(--zeus-blue); }
+.zeus-event.is-activity { background: var(--wk-activity); border-color: var(--zeus-green); }
+a.zeus-event:hover, a.zeus-event:focus-visible { color: var(--dfs-ink); box-shadow: inset 0 0 0 1px var(--zeus-blue); }
+.zeus-free { margin: 0; font-size: .75rem; color: var(--dfs-muted); align-self: flex-start; padding: .35rem 0; }
+.zeus-legend { display: flex; flex-wrap: wrap; align-items: center; gap: .9rem; }
+.zeus-legend .is-course::before, .zeus-legend .is-activity::before { content: ""; display: inline-block; width: .7rem; height: .7rem;
+  margin-right: .35rem; vertical-align: -.05rem; border-left: 3px solid var(--zeus-blue); background: var(--wk-course, #eaf0fa); }
+.zeus-legend .is-activity::before { border-color: var(--zeus-green); background: #ecf7ea; }
+@media (min-width: 1200px) {
+  .zeus-week { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  .zeus-wday { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; min-height: 16rem; }
+  .zeus-wday > header { flex-direction: row; gap: .45rem; border-right: 0; border-bottom: 1px solid var(--zeus-line); }
+  .zeus-free { align-self: center; margin-top: 1rem; }
+}
+
 /* Login page of the Zeus domain, with the textures of the classic login (48px grid, pixel tiles, D F S glyphs off
    the edge). >= 992px: navy hero | form on the grid. Below: navy band on top, form card under it (the classic
    rules of app.css hide pixels and glyphs there). Sizes follow the viewport (clamp), short screens drop extras. */
@@ -174,6 +209,11 @@ body.zeus {
 [data-bs-theme="dark"] .zeus .alert-warning { --bs-alert-color: var(--dfs-ink); --bs-alert-bg: #1c2552; --bs-alert-border-color: #34417c; }
 [data-bs-theme="dark"] .zeus .text-success { color: #a6e09e !important; }
 [data-bs-theme="dark"] .zeus .stat-icon { background: var(--dfs-blue-light); color: #a9c0f5; }
+[data-bs-theme="dark"] .zeus .zeus-week { --wk-surface: var(--zeus-surface); --wk-course: #1f2a5c; --wk-activity: #1b3a2e; }
+[data-bs-theme="dark"] .zeus .zeus-wday { border-color: var(--dfs-border); }
+[data-bs-theme="dark"] .zeus .zeus-wday > header { border-color: var(--dfs-border); }
+[data-bs-theme="dark"] .zeus .zeus-legend .is-course::before { background: #1f2a5c; }
+[data-bs-theme="dark"] .zeus .zeus-legend .is-activity::before { background: #1b3a2e; }
 /* Header switch: moon by day, sun by night. */
 .zeus-theme-toggle { width: 34px; height: 31px; padding: 0; display: inline-grid; place-items: center; }
 

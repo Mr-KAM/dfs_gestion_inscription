@@ -40,14 +40,14 @@
     <small class="d-none d-md-inline">Cohortes de formation</small>
   </a>
   <div class="ms-auto d-flex align-items-center gap-2 gap-md-3">
-    {% set me = current_user.candidate if student else current_user %}
+    {% set header_person = current_user.candidate if student else current_user %}
     <a class="d-flex align-items-center gap-2 text-decoration-none text-reset" title="Mon profil"
        href="{{ url_for('portal.profile' if student else 'auth.profile') }}">
       <div class="user-chip text-end d-none d-md-block">
         <div class="fw-semibold">{{ current_user.display_name }}</div>
         <small>{{ current_user.role_label }}</small>
       </div>
-      {{ avatar(me, url_for('portal.photo' if student else 'auth.photo'), 34) }}
+      {{ avatar(header_person, url_for('portal.photo' if student else 'auth.photo'), 34) }}
     </a>
     {# Students live in Zeus only (no SAS results); staff keep their classic pages (the home brings them back here). #}
     {% set classic = None if student else url_for('dashboard.index', classique=1) %}
@@ -77,7 +77,8 @@
       {{ nav('zeus.roll_calls', 'person-check', 'Mes présences' if student else 'Appels', 'zeus.session') }}
       {{ nav('zeus.notifications', 'megaphone', 'Notifications') }}
       {{ nav('direction.activities', 'calendar-event', 'Activités') }}
-      {{ nav('library.index', 'book', 'Bibliothèque', 'library.') }}
+      {{ nav('library.index', 'book', 'Bibliothèque', 'library.index') }}
+      {% if role in ('admin', 'librarian') %}{{ nav('library.manage', 'journals', 'Gestion bibliothèque', ('library.book', 'library.reader')) }}{% endif %}
       {% if role == 'admin' %}{{ nav('zeus.class_roles', 'person-badge', 'Rôles de classe') }}{% endif %}
       <div class="nav-section">Mon compte</div>
       {{ nav('portal.profile' if student else 'auth.profile', 'person-circle', 'Mon profil') }}

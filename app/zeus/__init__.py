@@ -358,9 +358,12 @@ def session(session_id: int):
         flash(f"Appel enregistré : {n} présent(s) sur {len(s.expected)}.", "success")
         return redirect(url_for("zeus.session", session_id=s.id))
     present = {m.enrollment_id for m in s.marks}
+    if can_call and request.args.get("partial"):  # roll call by QR code: refreshed every 10 s
+        return render_template("zeus/_call_live.html", s=s, present=present, qr=zeus_service.call_qr(s))
     return allow_camera(make_response(render_template(
         "zeus/session.html", s=s, present=present, can_call=can_call,
         can_manage=zeus_service.can_schedule(current_user, s.course.cohort, s.klass),
+        qr=zeus_service.call_qr(s) if can_call and request.args.get("appel") == "qr" else None,
         me=zeus_service.student_enrollment(current_user))))
 
 
@@ -378,12 +381,25 @@ def session_scan(session_id: int):
     return redirect(url_for("zeus.session", session_id=s.id))
 
 
-@bp.get("/appels")
+@bp.route("/appels", methods=["GET", "POST"])
 def roll_calls():
-    """Staff: the roll calls of the last 30 days. Student: his attendance."""
+    """Staff: the roll calls of the last 30 days. Student: his attendance, and the coach's QR code to scan (in-page
+    scanner, or the phone camera opening ?code=...)."""
     e = zeus_service.student_enrollment(current_user)
     if e:
-        return render_template("zeus/my_attendance.html", e=e, rows=zeus_service.student_attendance(e, current_user))
+        if request.method == "POST":
+            try:
+                s, new = zeus_service.self_mark(e, request.form.get("token", ""), current_user)
+                flash(f"{s.course.name} · {e.matricule} : " + ("présence enregistrée." if new else "déjà présent(e)."),
+                      "success")
+            except BusinessError as exc:
+                flash(str(exc), "danger")
+            return redirect(url_for("zeus.roll_calls"))
+        return allow_camera(make_response(render_template(
+            "zeus/my_attendance.html", e=e, rows=zeus_service.student_attendance(e, current_user),
+            code=request.args.get("code", "")[:200])))
+    if request.method == "POST":
+        abort(403)
     end = zeus_service.week_start(None) + timedelta(days=7)
     sessions = zeus_service.sessions_for(current_user, end - timedelta(days=37), end)
     if current_user.role == ROLE_TRADE_COACH:

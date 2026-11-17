@@ -2,14 +2,17 @@
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
+import segno
+from flask import url_for
+from markupsafe import Markup
 from sqlalchemy import or_, select
 
 from app.extensions import db
 from app.models import (Cohort, Enrollment, User, ZeusAttendance, ZeusClass, ZeusClassCoach, ZeusClassMember,
                         ZeusClassRole, ZeusCourse, ZeusNotification, ZeusSession)
 from app.models.user import COACH_ROLES, ROLE_ADMIN, ROLE_COACH, ROLE_RECEPTION, ROLE_RESIDENCE
-from app.models.zeus import METHOD_MANUAL, METHOD_SCAN
-from app.services import audit_service, settings_service
+from app.models.zeus import METHOD_MANUAL, METHOD_SCAN, METHOD_SELF
+from app.services import attendance_service, audit_service, settings_service
 from app.services.campus_service import local_datetime
 from app.services.candidate_service import BusinessError, decode_matricule
 from app.utils import utcnow
@@ -469,6 +472,28 @@ def scan(session: ZeusSession, token: str, user) -> tuple[Enrollment, bool]:
     audit_service.log("zeus_attendance", session, {"scanned": matricule})
     db.session.commit()
     return e, True
+
+
+def call_qr(session: ZeusSession) -> Markup:
+    """Roll call launched by the coach: the rotating QR code (1 min) the students scan from their Zeus space."""
+    url = url_for("zeus.roll_calls", code=attendance_service.current_code(session, "zeus"), _external=True)
+    return Markup(segno.make(url, error="m").svg_inline(border=4, dark="#000", light="#fff", omitsize=True))
+
+
+def self_mark(enrollment: Enrollment, code: str, user) -> tuple[ZeusSession, bool]:
+    """The student scanned the coach's QR code: marked present under his DFS matricule (enrollment)."""
+    # ponytail: no open / closed state, the code expires after 2 minutes: only those in the room can scan it.
+    s = db.session.get(ZeusSession, attendance_service.session_id_from_code(code, "zeus"))
+    if s is None:
+        raise BusinessError("Cette séance n'existe plus.")
+    if enrollment not in s.expected:
+        raise BusinessError(f"{enrollment.matricule} : vous n'êtes pas attendu(e) à cette séance.")
+    if any(m.enrollment_id == enrollment.id for m in s.marks):
+        return s, False
+    db.session.add(ZeusAttendance(session=s, enrollment=enrollment, method=METHOD_SELF, marked_by=user.id))
+    audit_service.log("zeus_attendance", s, {"self": enrollment.matricule})
+    db.session.commit()
+    return s, True
 
 
 def student_attendance(enrollment: Enrollment, user) -> list[tuple[ZeusSession, bool]]:

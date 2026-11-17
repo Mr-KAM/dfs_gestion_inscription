@@ -1,0 +1,22 @@
+{# Roll call by QR code, refreshed every 10 s (data-poll): rotating QR code + who has marked (DFS matricule). #}
+{% from "_macros.html" import avatar %}
+{% set expected = s.expected %}
+<div class="card mb-3"><div class="card-header"><i class="bi bi-qr-code"></i> QR code à scanner par les étudiants</div>
+  <div class="card-body text-center">
+    <div class="qr-code qr-lg d-inline-block bg-white p-2 rounded" role="img" aria-label="QR code de l'appel">{{ qr }}</div>
+    <p class="small text-muted mt-2 mb-0">Projetez ce QR code. Il change chaque minute : une photo partagée expire vite.
+      Les étudiants le scannent depuis « Mes présences » de leur espace Zeus ou avec l'appareil photo de leur téléphone :
+      leur présence est enregistrée sous leur matricule DFS.</p>
+  </div></div>
+<div class="card"><div class="card-header d-flex justify-content-between align-items-center"><span><i class="bi bi-people"></i> Étudiants</span>
+  <span class="status status-{{ 'success' if expected and present | length == expected | length else 'info' }}">{{ present | length }} / {{ expected | length }} présent(s)</span></div>
+<ul class="list-group list-group-flush">
+{% for e in expected | sort(attribute='candidate.full_name') %}{% set c = e.candidate %}
+  <li class="list-group-item d-flex align-items-center gap-2">
+    {{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 28) }}
+    <span class="flex-grow-1">{{ c.full_name }} <code class="small">{{ e.matricule }}</code></span>
+    {% if e.id in present %}<span class="status status-success">Présent(e)</span>{% else %}<span class="status status-warning">En attente</span>{% endif %}</li>
+{% else %}
+  <li class="list-group-item text-muted small">Aucun étudiant attendu : la classe n'a pas encore de membre.</li>
+{% endfor %}
+</ul></div>

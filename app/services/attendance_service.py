@@ -83,14 +83,15 @@ def marks_by_session(candidate: Candidate) -> dict[int, Attendance]:
 
 # ---- rotating code shown by the admin (QR = portal URL carrying the code)
 
-def _sign(session_id: int, window: int) -> str:
+def _sign(session_id: int, window: int, scope: str) -> str:
     key = current_app.config["SECRET_KEY"].encode()
-    return hmac.new(key, f"attendance:{session_id}:{window}".encode(), hashlib.sha256).hexdigest()[:16]
+    return hmac.new(key, f"{scope}:{session_id}:{window}".encode(), hashlib.sha256).hexdigest()[:16]
 
 
-def current_code(session: AttendanceSession) -> str:
+def current_code(session, scope: str = "attendance") -> str:
+    """`scope`: SAS roll calls ("attendance") or Zeus sessions ("zeus"): a code never opens the other kind."""
     window = int(utcnow().timestamp()) // CODE_WINDOW
-    return f"{session.id}-{window}-{_sign(session.id, window)}"
+    return f"{session.id}-{window}-{_sign(session.id, window, scope)}"
 
 
 def qr_svg(session: AttendanceSession) -> Markup:
@@ -99,6 +100,13 @@ def qr_svg(session: AttendanceSession) -> Markup:
 
 
 def session_from_code(text: str) -> AttendanceSession:
+    session = db.session.get(AttendanceSession, session_id_from_code(text))
+    if session is None:
+        raise BusinessError("Ce pointage n'existe plus.")
+    return session
+
+
+def session_id_from_code(text: str, scope: str = "attendance") -> int:
     """Accepts the bare code or the scanned URL. Valid for the current and the previous minute."""
     text = (text or "").strip()[:500]
     if "code=" in text:
@@ -108,14 +116,11 @@ def session_from_code(text: str) -> AttendanceSession:
         session_id, window = int(session_id), int(window)
     except ValueError:
         raise BusinessError("QR code de pointage illisible.")
-    if not hmac.compare_digest(sig, _sign(session_id, window)):
+    if not hmac.compare_digest(sig, _sign(session_id, window, scope)):
         raise BusinessError("QR code de pointage invalide.")
     if int(utcnow().timestamp()) // CODE_WINDOW - window not in (0, 1):
         raise BusinessError("QR code expiré : scannez le QR code actuellement affiché.")
-    session = db.session.get(AttendanceSession, session_id)
-    if session is None:
-        raise BusinessError("Ce pointage n'existe plus.")
-    return session
+    return session_id
 
 
 # ---- marking

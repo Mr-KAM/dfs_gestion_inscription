@@ -267,3 +267,41 @@ def test_night_mode_switch(app, db, client, admin):
     client.post("/zeus/theme", data={"theme": "light", "next": "https://evil.example/"})  # foreign next: ignored
     assert client.get_cookie("zeus_theme").value == "light"
     assert 'data-bs-theme="light"' in client.get("/zeus/").get_data(as_text=True)
+
+
+def test_roll_call_by_qr_code(app, db, client, admin):
+    """The coach launches the roll call (rotating QR code); students scan it: marked under their DFS matricule."""
+    from datetime import timedelta
+    from app.services import attendance_service
+    zeus_service.set_enabled(True)
+    cohort = Cohort(name="2026-2027")
+    alpha = _student(db, cohort, "Alpha", "26DFS000001")
+    bravo = _student(db, Cohort(name="Autre"), "Bravo", "26DFS000002")  # another cohort: not expected
+    s = ZeusSession(course=ZeusCourse(cohort=cohort, name="Python"), starts_at=utcnow(),
+                    ends_at=utcnow() + timedelta(hours=2))
+    db.session.add(s)
+    db.session.commit()
+
+    login(client, admin)
+    html = client.get(f"/zeus/seances/{s.id}?appel=qr").get_data(as_text=True)
+    assert "QR code à scanner" in html and "<svg" in html and "26DFS000001" in html
+    code = attendance_service.current_code(s, "zeus")
+    client.post("/logout")
+
+    portal_login(client, bravo.candidate.email)
+    assert "pas attendu" in client.post("/zeus/appels", data={"token": code}, follow_redirects=True).get_data(
+        as_text=True)
+    client.post("/logout")
+    portal_login(client, alpha.candidate.email)
+    assert "Confirmer ma présence" in client.get(f"/zeus/appels?code={code}").get_data(as_text=True)
+    sas_code = f"{s.id}-{code.split('-')[1]}-{attendance_service._sign(s.id, int(code.split('-')[1]), 'attendance')}"
+    client.post("/zeus/appels", data={"token": sas_code})  # a SAS roll-call code never opens a Zeus session
+    assert db.session.query(ZeusAttendance).count() == 0
+    html = client.post("/zeus/appels", data={"token": f"https://x/zeus/appels?code={code}"},
+                       follow_redirects=True).get_data(as_text=True)
+    assert "26DFS000001 : présence enregistrée" in html
+    assert [(m.enrollment_id, m.method) for m in db.session.query(ZeusAttendance)] == [(alpha.id, "self")]
+    client.post("/logout")
+
+    login(client, admin)
+    assert "1 / 1 présent(s)" in client.get(f"/zeus/seances/{s.id}?partial=1").get_data(as_text=True)

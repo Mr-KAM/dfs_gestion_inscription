@@ -48,7 +48,7 @@ def test_code_checks(app, db, client):
     window = int(utcnow().timestamp()) // CODE_WINDOW
     post = lambda token: client.post("/candidat/presence", data={"token": token}, follow_redirects=True).get_data(as_text=True)
     assert "ne concerne pas votre classe" in post(attendance_service.current_code(other_class))
-    assert "expiré" in post(f"{whole_sas.id}-{window - 2}-{_sign(whole_sas.id, window - 2)}")  # old photo of the QR
+    assert "expiré" in post(f"{whole_sas.id}-{window - 2}-{_sign(whole_sas.id, window - 2, "attendance")}")  # old photo of the QR
     assert "invalide" in post(f"{whole_sas.id}-{window}-0000000000000000")
     assert "illisible" in post("bonjour")
     whole_sas.closes_at = utcnow() - timedelta(seconds=1)  # time is up

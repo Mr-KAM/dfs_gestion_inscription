@@ -3,7 +3,7 @@ import os
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, session
 from flask_login import current_user
 from flask_wtf.csrf import CSRFError
 from sqlalchemy import text
@@ -119,12 +119,18 @@ def _register_web_helpers(app: Flask) -> None:
         if current_user.is_authenticated and current_user.role == "admin":
             reset_requests = db.session.scalar(select(func.count(PasswordResetRequest.id)).where(
                 PasswordResetRequest.status == "pending"))
-        # Zeus mode: its own layout on /zeus, and on the cohort pages once the admin has switched it on;
-        # profile / password too for its users (one interface: they never see the classic shell).
-        zeus_ui = current_user.is_authenticated and (request.blueprint == "zeus" or (
-            request.blueprint == "cohort" and zeus_service.lands_in_zeus(current_user)) or (
-            (request.endpoint in ZEUS_ACCOUNT_PAGES or request.blueprint == "library")
-            and zeus_service.stays_in_zeus(current_user)))
+        # Zeus mode: its own layout on /zeus, and on the cohort pages once the admin has switched it on. Shared pages
+        # (profile, password, activities, library) open in the interface one comes from (session "in_zeus");
+        # always in Zeus for its users who never see the classic shell.
+        zeus_ui = False
+        if current_user.is_authenticated:
+            if request.endpoint in ZEUS_ACCOUNT_PAGES or request.blueprint == "library":
+                zeus_ui = zeus_service.stays_in_zeus(current_user) or session.get("in_zeus", False)
+            else:
+                zeus_ui = request.blueprint == "zeus" or (
+                    request.blueprint == "cohort" and zeus_service.lands_in_zeus(current_user))
+                if session.get("in_zeus", False) != zeus_ui:
+                    session["in_zeus"] = zeus_ui
         return {"app_name": settings_service.get("app_name"), "ROLES": ROLES, "reset_requests": reset_requests,
                 "layout": "zeus/base.html" if zeus_ui else "base.html",
                 "zeus_link": current_user.is_authenticated and zeus_service.lands_in_zeus(current_user)}
