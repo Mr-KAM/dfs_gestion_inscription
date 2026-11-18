@@ -89,6 +89,9 @@ body.zeus {
 .zeus .bottom-nav-item { position: relative; }
 .zeus .bottom-nav-item .zeus-count { position: absolute; top: .4rem; left: calc(50% + .3rem); padding: .2em .45em; font-size: .6rem;
   letter-spacing: 0; overflow: visible; }
+/* A .visually-hidden cell label is absolutely positioned: keep it inside the scrolling table (otherwise it widens the
+   page on phones and pushes the fixed bottom nav off screen). */
+.zeus .table-responsive { position: relative; }
 .zeus-inbox-row { display: flex; gap: .75rem; align-items: flex-start; }
 .zeus-inbox-group { margin: 0; font-size: 1rem; display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
 .zeus-inbox-icon { width: 40px; height: 40px; flex-shrink: 0; display: inline-grid; place-items: center; background: var(--dfs-blue-light);
