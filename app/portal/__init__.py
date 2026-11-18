@@ -120,7 +120,8 @@ def profile():
         except BusinessError as exc:
             db.session.rollback()
             flash(str(exc), "danger")
-    return render_template("portal/profile.html", c=candidate)
+    return render_template("portal/profile.html", c=candidate,
+                           zeus_student=zeus_service.student_enrollment(current_user) is not None)
 
 
 @bp.get("/photo")

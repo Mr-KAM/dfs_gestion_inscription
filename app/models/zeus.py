@@ -228,7 +228,7 @@ class ZeusConversation(db.Model):
 
 
 class ZeusMessage(db.Model):
-    """Plain text (links made clickable on display). Never edited; the admin may delete one (moderation)."""
+    """Plain text (links made clickable on display). Never edited nor deleted: the conversation is the record."""
     __tablename__ = "zeus_messages"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -256,4 +256,25 @@ class ZeusConversationRead(db.Model):
 
     __table_args__ = (
         db.UniqueConstraint("conversation_id", "user_id", name="uq_zeus_conversation_reads_conversation_user"),
+    )
+
+
+class ZeusBirthdayWish(db.Model):
+    """A short birthday wish, seen by its recipient and its author only. One per author and birthday; deleted by the
+    recipient, or purged after a month (zeus_birthday_service)."""
+    __tablename__ = "zeus_birthday_wishes"
+
+    id = db.Column(db.Integer, primary_key=True)
+    recipient_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    author_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    birthday = db.Column(db.Date, nullable=False)  # the occurrence celebrated (this year's date)
+    body = db.Column(db.String(280), nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow, index=True)
+
+    recipient = db.relationship("User", foreign_keys=[recipient_id])
+    author = db.relationship("User", foreign_keys=[author_id])
+
+    __table_args__ = (
+        db.UniqueConstraint("recipient_id", "author_id", "birthday",
+                            name="uq_zeus_birthday_wishes_recipient_author_birthday"),
     )

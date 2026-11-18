@@ -136,6 +136,25 @@ def _parse_birth_date(value: str) -> date | None:
         raise BusinessError("Date de naissance invalide.")
 
 
+def parse_day_month(day: str | None, month: str | None) -> tuple[int, int] | None:
+    """A staff member's birthday (no year): (day, month), None when both are empty. 29/02 is a valid birthday."""
+    day, month = (day or "").strip(), (month or "").strip()
+    if not day and not month:
+        return None
+    try:
+        d, m = int(day), int(month)
+        date(2000, m, d)  # a leap year: accepts 29/02, refuses 31/02 or 0/13
+    except ValueError:
+        raise BusinessError("Date d'anniversaire invalide : indiquez le jour et le mois.")
+    return d, m
+
+
+def _apply_birthday_prefs(user: User | None, form) -> None:
+    """The Zeus birthday opt-out, only from forms that show it (hidden marker birthday_prefs)."""
+    if user is not None and form.get("birthday_prefs"):
+        user.hide_birthday = form.get("hide_birthday") == "1"
+
+
 def check_new_password(password: str, confirm: str) -> None:
     if len(password) < MIN_PASSWORD:
         raise BusinessError(f"Le mot de passe doit contenir au moins {MIN_PASSWORD} caractères.")
@@ -229,17 +248,23 @@ def update_profile(candidate: Candidate, form, photo=None) -> None:
     candidate.birth_place = form.get("birth_place", "").strip()[:120] or None
     candidate.gender = form.get("gender") if form.get("gender") in ("M", "F") else None
     candidate.city = form.get("city", "").strip()[:120] or None
+    _apply_birthday_prefs(candidate.account, form)
     _apply_photo(candidate, form, data)
     audit_service.log("profile_update", candidate, {"photo": "removed" if form.get("remove_photo") else bool(data)})
     db.session.commit()
 
 
 def update_staff_profile(user: User, form, photo=None) -> None:
-    """A staff member (coach, reception...) edits his name, phone and photo. Email and role stay with the admin."""
+    """A staff member (coach, reception...) edits his name, phone, photo and Zeus birthday. Email and role stay with
+    the admin."""
     data = _read_photo(form, photo)
     user.full_name = " ".join(form.get("full_name", "").split())[:200]
     user.gender = form.get("gender") if form.get("gender") in ("F", "M") else None
     user.phone = norm_phone(form.get("phone")) or None
+    if form.get("birthday_prefs"):
+        user.birthday_day, user.birthday_month = parse_day_month(form.get("birthday_day"),
+                                                                 form.get("birthday_month")) or (None, None)
+    _apply_birthday_prefs(user, form)
     _apply_photo(user, form, data)
     audit_service.log("profile_update", user, {"photo": "removed" if form.get("remove_photo") else bool(data)})
     db.session.commit()

@@ -28,7 +28,7 @@
       <option value="">Toutes mes cohortes</option>
       {% for c in cohorts %}<option value="{{ c.id }}" {{ 'selected' if selected and selected.id == c.id }}>{{ c.name }}</option>{% endfor %}</select>
   </form>{% else %}<span></span>{% endif %}
-  <div class="zeus-legend small text-muted"><span class="is-course">Séance de cours</span><span class="is-activity">Activité</span>
+  <div class="zeus-legend small text-muted"><span class="is-course">Séance de cours</span><span class="is-activity">Activité</span>{% if birthdays %}<span class="is-birthday">Anniversaire</span>{% endif %}
     {% if manageable and not target %}<span class="ms-2">Choisissez une cohorte pour programmer une séance.</span>{% endif %}</div>
 </div>
 
@@ -37,6 +37,11 @@
   <section class="zeus-wday {{ 'is-today' if key == today }} {{ 'is-weekend' if loop.index > 5 }}" aria-label="{{ DAYS[loop.index0] }} {{ day | dt('%d/%m') }}">
     <header><span>{{ DAYS[loop.index0][:3] }}</span><b>{{ day | dt('%d') }}</b></header>
     <div class="zeus-wday-body">
+    {% set bdays = birthdays.get(key, []) %}
+    {% for p in bdays %}
+      <div class="zeus-event is-birthday"><strong><i class="bi bi-cake2" aria-hidden="true"></i> {{ p.name }}</strong>
+        <small>Anniversaire · {{ p.label }}</small></div>
+    {% endfor %}
     {% for e in events if (e.starts_at | dt('%Y-%m-%d')) == key %}
       {% if e.course %}
       <a class="zeus-event is-course" href="{{ url_for('zeus.session', session_id=e.id) }}">
@@ -53,7 +58,7 @@
       </div>
       {% endif %}
     {% else %}
-      <p class="zeus-free">Libre</p>
+      {% if not bdays %}<p class="zeus-free">Libre</p>{% endif %}
     {% endfor %}
     </div>
   </section>

@@ -86,6 +86,12 @@ class User(UserMixin, db.Model):
                            server_default=db.func.now())
     # Coach: the classes he teaches, as "sas_id:class name" strings.
     coach_classes = db.Column(db.JSON, nullable=False, default=list, server_default="[]")
+    # Zeus birthdays. Staff give the day and month only (a student's comes from Candidate.birth_date). Anyone may
+    # hide his birthday; "Plus tard" on the Zeus home prompt snoozes it until the given date.
+    birthday_day = db.Column(db.SmallInteger)
+    birthday_month = db.Column(db.SmallInteger)
+    hide_birthday = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
+    birthday_prompt_snoozed_until = db.Column(db.Date)
 
     candidate = db.relationship("Candidate", back_populates="account", foreign_keys=[candidate_id])
 
