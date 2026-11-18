@@ -9,7 +9,7 @@
 {% call page_head(k.name, eyebrow='Classe · ' ~ cohort.name, back=url_for('zeus.cohort', cohort_id=cohort.id), back_label='Cohorte ' ~ cohort.name,
                   subtitle=k.description or None, meta=head_meta) %}
   <a class="btn btn-outline-primary" href="{{ url_for('zeus.calendar', cohort=cohort.id) }}"><i class="bi bi-calendar-week"></i> Calendrier</a>
-  {% if can_message %}<a class="btn btn-outline-primary" href="{{ url_for('zeus.messages', classe=k.id) }}"><i class="bi bi-chat-dots"></i> Messages de la classe</a>{% endif %}
+  {% if can_message or is_admin %}<a class="btn btn-outline-primary" href="{{ url_for('zeus.messages', classe=k.id) }}"><i class="bi bi-chat-dots"></i> {{ 'Mes messages' if can_message else 'Revue des messages' }}</a>{% endif %}
   {% if is_admin %}<button class="btn btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#edit-class"
           aria-expanded="false" aria-controls="edit-class"><i class="bi bi-pencil"></i> Modifier</button>{% endif %}
 {% endcall %}
@@ -86,7 +86,7 @@
           <td>{{ c.full_name }}</td><td><code>{{ m.enrollment.matricule }}</code></td>
           <td>{% if m.joined_at %}<span class="status status-success">Membre</span>{% else %}<span class="status status-warning">Invité</span>{% endif %}</td>
           {% if can_manage or can_message %}<td class="text-end"><div class="d-inline-flex gap-1">
-            {% if can_message and m.joined_at %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('zeus.conversation', class_id=k.id, enrollment_id=m.enrollment_id, _anchor='fin') }}"
+            {% if can_message and m.joined_at %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('zeus.conversation', class_id=k.id, enrollment_id=m.enrollment_id, coach_id=current_user.id, _anchor='fin') }}"
                title="Écrire à {{ c.full_name }}" aria-label="Écrire à {{ c.full_name }}"><i class="bi bi-chat-dots"></i></a>{% endif %}
             {% if can_manage %}<form method="post" data-confirm="Retirer {{ c.full_name }} de la classe ?">{{ csrf() }}
             <input type="hidden" name="member_id" value="{{ m.id }}"><button class="btn btn-sm btn-outline-danger" name="action" value="remove" title="Retirer" aria-label="Retirer {{ c.full_name }}"><i class="bi bi-person-dash"></i></button></form>{% endif %}

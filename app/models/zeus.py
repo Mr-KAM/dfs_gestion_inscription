@@ -199,27 +199,31 @@ class ZeusAttendance(db.Model):
 
 
 class ZeusConversation(db.Model):
-    """Class messaging: the private conversation of one student with the teaching staff of one of his classes (and
-    the admin). Created with its first message. Who may read it is derived from the class at read time."""
+    """Class messaging: the private one-to-one conversation of a student with one coach of one of his classes. The
+    other coaches never see it; the admin reviews it, read-only (each review is audit logged). Created with its first
+    message. Access is derived from the class at read time: a coach removed from the class loses it."""
     __tablename__ = "zeus_conversations"
 
     id = db.Column(db.Integer, primary_key=True)
     class_id = db.Column(db.Integer, db.ForeignKey("zeus_classes.id", ondelete="CASCADE"), nullable=False, index=True)
     enrollment_id = db.Column(db.Integer, db.ForeignKey("cohort_enrollments.id", ondelete="CASCADE"), nullable=False,
                               index=True)
+    coach_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
     last_message_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow, index=True)
-    # The student wrote last: the class team owes an answer (staff badge, "À répondre" filter).
+    # The student wrote last: the coach owes an answer (his badge, "À répondre" filter).
     awaiting_reply = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
 
     klass = db.relationship("ZeusClass")
     enrollment = db.relationship("Enrollment")
+    coach = db.relationship("User")
     messages = db.relationship("ZeusMessage", back_populates="conversation", cascade="all, delete-orphan",
                                order_by="ZeusMessage.id")
     reads = db.relationship("ZeusConversationRead", back_populates="conversation", cascade="all, delete-orphan")
 
     __table_args__ = (
-        db.UniqueConstraint("class_id", "enrollment_id", name="uq_zeus_conversations_class_enrollment"),
+        db.UniqueConstraint("class_id", "enrollment_id", "coach_id",
+                            name="uq_zeus_conversations_class_enrollment_coach"),
     )
 
 

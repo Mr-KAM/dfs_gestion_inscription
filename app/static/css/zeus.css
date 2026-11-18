@@ -90,6 +90,7 @@ body.zeus {
 .zeus .bottom-nav-item .zeus-count { position: absolute; top: .4rem; left: calc(50% + .3rem); padding: .2em .45em; font-size: .6rem;
   letter-spacing: 0; overflow: visible; }
 .zeus-inbox-row { display: flex; gap: .75rem; align-items: flex-start; }
+.zeus-inbox-group { margin: 0; font-size: 1rem; display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
 .zeus-inbox-icon { width: 40px; height: 40px; flex-shrink: 0; display: inline-grid; place-items: center; background: var(--dfs-blue-light);
   color: var(--zeus-blue); font-size: 1.1rem; }
 .zeus-preview { font-size: .85rem; color: var(--dfs-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -110,7 +111,6 @@ body.zeus {
   overflow-wrap: anywhere; }
 .zeus-msg.is-mine .zeus-msg-body { background: var(--zeus-blue); color: #fff; border-color: var(--zeus-blue); }
 .zeus-msg.is-mine .zeus-msg-body a { color: #fff; text-decoration: underline; }
-.zeus-msg-delete { padding: 0; font-size: .74rem; color: var(--bs-danger); text-decoration: none; }
 .zeus-compose { scroll-margin-top: 45vh; }
 .zeus-filter { --bs-nav-pills-border-radius: 0; --bs-nav-pills-link-active-bg: var(--zeus-navy); --bs-nav-link-color: var(--zeus-blue);
   --bs-nav-link-hover-color: var(--zeus-navy); gap: .3rem; }
@@ -253,7 +253,6 @@ a.zeus-event:hover, a.zeus-event:focus-visible { color: var(--dfs-ink); box-shad
 [data-bs-theme="dark"] .zeus .zeus-thread-day::before, [data-bs-theme="dark"] .zeus .zeus-thread-day::after { border-color: var(--dfs-border); }
 [data-bs-theme="dark"] .zeus .zeus-inbox-icon { color: #a9c0f5; }
 [data-bs-theme="dark"] .zeus .zeus-unread-dot { background: #8fb0f0; }
-[data-bs-theme="dark"] .zeus .zeus-msg-delete { color: #ffa3ad; }
 [data-bs-theme="dark"] .zeus .zeus-filter { --bs-nav-link-color: #8fb0f0; --bs-nav-link-hover-color: #c3d3ff; --bs-nav-pills-link-active-bg: var(--zeus-blue); }
 [data-bs-theme="dark"] .zeus .zeus-filter .nav-link { background: var(--zeus-surface); border-color: var(--dfs-border); }
 [data-bs-theme="dark"] .zeus .zeus-filter .nav-link.active { background: var(--zeus-blue); border-color: var(--zeus-blue); }

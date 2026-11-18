@@ -1,15 +1,17 @@
-"""Zeus class messaging: one private conversation per student and class, between the student and the class's teaching
-staff (every accepted coach, managers included) and the admin. Not real time: an unread badge, refreshed by polling.
+"""Zeus class messaging: private one-to-one conversations between a student and one coach of one of his classes.
+The other coaches of the class never see them. The admin reviews every conversation, read-only: each review is audit
+logged, as is each message sent (never its text). Not real time: an unread badge, refreshed by polling.
 
-Who may read is derived from the class at read time, never stored: a coach added to the class later sees the history,
-a coach removed from it loses it at once. A student removed from the class keeps his conversation, read-only for all."""
+Who may read is derived from the class at read time, never stored: a coach removed from the class loses his
+conversations at once (the student keeps them, read-only; the admin still reviews them). A student removed from the
+class keeps his conversations, read-only for everyone."""
 from dataclasses import dataclass
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
-from app.models import Enrollment, ZeusClass, ZeusConversation, ZeusConversationRead, ZeusMessage
+from app.models import Enrollment, User, ZeusClass, ZeusConversation, ZeusConversationRead, ZeusMessage
 from app.models.user import ROLE_ADMIN
 from app.services import audit_service, zeus_service
 from app.services.candidate_service import BusinessError
@@ -25,9 +27,15 @@ def is_member(klass: ZeusClass, enrollment: Enrollment) -> bool:
     return any(m.enrollment_id == enrollment.id and m.joined_at for m in klass.members)
 
 
-def conversation(klass: ZeusClass, enrollment: Enrollment) -> ZeusConversation | None:
+def on_team(klass: ZeusClass, coach: User) -> bool:
+    """An accepted coach of the class, managers and trade coaches included (a pending invitation is not)."""
+    return zeus_service.class_link(coach, klass) is not None
+
+
+def conversation(klass: ZeusClass, enrollment: Enrollment, coach: User) -> ZeusConversation | None:
     return db.session.scalar(select(ZeusConversation).where(ZeusConversation.class_id == klass.id,
-                                                            ZeusConversation.enrollment_id == enrollment.id))
+                                                            ZeusConversation.enrollment_id == enrollment.id,
+                                                            ZeusConversation.coach_id == coach.id))
 
 
 def _is_the_student(user, enrollment: Enrollment) -> bool:
@@ -35,19 +43,32 @@ def _is_the_student(user, enrollment: Enrollment) -> bool:
     return e is not None and e.id == enrollment.id
 
 
-def can_read(user, klass: ZeusClass, enrollment: Enrollment) -> bool:
-    """The student himself, or the class team (zeus_service.can_teach_class: admin, managers, accepted coaches);
-    about a member of the class, or a former member whose conversation exists."""
+def is_reviewer(user) -> bool:
+    """Reads every conversation, never writes: the admin."""
+    return user.role == ROLE_ADMIN
+
+
+def is_participant(user, klass: ZeusClass, enrollment: Enrollment, coach: User) -> bool:
+    """The student himself, or the coach himself while he is on the class team."""
+    return _is_the_student(user, enrollment) or (user.id == coach.id and on_team(klass, coach))
+
+
+def can_read(user, klass: ZeusClass, enrollment: Enrollment, coach: User) -> bool:
+    """A participant: about a member of the class and a coach of its team (to start one), or once the conversation
+    exists. The reviewer: an existing conversation."""
     if enrollment.cohort_id != klass.cohort_id:
         return False
-    if not (_is_the_student(user, enrollment) or zeus_service.can_teach_class(user, klass)):
-        return False
-    return is_member(klass, enrollment) or conversation(klass, enrollment) is not None
+    if is_participant(user, klass, enrollment, coach):
+        return ((is_member(klass, enrollment) and on_team(klass, coach))
+                or conversation(klass, enrollment, coach) is not None)
+    return is_reviewer(user) and conversation(klass, enrollment, coach) is not None
 
 
-def can_write(user, klass: ZeusClass, enrollment: Enrollment) -> bool:
-    """Only while the student is a member of the class: afterwards the conversation is read-only for everyone."""
-    return can_read(user, klass, enrollment) and is_member(klass, enrollment)
+def can_write(user, klass: ZeusClass, enrollment: Enrollment, coach: User) -> bool:
+    """The two participants, while the student is a member of the class and the coach on its team: afterwards the
+    conversation is read-only. Never the reviewer."""
+    return (enrollment.cohort_id == klass.cohort_id and is_participant(user, klass, enrollment, coach)
+            and is_member(klass, enrollment) and on_team(klass, coach))
 
 
 # ---- writing and reading
@@ -61,27 +82,35 @@ def _set_read(conv: ZeusConversation, user, when) -> None:
         read.last_read_at = when
 
 
-def send(klass: ZeusClass, enrollment: Enrollment, body: str, user) -> ZeusMessage:
-    """The caller checked can_write. The conversation is created with its first message (never empty)."""
+def _audit_details(conv: ZeusConversation) -> dict:
+    return {"conversation": conv.id, "class": conv.klass.name, "student": conv.enrollment.matricule,
+            "coach": conv.coach.email}
+
+
+def send(klass: ZeusClass, enrollment: Enrollment, coach: User, body: str, user) -> ZeusMessage:
+    """The caller checked can_write. The conversation is created with its first message (never empty). Audit logged
+    without the text: the conversation itself is the record."""
     body = (body or "").strip()
     if not body:
         raise BusinessError("Écrivez votre message.")
     if len(body) > MAX_LENGTH:
         raise BusinessError(f"Message trop long : {MAX_LENGTH} caractères au maximum.")
-    conv = conversation(klass, enrollment)
+    conv = conversation(klass, enrollment, coach)
     if conv is None:
-        try:  # two first messages at once: the unique (class, student) keeps one conversation
+        try:  # two first messages at once: the unique (class, student, coach) keeps one conversation
             with db.session.begin_nested():
-                conv = ZeusConversation(class_id=klass.id, enrollment_id=enrollment.id)
+                conv = ZeusConversation(class_id=klass.id, enrollment_id=enrollment.id, coach_id=coach.id)
                 db.session.add(conv)
         except IntegrityError:
-            conv = conversation(klass, enrollment)
+            conv = conversation(klass, enrollment, coach)
     now = utcnow()
     message = ZeusMessage(conversation=conv, author_id=user.id, body=body, created_at=now)
     db.session.add(message)
     conv.last_message_at = now
     conv.awaiting_reply = user.is_candidate
     _set_read(conv, user, now)  # one's own message is read
+    db.session.flush()  # ids for the audit row
+    audit_service.log("zeus_message_sent", message, _audit_details(conv) | {"author": user.email}, user=user)
     db.session.commit()
     return message
 
@@ -94,24 +123,10 @@ def mark_read(conv: ZeusConversation, user) -> None:
         db.session.rollback()
 
 
-def delete_message(message: ZeusMessage) -> ZeusConversation | None:
-    """Admin moderation (the caller checks the role). Returns the conversation, or None once its last message is
-    gone (no empty conversation)."""
-    conv = message.conversation
-    audit_service.log("zeus_message_deleted", conv, {
-        "class": conv.klass.name, "student": conv.enrollment.matricule,
-        "author": message.author.email if message.author else None,
-        "sent_at": as_utc(message.created_at).isoformat(), "excerpt": message.body[:200]})
-    conv.messages.remove(message)  # delete-orphan
-    if not conv.messages:
-        db.session.delete(conv)
-        db.session.commit()
-        return None
-    last = conv.messages[-1]
-    conv.last_message_at = last.created_at
-    conv.awaiting_reply = bool(last.author and last.author.is_candidate)
+def review(conv: ZeusConversation, user) -> None:
+    """The admin opens a conversation he is not part of: audit logged, every time. Nobody's read marker moves."""
+    audit_service.log("zeus_conversation_review", conv, _audit_details(conv), user=user)
     db.session.commit()
-    return conv
 
 
 def author(message: ZeusMessage, klass: ZeusClass) -> tuple[str, str]:
@@ -121,36 +136,40 @@ def author(message: ZeusMessage, klass: ZeusClass) -> tuple[str, str]:
         return "Ancien membre de l'équipe", ""
     if a.is_candidate:
         return (a.candidate.full_name if a.candidate else a.display_name), "Étudiant(e)"
-    if a.role == ROLE_ADMIN:
-        return a.display_name, "Administration"
     link = zeus_service.class_link(a, klass)
     return a.display_name, (link.function if link else "Coach")
 
 
 # ---- inboxes and unread
 
-def _taught_class_ids(user) -> list[int] | None:
-    """The classes whose conversations a staff member reads; None = every class (admin)."""
-    if user.role == ROLE_ADMIN:
-        return None
+def _coach_class_ids(user) -> list[int]:
+    """The classes a coach still teaches: his conversations there are his."""
     return [link.class_id for link in user.zeus_class_links if link.accepted_at]
 
 
 def inbox_classes(user) -> list[ZeusClass]:
-    """Choices of the class filter of the staff inbox."""
-    ids = _taught_class_ids(user)
+    """Choices of the class filter: the classes one teaches (reviewer: every class)."""
     stmt = select(ZeusClass).order_by(ZeusClass.cohort_id.desc(), ZeusClass.name)
-    if ids is not None:
-        stmt = stmt.where(ZeusClass.id.in_(ids))
+    if not is_reviewer(user):
+        stmt = stmt.where(ZeusClass.id.in_(_coach_class_ids(user)))
     return db.session.scalars(stmt).all()
 
 
-def inbox(user, class_id: int | None = None, awaiting: bool = False, page: int = 1):
-    """Staff inbox: the conversations of the classes one teaches (admin: all), latest first, paginated."""
+def review_coaches() -> list[User]:
+    """Choices of the coach filter of the review: the coaches who have conversations."""
+    return db.session.scalars(select(User).where(User.id.in_(select(ZeusConversation.coach_id).distinct()))
+                              .order_by(User.full_name, User.email)).all()
+
+
+def inbox(user, class_id: int | None = None, awaiting: bool = False, page: int = 1, coach_id: int | None = None):
+    """Coach: his own conversations, in the classes he still teaches. Reviewer: every conversation (filter by coach).
+    Latest first, paginated."""
     stmt = select(ZeusConversation)
-    ids = _taught_class_ids(user)
-    if ids is not None:
-        stmt = stmt.where(ZeusConversation.class_id.in_(ids))
+    if is_reviewer(user):
+        if coach_id:
+            stmt = stmt.where(ZeusConversation.coach_id == coach_id)
+    else:
+        stmt = stmt.where(ZeusConversation.coach_id == user.id, ZeusConversation.class_id.in_(_coach_class_ids(user)))
     if class_id:
         stmt = stmt.where(ZeusConversation.class_id == class_id)
     if awaiting:
@@ -179,37 +198,53 @@ def unread_ids(user, convs: list[ZeusConversation]) -> set[int]:
 
 @dataclass
 class StudentRow:
-    klass: ZeusClass
+    coach: User
+    function: str
     conversation: ZeusConversation | None
     last: ZeusMessage | None
     unread: bool
+    writable: bool
+
+
+@dataclass
+class ClassGroup:
+    klass: ZeusClass
     member: bool
+    rows: list[StudentRow]
 
 
-def student_inbox(enrollment: Enrollment, user) -> list[StudentRow]:
-    """One row per class of the student, and per former class whose conversation exists; latest activity first."""
-    convs = {c.class_id: c for c in db.session.scalars(select(ZeusConversation).where(
-        ZeusConversation.enrollment_id == enrollment.id))}
+def student_inbox(enrollment: Enrollment, user) -> list[ClassGroup]:
+    """One group per class of the student, then per former class whose conversations exist. In each: one row per
+    coach of the team (managers first), then per former coach whose conversation exists (read-only)."""
+    convs = list(db.session.scalars(select(ZeusConversation).where(ZeusConversation.enrollment_id == enrollment.id)))
+    last, unread = last_messages(convs), unread_ids(user, convs)
+    by_class: dict[int, dict[int, ZeusConversation]] = {}
+    for c in convs:
+        by_class.setdefault(c.class_id, {})[c.coach_id] = c
     classes = zeus_service.classes_for_student(enrollment)
     member_ids = {k.id for k in classes}
-    classes += [c.klass for class_id, c in convs.items() if class_id not in member_ids]
-    last, unread = last_messages(list(convs.values())), unread_ids(user, list(convs.values()))
-    rows = []
-    for k in classes:
-        conv = convs.get(k.id)
-        rows.append(StudentRow(k, conv, last.get(conv.id) if conv else None, bool(conv and conv.id in unread),
-                               k.id in member_ids))
-    return sorted(rows, key=lambda r: (r.conversation is None,
-                                       -as_utc(r.conversation.last_message_at).timestamp() if r.conversation else 0,
-                                       r.klass.name))
+    former = {c.class_id: c.klass for c in convs if c.class_id not in member_ids}
+
+    def row(coach, function, conv, writable):
+        return StudentRow(coach, function, conv, last.get(conv.id) if conv else None, bool(conv and conv.id in unread),
+                          writable)
+
+    groups = []
+    for k in classes + sorted(former.values(), key=lambda k: k.name):
+        member, mine = k.id in member_ids, by_class.get(k.id, {})
+        rows = [row(link.user, link.function, mine.get(link.user_id), member) for link in k.staff
+                if member or link.user_id in mine]  # a former class: its conversations only
+        staff_ids = {link.user_id for link in k.staff}
+        rows += [row(c.coach, "Ancien coach de la classe", c, False) for coach_id, c in mine.items()
+                 if coach_id not in staff_ids]
+        groups.append(ClassGroup(k, member, rows))
+    return groups
 
 
 def unread_count(user) -> int:
-    """The menu badge. Student: conversations with an unseen message. Class team: conversations where the student
-    wrote last and one has not read it yet (any coach's reply clears it for the whole team). Admin: none, he reads
-    every class from the inbox ("À répondre")."""
-    if user.role == ROLE_ADMIN:
-        return 0
+    """The menu badge. Student: conversations with a message he has not seen. Coach: his conversations (in the
+    classes he still teaches) where the student wrote last and he has not read it yet. The admin reviews, he owes no
+    answer: none (unless he is himself a coach of a class)."""
     stmt = (select(func.count(ZeusConversation.id))
             .outerjoin(ZeusConversationRead, and_(ZeusConversationRead.conversation_id == ZeusConversation.id,
                                                   ZeusConversationRead.user_id == user.id))
@@ -218,7 +253,8 @@ def unread_count(user) -> int:
     e = zeus_service.student_enrollment(user)
     if e is not None:
         return db.session.scalar(stmt.where(ZeusConversation.enrollment_id == e.id))
-    ids = _taught_class_ids(user)
+    ids = _coach_class_ids(user)
     if not ids:
         return 0
-    return db.session.scalar(stmt.where(ZeusConversation.class_id.in_(ids), ZeusConversation.awaiting_reply.is_(True)))
+    return db.session.scalar(stmt.where(ZeusConversation.coach_id == user.id, ZeusConversation.class_id.in_(ids),
+                                        ZeusConversation.awaiting_reply.is_(True)))

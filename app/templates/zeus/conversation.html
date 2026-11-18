@@ -1,21 +1,31 @@
 {% extends "zeus/base.html" %}
 {% from "_macros.html" import csrf, empty, page_head %}
-{% block title %}Messages · {{ k.name }}{% endblock %}
+{% block title %}Messages · {{ coach.display_name if student else e.candidate.full_name }}{% endblock %}
 {% block content %}
 {% set c = e.candidate %}
+{% set coach_function = coach_link.function if coach_link else 'Ancien coach de la classe' %}
 {% if student %}
-  {% call page_head(k.name, eyebrow='Messages · équipe pédagogique', back=url_for('zeus.messages'), back_label='Messages',
-                    subtitle=(k.staff | map(attribute='user.display_name') | join(', ')) or "L'équipe de la classe n'est pas encore constituée.") %}{% endcall %}
-  <p class="small text-muted"><i class="bi bi-shield-lock" aria-hidden="true"></i> Vos messages sont lus par l'équipe pédagogique de la classe et l'administration DFS.
-    Ce n'est pas une messagerie instantanée : la réponse peut prendre un peu de temps.</p>
+  {% call page_head(coach.display_name, eyebrow='Messages · ' ~ k.name, back=url_for('zeus.messages', _anchor='classe-%d' % k.id),
+                    back_label='Messages', subtitle=coach_function) %}{% endcall %}
+  <p class="small text-muted"><i class="bi bi-shield-lock" aria-hidden="true"></i> Conversation privée entre vous et ce coach : les autres coachs de la classe ne la voient pas.
+    L'administration DFS peut la consulter ; chaque consultation est journalisée. Ce n'est pas une messagerie instantanée : la réponse peut prendre un peu de temps.</p>
 {% else %}
   {% set head_meta %}<span class="meta"><i class="bi bi-people" aria-hidden="true"></i>Classe {{ k.name }}</span>
     <span class="meta"><i class="bi bi-person-vcard" aria-hidden="true"></i>{{ e.matricule }}</span>
+    {% if review %}<span class="meta"><i class="bi bi-person-badge" aria-hidden="true"></i>{{ coach.display_name }} · {{ coach_function }}</span>{% endif %}
     {% if conv and conv.awaiting_reply %}<span class="status status-warning">À répondre</span>{% endif %}{% endset %}
-  {% call page_head(c.full_name, eyebrow='Messages · ' ~ k.cohort.name, back=url_for('zeus.messages', classe=k.id),
-                    back_label='Messages de la classe', meta=head_meta) %}
+  {% call page_head(c.full_name ~ (' ↔ ' ~ coach.display_name if review else ''),
+                    eyebrow=('Revue des messages · ' if review else 'Messages · ') ~ k.cohort.name,
+                    back=url_for('zeus.messages', classe=k.id), back_label='Revue des messages' if review else 'Mes messages',
+                    meta=head_meta) %}
     <a class="btn btn-outline-primary" href="{{ url_for('zeus.klass', class_id=k.id) }}"><i class="bi bi-people"></i> Classe</a>
   {% endcall %}
+  {% if review %}
+  <p class="small text-muted"><i class="bi bi-journal-check" aria-hidden="true"></i> Consultation en lecture seule, enregistrée dans le journal d'audit.</p>
+  {% else %}
+  <p class="small text-muted"><i class="bi bi-shield-lock" aria-hidden="true"></i> Conversation privée entre vous et cet étudiant : les autres coachs de la classe ne la voient pas.
+    L'administration DFS peut la consulter ; chaque consultation est journalisée.</p>
+  {% endif %}
 {% endif %}
 
 <div class="card mb-3">
@@ -23,21 +33,19 @@
   <div class="zeus-thread">
   {% set ns = namespace(day='') %}
   {% for m in conv.messages %}{% set name, function = author(m, k) %}{% set mine = m.author_id == current_user.id %}
+    {# The review has no "me": the coach's messages take the right-hand side. #}
+    {% set right = (m.author_id == coach.id) if review else mine %}
     {% set day = m.created_at | dt('%d/%m/%Y') %}
     {% if day != ns.day %}{% set ns.day = day %}<div class="zeus-thread-day"><span>{{ day }}</span></div>{% endif %}
-    <article class="zeus-msg {{ 'is-mine' if mine }}" id="m{{ m.id }}">
+    <article class="zeus-msg {{ 'is-mine' if right }}" id="m{{ m.id }}">
       <header class="zeus-msg-meta"><strong>{{ 'Vous' if mine else name }}</strong>{% if not mine and function %}<span>{{ function }}</span>{% endif %}
         <time datetime="{{ m.created_at.isoformat() }}">{{ m.created_at | dt('%H:%M') }}</time></header>
       <div class="zeus-msg-body pre-line">{{ m.body | urlize(target='_blank', rel='noopener noreferrer') }}</div>
-      {% if is_admin %}
-      <form method="post" action="{{ url_for('zeus.message_delete', message_id=m.id) }}" data-confirm="Supprimer ce message ? La suppression est journalisée.">{{ csrf() }}
-        <button class="btn btn-link btn-sm zeus-msg-delete"><i class="bi bi-trash" aria-hidden="true"></i> Supprimer</button></form>
-      {% endif %}
     </article>
   {% endfor %}
   </div>
 {% else %}
-  {{ empty('chat-dots', "Aucun message pour l'instant." ~ (" Écrivez votre premier message à l'équipe de la classe." if student and can_write else '')) }}
+  {{ empty('chat-dots', "Aucun message pour l'instant." ~ (" Écrivez votre premier message à ce coach." if student and can_write else '')) }}
 {% endif %}
 </div>
 
@@ -46,15 +54,17 @@
 {% if can_write %}
   <form class="card" method="post">{{ csrf() }}
     <div class="card-body">
-      <label class="form-label" for="body">{{ "Message à l'équipe de la classe" if student else 'Message à ' ~ c.full_name }}</label>
+      <label class="form-label" for="body">Message à {{ coach.display_name if student else c.full_name }}</label>
       <textarea class="form-control" id="body" name="body" rows="4" maxlength="{{ max_length }}" required></textarea>
       <div class="form-text">{{ max_length }} caractères au maximum. Les liens deviennent cliquables.</div>
     </div>
     <div class="card-footer d-flex justify-content-end"><button class="btn btn-primary"><i class="bi bi-send"></i> Envoyer</button></div>
   </form>
 {% else %}
-  <div class="card card-body text-muted small"><span><i class="bi bi-lock" aria-hidden="true"></i> Conversation en lecture seule :
-    {{ "vous ne faites plus partie de cette classe." if student else "l'étudiant ne fait plus partie de cette classe." }}</span></div>
+  <div class="card card-body text-muted small"><span><i class="bi bi-lock" aria-hidden="true"></i>
+  {%- if review %} Lecture seule : l'administration consulte sans participer.
+  {%- elif not member %} Conversation en lecture seule : {{ "vous ne faites plus partie de cette classe." if student else "l'étudiant ne fait plus partie de cette classe." }}
+  {%- else %} Conversation en lecture seule : ce coach ne fait plus partie de l'équipe de la classe.{% endif %}</span></div>
 {% endif %}
 </div>
 {% endblock %}
