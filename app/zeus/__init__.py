@@ -58,7 +58,7 @@ def home():
     cookie_session["zeus_splash"] = True
     return render_template("zeus/home.html", e=e, cohorts=zeus_service.cohorts_for(current_user), splash=splash,
                            enabled=zeus_service.enabled(),
-                           upcoming=zeus_service.sessions_for(current_user, week, week + timedelta(days=7)),
+                           week=zeus_service.week_overview(current_user, week),
                            invitations=zeus_service.invitations_for(e) if e else [],
                            notifications=zeus_service.notifications_for(current_user, limit=3) if e else [],
                            classes=zeus_service.classes_for_student(e) if e else [],

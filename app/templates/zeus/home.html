@@ -20,6 +20,30 @@
   {% if e %}<div class="mt-2">Cohorte de formation {{ e.cohort.name }} · Matricule DFS <code class="fs-5">{{ e.matricule }}</code></div>{% endif %}
 </div>
 
+{% if e %}
+{# The student's QR code first: shown to the coach at every roll call. A tap opens it large. #}
+<div class="card mb-3 zeus-qr-card">
+  <div class="card-body d-flex align-items-center gap-3">
+    <button class="qr-code zeus-qr-thumb bg-white p-1" type="button" data-bs-toggle="modal" data-bs-target="#qr-modal"
+            aria-label="Agrandir mon QR code DFS">{{ matricule_qr(e.candidate, e.matricule) }}</button>
+    <div class="flex-grow-1 min-w-0"><strong>Mon QR code DFS</strong>
+      <div><code class="fs-5">{{ e.matricule }}</code></div>
+      <div class="small text-muted">À présenter au coach pour l'appel.</div></div>
+    <button class="btn btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#qr-modal"><i class="bi bi-arrows-fullscreen" aria-hidden="true"></i><span class="d-none d-sm-inline"> Agrandir</span></button>
+  </div>
+</div>
+<div class="modal fade" id="qr-modal" tabindex="-1" aria-labelledby="qr-modal-title" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <div class="modal-header"><h2 class="modal-title h6" id="qr-modal-title">Mon QR code DFS</h2>
+      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button></div>
+    <div class="modal-body text-center">
+      <div class="qr-code qr-lg d-inline-block bg-white p-3" role="img" aria-label="QR code du matricule {{ e.matricule }}">{{ matricule_qr(e.candidate, e.matricule) }}</div>
+      <div class="mt-2"><code class="fs-4">{{ e.matricule }}</code></div>
+    </div>
+  </div></div>
+</div>
+{% endif %}
+
 {% if current_user.role == 'admin' %}
 <form class="card card-body mb-4 d-flex flex-row flex-wrap align-items-center gap-3" method="post" action="{{ url_for('zeus.mode') }}"
       data-confirm="{{ 'Désactiver le mode Zeus ? Tout le monde revient à l\'interface classique.' if enabled else 'Activer le mode Zeus ? Coachs, accueil, cité et étudiants inscrits y arriveront à la connexion.' }}">
@@ -151,15 +175,7 @@
     </ul></div>
   {% endif %}
   <div class="row g-3 mb-4">
-    <div class="col-md-5 col-lg-4">
-      <div class="card h-100"><div class="card-header"><i class="bi bi-qr-code"></i> Mon QR code DFS</div>
-        <div class="card-body text-center">
-          <div class="qr-code d-inline-block bg-white p-2" role="img" aria-label="QR code du matricule {{ e.matricule }}">{{ matricule_qr(e.candidate, e.matricule) }}</div>
-          <div class="mt-2"><code class="fs-5">{{ e.matricule }}</code></div>
-          <div class="small text-muted mt-1">À présenter au coach pour l'appel.</div>
-        </div></div>
-    </div>
-    <div class="col-md-7 col-lg-8">
+    <div class="col-12">
       <div class="card h-100"><div class="card-header"><i class="bi bi-person-vcard"></i> Mon inscription</div>
         <div class="card-body"><dl class="kv row mb-0">
           <dt class="col-5 col-md-4">Cohorte</dt><dd class="col-7 col-md-8">{{ e.cohort.name }}</dd>
@@ -184,15 +200,22 @@
   </div>
 {% endif %}
 
+{% macro session_row(s) %}
+  <li class="list-group-item zeus-session {{ 'is-live' if s.is_live }} d-flex justify-content-between align-items-center gap-2">
+    <a class="text-reset text-decoration-none flex-grow-1 min-w-0" href="{{ url_for('zeus.session', session_id=s.id) }}">
+      <strong>{{ s.course.name }}</strong> <span class="text-muted">· {{ s.klass.name if s.klass else 'toute la cohorte' }}{% if s.room %} · {{ s.room }}{% endif %}</span>
+      <span class="d-block small text-muted">{{ s.starts_at | dt('%d/%m %H:%M') }} – {{ s.ends_at | dt('%H:%M') }}{% if s.is_live %} · <span class="text-success fw-semibold">en cours</span>{% endif %}</span></a>
+    {% if s.id in week.callable %}<a class="btn btn-sm btn-primary flex-shrink-0" href="{{ url_for('zeus.session', session_id=s.id) }}"><i class="bi bi-person-check" aria-hidden="true"></i> Faire l'appel</a>{% endif %}
+  </li>
+{% endmacro %}
 <div class="card"><div class="card-header d-flex justify-content-between align-items-center">
   <span><i class="bi bi-calendar-week"></i> Séances de la semaine</span><a class="small" href="{{ url_for('zeus.calendar') }}">Calendrier</a></div>
-  <ul class="list-group list-group-flush">
-  {% for s in upcoming %}
-    <a class="list-group-item list-group-item-action zeus-session d-flex justify-content-between flex-wrap gap-2" href="{{ url_for('zeus.session', session_id=s.id) }}">
-      <span><strong>{{ s.course.name }}</strong> · {{ s.klass.name if s.klass else 'toute la cohorte' }}{% if s.room %} · {{ s.room }}{% endif %}</span>
-      <span class="small text-muted">{{ s.starts_at | dt('%d/%m %H:%M') }} – {{ s.ends_at | dt('%H:%M') }}</span></a>
-  {% else %}
-    <li class="list-group-item text-muted">Aucune séance programmée cette semaine.</li>
-  {% endfor %}
-  </ul></div>
+  {% if week.today %}<div class="zeus-session-group">Aujourd'hui</div>
+  <ul class="list-group list-group-flush">{% for s in week.today %}{{ session_row(s) }}{% endfor %}</ul>{% endif %}
+  {% if week.later %}<div class="zeus-session-group">Plus tard cette semaine</div>
+  <ul class="list-group list-group-flush">{% for s in week.later %}{{ session_row(s) }}{% endfor %}</ul>{% endif %}
+  {% if not week.today and not week.later %}<div class="card-body text-muted">Aucune séance à venir cette semaine.</div>{% endif %}
+  {% if week.past %}<details class="zeus-session-past"><summary>Séances passées cette semaine ({{ week.past | length }})</summary>
+    <ul class="list-group list-group-flush">{% for s in week.past %}{{ session_row(s) }}{% endfor %}</ul></details>{% endif %}
+</div>
 {% endblock %}

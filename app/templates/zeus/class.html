@@ -2,7 +2,7 @@
 {% from "_macros.html" import avatar, csrf, empty, page_head %}
 {% block title %}{{ k.name }}{% endblock %}
 {% block content %}
-{% macro role_options(selected=None) %}<option value="">— Sans fonction —</option>
+{% macro role_options(selected=None) %}<option value="">Sans fonction</option>
   {% for r in roles %}<option value="{{ r.id }}" {{ 'selected' if selected == r.id }}>{{ r.name }}</option>{% endfor %}{% endmacro %}
 {% set head_meta %}<span class="status status-info">{{ k.joined | length }} étudiant(s)</span>
   <span class="meta"><i class="bi bi-person-workspace"></i>{{ k.staff | length }} coach(s)</span>{% endset %}
@@ -63,7 +63,7 @@
           <div class="col-md-5"><label class="form-label" for="coach-user">{{ 'Ajouter un coach' if is_admin else 'Inviter un coach' }}</label>
             <select class="form-select" id="coach-user" name="user_id" required><option value="">Choisir…</option>
               {% for u in coach_choices %}<option value="{{ u.id }}">{{ u.display_name }} · {{ u.role_label }}</option>{% endfor %}</select></div>
-          <div class="col-md-4"><label class="form-label" for="coach-role">Fonction dans la classe</label>
+          <div class="col-md-4"><label class="form-label" for="coach-role">Fonction</label>
             <select class="form-select" id="coach-role" name="role_id">{{ role_options() }}</select></div>
           <div class="col-md-3"><button class="btn btn-primary w-100" name="action" value="coach_add">
             <i class="bi bi-{{ 'person-plus' if is_admin else 'send' }}"></i> {{ 'Ajouter' if is_admin else 'Inviter' }}</button></div>
@@ -78,14 +78,15 @@
     </div>
 
     <div class="card"><div class="card-header"><i class="bi bi-people"></i> Étudiants</div>
-      <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
+      <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0 zeus-rows">
       <thead><tr><th></th><th>Nom et prénoms</th><th>Matricule DFS</th><th>Statut</th>{% if can_manage or can_message %}<th><span class="visually-hidden">Actions</span></th>{% endif %}</tr></thead>
       <tbody>
       {% for m in k.members %}{% set c = m.enrollment.candidate %}
         <tr><td>{{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 32, zoom=True) }}</td>
-          <td>{{ c.full_name }}</td><td><code>{{ m.enrollment.matricule }}</code></td>
-          <td>{% if m.joined_at %}<span class="status status-success">Membre</span>{% else %}<span class="status status-warning">Invité</span>{% endif %}</td>
-          {% if can_manage or can_message %}<td class="text-end"><div class="d-inline-flex gap-1">
+          <td class="zr-main">{{ c.full_name }}<span class="zr-line"><code>{{ m.enrollment.matricule }}</code> · {{ 'Membre' if m.joined_at else 'Invité' }}</span></td>
+          <td class="zr-hide"><code>{{ m.enrollment.matricule }}</code></td>
+          <td class="zr-hide">{% if m.joined_at %}<span class="status status-success">Membre</span>{% else %}<span class="status status-warning">Invité</span>{% endif %}</td>
+          {% if can_manage or can_message %}<td class="text-end zr-side"><div class="d-inline-flex gap-1">
             {% if can_message and m.joined_at %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('zeus.conversation', class_id=k.id, enrollment_id=m.enrollment_id, coach_id=current_user.id, _anchor='fin') }}"
                title="Écrire à {{ c.full_name }}" aria-label="Écrire à {{ c.full_name }}"><i class="bi bi-chat-dots"></i></a>{% endif %}
             {% if can_manage %}<form method="post" data-confirm="Retirer {{ c.full_name }} de la classe ?">{{ csrf() }}

@@ -363,6 +363,7 @@ a.zeus-event:hover, a.zeus-event:focus-visible { color: var(--dfs-ink); box-shad
   .zeus main .btn:not(.btn-close) { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: .35rem; }
   .zeus main .btn-group > .btn { display: inline-flex; }
   .zeus main .btn-sm { min-width: 40px; }
+  .zeus .form-check-input { width: 1.3em; height: 1.3em; }
   .zeus main .nav-pills .nav-link { min-height: 40px; display: flex; align-items: center; }
   .zeus main .form-select-sm, .zeus main .form-control-sm { min-height: 40px; }
   .zeus main .card-header a, .zeus main summary, .zeus .back { display: inline-flex; align-items: center; min-height: 40px;
@@ -385,4 +386,61 @@ a.zeus-event:hover, a.zeus-event:focus-visible { color: var(--dfs-ink); box-shad
   .zeus .main { padding: 0 !important; }
   .zeus { background: #fff !important; }
 }
+
+/* ---- Tables as rows on phones (table.zeus-rows): the main cell (.zr-main) carries an extra grey line (.zr-line)
+   with what the hidden columns (.zr-hide) say; the status or actions (.zr-side) stay on the right; a .zr-link makes
+   the whole row tappable. Computers keep the table. */
+.zr-line { display: none; }
+@media (max-width: 575.98px) {
+  .zeus-rows, .zeus-rows tbody { display: block; width: 100%; }
+  .zeus-rows thead { display: none; }
+  .zeus-rows tr { display: flex; align-items: center; gap: .75rem; padding: .65rem .85rem; position: relative;
+    border-bottom: 1px solid var(--zeus-line); }
+  .zeus-rows tr:last-child { border-bottom: 0; }
+  .zeus-rows td { display: block; padding: 0; border: 0; background: none !important; box-shadow: none !important; }
+  .zeus-rows td.zr-hide { display: none; }
+  .zeus-rows td.zr-main { flex: 1 1 auto; min-width: 0; font-weight: 600; overflow-wrap: anywhere; white-space: normal; }
+  .zeus-rows td.zr-side { flex: 0 0 auto; margin-left: auto; position: relative; right: auto; z-index: 1; box-shadow: none; }
+  .zeus-rows .zr-line { display: block; margin-top: .1rem; font-size: .8rem; font-weight: 400; color: var(--dfs-muted); }
+  .zeus-rows .zr-link::after { content: ""; position: absolute; inset: 0; }
+  .zeus-rows .zr-link { text-decoration: none; }
+  .zeus-rows td.zr-main .small { font-weight: 400; }
+  .zeus-rows td.zr-side .btn, .zeus-rows td.zr-side form, .zeus-rows .avatar-zoom { position: relative; z-index: 1; }
+  .zeus .card > .table-responsive:has(.zeus-rows) { overflow: visible; }
+}
+
+/* ---- Roll call (zeus/session.html): a big row per student, a tap anywhere ticks it (hidden checkbox + label). */
+.zeus-call-bar { position: sticky; top: 64px; z-index: 4; display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+  background: #fff; }
+.zeus-call-item { display: block; position: relative; margin: 0; cursor: pointer; border-top: 1px solid var(--zeus-line); }
+.zeus-call-item:first-child { border-top: 0; }
+.zeus-call-input { position: absolute; opacity: 0; pointer-events: none; }
+.zeus-call-row { display: flex; align-items: center; gap: .75rem; min-height: 56px; padding: .45rem .9rem; transition: background .12s; }
+.zeus-call-name { flex: 1 1 auto; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.zeus-call-name small { display: block; font-family: var(--font-mono); font-size: .72rem; font-weight: 400; color: var(--dfs-muted); }
+.zeus-call-tick { flex: 0 0 auto; width: 28px; height: 28px; display: inline-grid; place-items: center; border: 2px solid #8a93b8;
+  color: transparent; font-size: 1.1rem; }
+.zeus-call-input:checked + .zeus-call-row { background: #ecf7ea; box-shadow: inset 4px 0 0 var(--zeus-green); }
+.zeus-call-input:checked + .zeus-call-row .zeus-call-tick { background: var(--zeus-green-dark); border-color: var(--zeus-green-dark); color: #fff; }
+.zeus-call-input:focus-visible + .zeus-call-row { outline: 2px solid var(--zeus-blue); outline-offset: -2px; }
+.zeus-call-item:hover .zeus-call-row { background: var(--dfs-blue-light); }
+.zeus-call-item:hover .zeus-call-input:checked + .zeus-call-row { background: #e1f2de; }
+@media (min-width: 992px) {  /* computers: list and scanner side by side, no switch */
+  .zeus-call-panes.tab-content > .tab-pane { display: block; }
+  .zeus-call-panes.tab-content > .tab-pane.fade { opacity: 1; }
+}
+[data-bs-theme="dark"] .zeus .zeus-call-tick { border-color: #6b74a8; }
+[data-bs-theme="dark"] .zeus .zeus-call-input:checked + .zeus-call-row { background: rgba(114, 194, 105, .16); }
+[data-bs-theme="dark"] .zeus .zeus-call-item:hover .zeus-call-row { background: var(--zeus-surface-2); }
+[data-bs-theme="dark"] .zeus .zeus-call-bar { background: var(--zeus-surface); }
+[data-bs-theme="dark"] .zeus .sticky-actions { background: rgba(22, 27, 63, .97); border-top-color: var(--dfs-border); }
+
+/* ---- Home: the student's QR code (tap to enlarge), the week's sessions grouped (today, later, past). */
+.zeus-qr-thumb { border: 1px solid var(--zeus-line); cursor: zoom-in; flex: 0 0 auto; }
+.zeus-qr-thumb svg { width: 88px; }
+.zeus-session-group { padding: .5rem 1rem .25rem; font-family: var(--font-mono); font-size: .66rem; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--zeus-blue); border-top: 1px solid var(--zeus-line); }
+.zeus-session.is-live { box-shadow: inset 4px 0 0 var(--zeus-green); background: #f3faf1; }
+.zeus-session-past > summary { padding: .6rem 1rem; font-size: .85rem; color: var(--dfs-muted); border-top: 1px solid var(--zeus-line); cursor: pointer; }
+[data-bs-theme="dark"] .zeus .zeus-session.is-live { background: rgba(114, 194, 105, .1); }
 

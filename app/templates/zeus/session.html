@@ -17,8 +17,8 @@
   <div class="card card-body">
     {% if me.id in present %}<div class="text-success fs-5"><i class="bi bi-check-circle-fill"></i> Présent(e) à cette séance.</div>
     {% elif s.is_past %}<div class="text-danger fs-5"><i class="bi bi-x-circle-fill"></i> Absent(e) à cette séance.</div>
-    {% else %}<div>Pour l'appel, scannez le QR code affiché par le coach depuis
-      <a href="{{ url_for('zeus.roll_calls') }}">Mes présences</a>, ou présentez votre QR code DFS (accueil Zeus) au coach.</div>{% endif %}
+    {% else %}<p>Pour l'appel, scannez le QR code affiché par le coach, ou présentez votre QR code DFS (accueil Zeus) au coach.</p>
+      <a class="btn btn-primary" href="{{ url_for('zeus.roll_calls') }}"><i class="bi bi-qr-code-scan"></i> Ouvrir le scanner</a>{% endif %}
   </div>
 {% elif can_call and request.args.get('appel') == 'qr' %}
 <div class="row g-3">
@@ -27,7 +27,7 @@
       {% include "zeus/_call_live.html" %}
     </div>
   </div>
-  <div class="col-lg-5">
+  <div class="col-lg-5 order-first order-lg-0">
     <a class="btn btn-outline-danger w-100 mb-3" href="{{ url_for('zeus.session', session_id=s.id) }}"><i class="bi bi-stop-circle"></i> Terminer l'appel par QR code</a>
     <div class="card"><div class="card-header"><i class="bi bi-qr-code-scan"></i> Scanner le QR code DFS</div>
       <div class="card-body">
@@ -37,30 +37,42 @@
   </div>
 </div>
 {% elif can_call %}
-<div class="row g-3">
-  <div class="col-lg-7">
+{# Phones: the list or the scanner (pills); computers: both side by side. A tap anywhere on a row ticks its hidden
+   checkbox (the label); app.js (initCall) keeps the count and "Tous présents". #}
+<ul class="nav nav-pills zeus-filter mb-3 d-lg-none" role="tablist">
+  <li class="nav-item" role="presentation"><button class="nav-link active" id="tab-list" type="button" role="tab" data-bs-toggle="pill"
+      data-bs-target="#call-list" aria-controls="call-list" aria-selected="true"><i class="bi bi-list-check" aria-hidden="true"></i>&nbsp;Liste</button></li>
+  <li class="nav-item" role="presentation"><button class="nav-link" id="tab-scan" type="button" role="tab" data-bs-toggle="pill"
+      data-bs-target="#call-scan" aria-controls="call-scan" aria-selected="false"><i class="bi bi-qr-code-scan" aria-hidden="true"></i>&nbsp;Scanner</button></li>
+</ul>
+<div class="row g-3 tab-content zeus-call-panes">
+  <div class="col-lg-7 tab-pane fade show active" id="call-list" role="tabpanel" aria-labelledby="tab-list">
     <div class="card card-body mb-3 d-flex flex-row flex-wrap align-items-center justify-content-between gap-2">
       <span><strong>Appel par QR code</strong><br><span class="small text-muted">Les étudiants scannent le QR code projeté : présence enregistrée sous leur matricule DFS.</span></span>
       <a class="btn btn-primary" href="{{ url_for('zeus.session', session_id=s.id, appel='qr') }}"><i class="bi bi-qr-code"></i> Lancer l'appel</a>
     </div>
-    <form class="card" method="post">{{ csrf() }}
-      <div class="card-header d-flex justify-content-between align-items-center"><span><i class="bi bi-person-check"></i> Appel</span>
-        <span class="status status-info">{{ present | length }} / {{ expected | length }} présent(s)</span></div>
-      <div class="table-responsive"><table class="table table-sm align-middle mb-0">
-        <thead><tr><th>Présent</th><th></th><th>Nom et prénoms</th><th>Matricule DFS</th></tr></thead>
-        <tbody>
-        {% for e in expected | sort(attribute='candidate.full_name') %}{% set c = e.candidate %}
-          <tr><td><input class="form-check-input" type="checkbox" name="present" value="{{ e.id }}" id="p{{ e.id }}" {{ 'checked' if e.id in present }}></td>
-            <td>{{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 32) }}</td>
-            <td><label for="p{{ e.id }}">{{ c.full_name }}</label></td><td><code>{{ e.matricule }}</code></td></tr>
-        {% else %}
-          <tr><td colspan="4">{{ empty('people', "Aucun étudiant attendu : la classe n'a pas encore de membre.") }}</td></tr>
-        {% endfor %}
-        </tbody></table></div>
-      {% if expected %}<div class="card-footer"><button class="btn btn-primary"><i class="bi bi-save"></i> Enregistrer l'appel</button></div>{% endif %}
+    <form class="card zeus-call" method="post" data-call>{{ csrf() }}
+      <div class="card-header zeus-call-bar">
+        <span class="status status-info"><span data-call-count>{{ present | length }}</span>&nbsp;/ {{ expected | length }} présent(s)</span>
+        {% if expected %}<button class="btn btn-sm btn-outline-primary ms-auto" type="button" data-call-all><i class="bi bi-check2-all"></i> Tous présents</button>{% endif %}
+      </div>
+      <div class="zeus-call-list">
+      {% for e in expected | sort(attribute='candidate.full_name') %}{% set c = e.candidate %}
+        <label class="zeus-call-item">
+          <input class="zeus-call-input" type="checkbox" name="present" value="{{ e.id }}" {{ 'checked' if e.id in present }}>
+          <span class="zeus-call-row">{{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 36) }}
+            <span class="zeus-call-name">{{ c.full_name }}<small>{{ e.matricule }}</small></span>
+            <span class="zeus-call-tick" aria-hidden="true"><i class="bi bi-check-lg"></i></span></span>
+        </label>
+      {% else %}
+        {{ empty('people', "Aucun étudiant attendu : la classe n'a pas encore de membre.") }}
+      {% endfor %}
+      </div>
+      {% if expected %}<div class="sticky-actions"><span class="small text-muted d-none d-sm-inline">Touchez un nom pour le marquer présent.</span>
+        <button class="btn btn-primary flex-grow-1 flex-sm-grow-0"><i class="bi bi-save"></i> Enregistrer l'appel</button></div>{% endif %}
     </form>
   </div>
-  <div class="col-lg-5">
+  <div class="col-lg-5 tab-pane fade" id="call-scan" role="tabpanel" aria-labelledby="tab-scan">
     <div class="card"><div class="card-header"><i class="bi bi-qr-code-scan"></i> Scanner le QR code DFS</div>
       <div class="card-body">
         <p class="small text-muted">L'étudiant présente le QR code de son accueil Zeus : il est marqué présent.</p>
@@ -69,7 +81,20 @@
   </div>
 </div>
 {% else %}
-  <div class="card card-body text-muted">{{ present | length }} présent(s) sur {{ expected | length }} attendu(s).</div>
+  {% set absent = expected | rejectattr('id', 'in', present) | sort(attribute='candidate.full_name') | list %}
+  <div class="card"><div class="card-header d-flex justify-content-between align-items-center gap-2">
+    <span><i class="bi bi-person-check"></i> Présences</span>
+    <span class="status status-info">{{ present | length }} / {{ expected | length }} présent(s)</span></div>
+  {% if not s.marks and not s.is_past %}
+    <div class="card-body small text-muted">Séance à venir : l'appel n'a pas encore été fait.</div>
+  {% elif absent %}
+    <div class="card-body pb-0 small text-muted">Absent(e)s</div>
+    <ul class="list-group list-group-flush">
+    {% for e in absent %}<li class="list-group-item d-flex justify-content-between gap-2"><span>{{ e.candidate.full_name }}</span><code>{{ e.matricule }}</code></li>{% endfor %}
+    </ul>
+  {% else %}
+    <div class="card-body small text-success"><i class="bi bi-check-circle"></i> Tous les étudiants attendus sont présents.</div>
+  {% endif %}</div>
 {% endif %}
 {% endblock %}
 {% block scripts %}

@@ -23,7 +23,7 @@
     <thead><tr><th style="width: 9rem">Date</th><th>Nom et prénoms</th><th>Dans la classe</th></tr></thead>
     <tbody>
     {% for p, occ in rows %}
-      <tr><td>{{ occ | day_month }}</td><td>{{ p.name }}</td><td>{{ p.label }}</td></tr>
+      <tr><td>{{ occ | day_month }}</td><td class="text-wrap">{{ p.name }}</td><td class="text-wrap">{{ p.label }}</td></tr>
     {% else %}
       <tr><td colspan="3" class="text-muted">Aucun anniversaire ce mois-ci.</td></tr>
     {% endfor %}

@@ -19,7 +19,7 @@
   </ul>
   {% if can_manage %}
   <form class="card-body border-top d-flex gap-2" method="post" action="{{ url_for('zeus.class_create', cohort_id=cohort.id) }}">{{ csrf() }}
-    <input class="form-control" name="name" maxlength="80" required placeholder="Nom de la nouvelle classe" aria-label="Nom de la classe ({{ cohort.name }})">
+    <input class="form-control" name="name" maxlength="80" required placeholder="Nouvelle classe" aria-label="Nom de la classe ({{ cohort.name }})">
     <button class="btn btn-primary text-nowrap"><i class="bi bi-plus-lg"></i> Créer</button></form>
   {% endif %}
 </div>
