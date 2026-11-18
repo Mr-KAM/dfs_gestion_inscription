@@ -164,7 +164,7 @@
         <div class="card-body"><dl class="kv row mb-0">
           <dt class="col-5 col-md-4">Cohorte</dt><dd class="col-7 col-md-8">{{ e.cohort.name }}</dd>
           <dt class="col-5 col-md-4">Classes</dt><dd class="col-7 col-md-8">{{ classes | map(attribute='name') | join(', ') or 'Aucune pour le moment' }}</dd>
-          <dt class="col-5 col-md-4">Arrivée</dt><dd class="col-7 col-md-8">{{ e.arrival_date | d }}</dd>
+          <dt class="col-5 col-md-4">Arrivée</dt><dd class="col-7 col-md-8">{{ e.arrival_date | d or '—' }}</dd>
           <dt class="col-5 col-md-4">Chambre</dt><dd class="col-7 col-md-8">{{ e.bedroom or "En cours d'attribution" }}</dd>
           <dt class="col-5 col-md-4">Matériel</dt><dd class="col-7 col-md-8">{{ e.equipment or "En cours d'attribution" }}</dd>
           <dt class="col-5 col-md-4">Ancien matricule</dt><dd class="col-7 col-md-8"><code>{{ e.candidate.matricule }}</code></dd>
@@ -177,7 +177,7 @@
   <div class="row g-3 mb-4">
   {% for c in cohorts %}
     {% set registered = c.enrollments | selectattr('matricule') | list | length %}
-    {{ stat(c.name, registered ~ ' inscrit(s)', 'mortarboard-fill', url_for('zeus.cohort', cohort_id=c.id), col='col-12 col-md-6 col-xl-4') }}
+    {{ stat(registered ~ ' inscrit(s)', c.name, 'mortarboard-fill', url_for('zeus.cohort', cohort_id=c.id), col='col-12 col-md-6 col-xl-4', compact=True) }}
   {% else %}
     <div class="col-12"><div class="card">{{ empty('mortarboard', "Aucune cohorte de formation." ~ (" Créez l'année académique dans Cohortes." if current_user.role == 'admin' else '')) }}</div></div>
   {% endfor %}

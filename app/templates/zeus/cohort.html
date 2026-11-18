@@ -3,10 +3,10 @@
 {% block title %}{{ cohort.name }}{% endblock %}
 {% block content %}
 {% set registered = cohort.enrollments | selectattr('matricule') | list | length %}
-{% call page_head(cohort.name, eyebrow='Cohorte de formation', back=url_for('cohort.index'), back_label='Cohortes',
+{% call page_head(cohort.name, eyebrow='Cohorte de formation', back=url_for('zeus.cohorts'), back_label='Cohortes',
                   subtitle=cohort.description or None) %}
-  <a class="btn btn-outline-primary" href="{{ url_for('cohort.detail', cohort_id=cohort.id) }}"><i class="bi bi-people"></i> Étudiants et inscriptions</a>
   <a class="btn btn-primary" href="{{ url_for('zeus.calendar', cohort=cohort.id) }}"><i class="bi bi-calendar-week"></i> Calendrier</a>
+  {% if can_enrollments %}<a class="btn btn-outline-primary" href="{{ url_for('cohort.detail', cohort_id=cohort.id) }}"><i class="bi bi-people"></i> Inscriptions</a>{% endif %}
 {% endcall %}
 
 <div class="row g-3 mb-4">

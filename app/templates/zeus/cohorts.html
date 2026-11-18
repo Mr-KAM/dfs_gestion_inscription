@@ -1,0 +1,26 @@
+{% extends "zeus/base.html" %}
+{% from "_macros.html" import empty, page_head %}
+{% block title %}Cohortes{% endblock %}
+{% block content %}
+{# The cohorts one sees in Zeus: the desk all of them, a coach those the admin gave him and those of his classes. #}
+{% call page_head('Cohortes', eyebrow='Zeus · cohortes de formation',
+                  subtitle='Classes, cours, coachs et calendrier de chaque cohorte de formation.') %}
+  {% if current_user.role == 'admin' %}<a class="btn btn-outline-primary" href="{{ url_for('cohort.index') }}"><i class="bi bi-gear"></i> Gérer</a>{% endif %}
+{% endcall %}
+<div class="row g-3">
+{% for c in cohorts %}{% set registered = c.enrollments | selectattr('matricule') | list | length %}
+  <div class="col-md-6 col-xl-4">
+    <a class="card h-100 text-decoration-none text-reset zeus-cohort-card" href="{{ url_for('zeus.cohort', cohort_id=c.id) }}">
+      <div class="card-body d-flex align-items-center gap-3">
+        <span class="stat-icon"><i class="bi bi-mortarboard-fill" aria-hidden="true"></i></span>
+        <span class="flex-grow-1 min-w-0"><strong class="d-block fs-5 text-truncate">{{ c.name }}</strong>
+          <span class="small text-muted">{{ registered }} inscrit(s){% if c.description %} · {{ c.description }}{% endif %}</span></span>
+        <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+      </div>
+    </a>
+  </div>
+{% else %}
+  <div class="col-12"><div class="card">{{ empty('mortarboard', "Aucune cohorte de formation." ~ (" Créez l'année académique depuis « Gérer »." if current_user.role == 'admin' else '')) }}</div></div>
+{% endfor %}
+</div>
+{% endblock %}

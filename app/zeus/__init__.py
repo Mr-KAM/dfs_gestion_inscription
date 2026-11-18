@@ -93,13 +93,23 @@ def mode():
 
 # ---- cohorts: classes, courses, coaches
 
+@bp.get("/cohortes")
+def cohorts():
+    """The cohorts one sees in Zeus (zeus_service.cohorts_for): a coach also those of the classes he teaches."""
+    if zeus_service.student_enrollment(current_user):
+        abort(404)
+    return render_template("zeus/cohorts.html", cohorts=zeus_service.cohorts_for(current_user))
+
+
 @bp.get("/cohortes/<int:cohort_id>")
 def cohort(cohort_id: int):
     c = _cohort(cohort_id)
+    # The classic enrollment page (cohort.detail): the desk, or a coach the admin gave the cohort to.
+    can_enrollments = not current_user.is_coach or any(cc.user_id == current_user.id for cc in c.coaches)
     return render_template("zeus/cohort.html", cohort=c, classes=zeus_service.classes_of(c),
                            courses=zeus_service.courses_of(c),
                            coaches=zeus_service.cohort_coaches(c),
-                           can_manage=zeus_service.can_manage(current_user, c))
+                           can_manage=zeus_service.can_manage(current_user, c), can_enrollments=can_enrollments)
 
 
 @bp.post("/cohortes/<int:cohort_id>/classes")

@@ -265,6 +265,23 @@ a.zeus-event:hover, a.zeus-event:focus-visible { color: var(--dfs-ink); box-shad
 [data-bs-theme="dark"] .zeus .zeus-legend .is-birthday::before { background: #3a2c1a; }
 [data-bs-theme="dark"] .zeus { --zeus-cake: #f0a95b; }
 [data-bs-theme="dark"] .zeus .zeus-wish > summary { color: #8fb0f0; }
+/* Outline buttons and links readable on the night background (≥ 4.5:1). */
+[data-bs-theme="dark"] .zeus .btn-outline-danger { --bs-btn-color: #ff9aa4; --bs-btn-border-color: #ff9aa4; --bs-btn-hover-bg: #dc3545;
+  --bs-btn-hover-border-color: #dc3545; --bs-btn-hover-color: #fff; --bs-btn-active-bg: #dc3545; --bs-btn-active-color: #fff; }
+[data-bs-theme="dark"] .zeus .btn-outline-secondary { --bs-btn-color: #c9cdea; --bs-btn-border-color: #5a6398; --bs-btn-hover-bg: #2a3263;
+  --bs-btn-hover-border-color: #8a93c8; --bs-btn-hover-color: #fff; --bs-btn-active-bg: #2a3263; --bs-btn-active-color: #fff; }
+[data-bs-theme="dark"] .zeus .btn-link { --bs-btn-color: #8fb0f0; --bs-btn-hover-color: #c3d3ff; }
+[data-bs-theme="dark"] .zeus .app-header .avatar-empty { background: #2a3263; color: #c9cdea; }
+/* Login page at night (zeus/login.html reads the zeus_theme cookie). */
+[data-bs-theme="dark"] .zeus .zeus-login-side { background-color: var(--zeus-bg);
+  background-image: var(--zeus-grid-dark); }
+[data-bs-theme="dark"] .zeus .zeus-login-card { background: var(--zeus-surface); border-color: var(--dfs-border);
+  border-top-color: var(--zeus-green); box-shadow: none; }
+[data-bs-theme="dark"] .zeus .zeus-login-dfs { background: #fff; padding: 6px 8px; box-sizing: content-box; }  /* navy wordmark */
+[data-bs-theme="dark"] .zeus .zeus-more { --bs-offcanvas-bg: var(--zeus-surface); }
+[data-bs-theme="dark"] .zeus .zeus-tile { background: var(--zeus-surface-2); border-color: var(--dfs-border); color: var(--dfs-ink); }
+[data-bs-theme="dark"] .zeus .zeus-tile i { color: #a9c0f5; }
+[data-bs-theme="dark"] .zeus .zeus-tile.active { border-color: var(--zeus-green); background: rgba(114, 194, 105, .16); }
 [data-bs-theme="dark"] .zeus .zeus-msg-body { background: var(--zeus-surface-2); border-color: var(--dfs-border); border-left-color: var(--zeus-green); }
 [data-bs-theme="dark"] .zeus .zeus-msg.is-mine .zeus-msg-body { background: var(--zeus-blue); border-color: var(--zeus-blue); }
 [data-bs-theme="dark"] .zeus .zeus-thread-day::before, [data-bs-theme="dark"] .zeus .zeus-thread-day::after { border-color: var(--dfs-border); }
@@ -298,3 +315,74 @@ a.zeus-event:hover, a.zeus-event:focus-visible { color: var(--dfs-ink); box-shad
 @keyframes zeus-word { from { opacity: 0; letter-spacing: .1em; } to { opacity: 1; letter-spacing: .45em; } }
 @keyframes zeus-clear { to { opacity: 0; visibility: hidden; } }
 @media (prefers-reduced-motion: reduce) { .zeus-splash { display: none; } }
+
+/* ---- "Plus" sheet (phones): the role's other pages as tiles, then night mode, classic interface, logout.
+   The bottom bar stays above its backdrop: another tab is one tap away, "Plus" closes it. */
+.zeus .bottom-nav { z-index: 1046; }
+.zeus .zeus-more.offcanvas-bottom { --bs-offcanvas-height: auto; max-height: 80dvh;
+  bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom)); border-top: 3px solid var(--zeus-green); }
+.zeus .zeus-more .offcanvas-header { padding: .75rem 1rem .25rem; }
+.zeus .zeus-more .offcanvas-title { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .24em; text-transform: uppercase;
+  color: var(--zeus-blue); margin: 0; }
+.zeus .zeus-more .offcanvas-body { padding: .5rem 1rem 1rem; }
+.zeus-more-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; }
+.zeus-tile { position: relative; min-height: 72px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .3rem;
+  padding: .5rem .25rem; border: 1px solid var(--zeus-line); background: #fff; color: var(--zeus-navy); text-decoration: none;
+  font-size: .78rem; line-height: 1.2; text-align: center; }
+.zeus-tile i { font-size: 1.3rem; color: var(--zeus-blue); }
+.zeus-tile.active { border-color: var(--zeus-green); background: #ecf7ea; font-weight: 600; }
+.zeus-tile .zeus-count { position: absolute; top: .35rem; right: .35rem; }
+.zeus-more-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); gap: .5rem; margin-top: .75rem;
+  padding-top: .75rem; border-top: 1px solid var(--zeus-line); }
+.zeus-more-row .btn { min-height: 44px; display: flex; align-items: center; justify-content: center; gap: .35rem; padding: .35rem .4rem;
+  font-size: .64rem; letter-spacing: .04em; white-space: nowrap; }
+
+/* ---- Phones: one compact page header (info on one grey line, actions in one row of icon buttons). */
+@media (max-width: 575.98px) {
+  .zeus .page-head { gap: .65rem; margin-bottom: 1rem; }
+  .zeus .page-head > .min-w-0 { width: 100%; }
+  .zeus .meta-list { gap: .15rem 0; margin-top: .4rem; font-size: .8rem; color: var(--dfs-muted); }
+  .zeus .meta-list .meta { padding: 0; border: 0; background: none; font-family: var(--font-sans); font-size: .8rem; letter-spacing: 0;
+    color: var(--dfs-muted); white-space: normal; }
+  .zeus .meta-list .meta i { display: none; }
+  .zeus .meta-list .meta + .meta::before { content: "·"; margin: 0 .4rem; }
+  .zeus .meta-list .status { margin-left: .4rem; }
+  .zeus .page-head-actions { width: 100%; flex-wrap: nowrap; gap: .4rem; }
+  .zeus .page-head-actions > * { flex: 1 1 0; min-width: 0; }
+  .zeus .page-head-actions > form { display: flex; }
+  .zeus .page-head-actions .btn { width: 100%; min-height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: .15rem; padding: .3rem .25rem; font-size: .62rem; line-height: 1.15; white-space: normal; }
+  .zeus .page-head-actions .btn i { font-size: 1.05rem; order: -1; }   /* icon above the label, wherever it is written */
+  .zeus .page-head-actions > form[data-confirm] { flex: 0 0 auto; margin-left: auto; }   /* delete: last, icon only */
+  .zeus .page-head-actions > form[data-confirm] .btn { width: 48px; }
+  .zeus-hero .eyebrow { max-width: 70%; }
+}
+
+/* ---- Touch: every control at least 40px high; small links get a bigger hit area without moving the layout. */
+@media (pointer: coarse), (max-width: 575.98px) {
+  .zeus main .btn:not(.btn-close) { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: .35rem; }
+  .zeus main .btn-group > .btn { display: inline-flex; }
+  .zeus main .btn-sm { min-width: 40px; }
+  .zeus main .nav-pills .nav-link { min-height: 40px; display: flex; align-items: center; }
+  .zeus main .form-select-sm, .zeus main .form-control-sm { min-height: 40px; }
+  .zeus main .card-header a, .zeus main summary, .zeus .back { display: inline-flex; align-items: center; min-height: 40px;
+    padding: 0 .35rem; margin: -.55rem -.35rem; }
+  .zeus .back { margin: -.35rem -.35rem .2rem; }
+  .zeus .app-header .sidebar-toggle { min-width: 44px; min-height: 44px; }
+  .zeus .app-header .ms-auto > a { min-width: 44px; min-height: 44px; justify-content: center; }
+}
+
+/* ---- Calendar on mid-size screens: seven narrow columns, keep events compact. */
+@media (min-width: 1200px) and (max-width: 1399.98px) {
+  .zeus-event { padding: .35rem .45rem; }
+  .zeus-event strong { font-size: .8rem; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .zeus-event small { font-size: .7rem; }
+}
+
+/* ---- Print (monthly birthdays list): the page only. */
+@media print {
+  .zeus .app-header, .zeus .sidebar, .zeus .bottom-nav, .zeus .zeus-more, .zeus .d-print-none { display: none !important; }
+  .zeus .main { padding: 0 !important; }
+  .zeus { background: #fff !important; }
+}
+

@@ -30,11 +30,31 @@
 {% macro nav(endpoint, icon, label, match=None) -%}
   <a class="nav-link {{ is_active(endpoint, match) }}" href="{{ url_for(endpoint) }}"><i class="bi bi-{{ icon }}" aria-hidden="true"></i><span class="nav-label">{{ label }}</span></a>
 {%- endmacro %}
-{% macro bnav(endpoint, icon, label, match=None) -%}
-  {% set active = is_active(endpoint, match) %}
-  <a class="bottom-nav-item {{ active }}" href="{{ url_for(endpoint) }}" {{ 'aria-current="page"' | safe if active }}>
-    <i class="bi bi-{{ icon }}" aria-hidden="true"></i><span>{{ label }}</span></a>
-{%- endmacro %}
+{# Phone navigation: four main pages per role in the bottom bar, every other page in the "Plus" sheet.
+   Items: (endpoint, icon, label, also active on endpoints starting with). #}
+{% set nav_desk = role in ('reception', 'residence') %}
+{% set nav_home_item = ('zeus.home', 'lightning-charge-fill', 'Accueil', None) %}
+{% set nav_classes_item = ('zeus.classes', 'people', 'Mes classes' if student else 'Classes', ('zeus.klass', 'zeus.class_birthdays')) %}
+{% set nav_cohorts_item = ('zeus.cohorts', 'mortarboard-fill', 'Cohortes', ('cohort.', 'zeus.cohort', 'zeus.course')) %}
+{% set nav_calendar_item = ('zeus.calendar', 'calendar-week', 'Calendrier', None) %}
+{% set nav_calls_item = ('zeus.roll_calls', 'person-check', 'Présences' if student else 'Appels', 'zeus.session') %}
+{% set nav_messages_item = ('zeus.messages', 'chat-dots', 'Messages', 'zeus.conversation') %}
+{% if student %}{% set nav_bar = [nav_home_item, nav_calls_item, nav_messages_item, nav_calendar_item] %}
+{% elif role in ('coach', 'trade_coach') %}{% set nav_bar = [nav_home_item, nav_calls_item, nav_classes_item, nav_messages_item] %}
+{% else %}{% set nav_bar = [nav_home_item, nav_cohorts_item, nav_classes_item, nav_calendar_item] %}{% endif %}
+{% set nav_pages = [nav_classes_item] + ([] if student else [nav_cohorts_item]) + [nav_calendar_item, nav_calls_item]
+               + ([] if nav_desk else [nav_messages_item])
+               + [('zeus.notifications', 'megaphone', 'Notifications', None),
+                  ('direction.activities', 'calendar-event', 'Activités', None),
+                  ('library.index', 'book', 'Bibliothèque', 'library.index')]
+               + ([('library.manage', 'journals', 'Gestion bibliothèque', ('library.book', 'library.reader'))] if role in ('admin', 'librarian') else [])
+               + ([('zeus.class_roles', 'person-badge', 'Rôles de classe', None)] if role == 'admin' else [])
+               + [('portal.profile' if student else 'auth.profile', 'person-circle', 'Mon profil', None)]
+               + ([('portal.password', 'key', 'Mot de passe', None)] if student else []) %}
+{% set nav_bar_endpoints = nav_bar | map(attribute=0) | list %}
+{% set nav_more = nav_pages | rejectattr(0, 'in', nav_bar_endpoints) | list %}
+{% set nav_state = namespace(in_bar=False) %}
+{% for endpoint, icon, label, match in nav_bar %}{% if is_active(endpoint, match) | trim %}{% set nav_state.in_bar = True %}{% endif %}{% endfor %}
 <header class="app-header d-flex align-items-center px-3 gap-3">
   <button type="button" class="sidebar-toggle js-sidebar-toggle" aria-controls="sidebar" aria-expanded="false"
           aria-label="Afficher ou réduire le menu" title="Menu"><i class="bi bi-layout-sidebar" aria-hidden="true"></i></button>
@@ -54,16 +74,17 @@
     </a>
     {# Students live in Zeus only (no SAS results); staff keep their classic pages (the home brings them back here). #}
     {% set classic = None if student else url_for('dashboard.index', classique=1) %}
-    {% if classic %}<a class="btn btn-sm btn-outline-secondary" href="{{ classic }}" title="Interface classique">
+    {% if classic %}<a class="btn btn-sm btn-outline-secondary d-none d-lg-inline-flex" href="{{ classic }}" title="Interface classique">
       <i class="bi bi-arrow-left-right"></i><span class="d-none d-lg-inline"> Classique</span></a>{% endif %}
     {% set label = 'Passer en mode jour' if night else 'Passer en mode nuit' %}
-    <form method="post" action="{{ url_for('zeus.theme') }}">
+    {# On phones these live in the "Plus" sheet (bottom nav). #}
+    <form class="d-none d-lg-block" method="post" action="{{ url_for('zeus.theme') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="theme" value="{{ 'light' if night else 'dark' }}"><input type="hidden" name="next" value="{{ request.full_path }}">
       <button class="btn btn-sm btn-outline-secondary zeus-theme-toggle" title="{{ label }}" aria-label="{{ label }}">
         <i class="bi bi-{{ 'sun-fill' if night else 'moon-stars-fill' }}" aria-hidden="true"></i></button>
     </form>
-    <form method="post" action="{{ url_for('auth.logout') }}">
+    <form class="d-none d-lg-block" method="post" action="{{ url_for('auth.logout') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button class="btn btn-sm btn-outline-secondary" title="Déconnexion"><i class="bi bi-box-arrow-right"></i><span class="d-none d-lg-inline"> Déconnexion</span></button>
     </form>
@@ -74,11 +95,11 @@
     <div class="nav flex-column gap-1">
       <div class="nav-section">Zeus</div>
       {{ nav('zeus.home', 'lightning-charge-fill', 'Accueil') }}
-      {% if not student %}{{ nav('cohort.index', 'mortarboard-fill', 'Cohortes', ('cohort.', 'zeus.cohort', 'zeus.course')) }}{% endif %}
-      {{ nav('zeus.classes', 'people', 'Mes classes' if student else 'Classes', 'zeus.klass') }}
+      {% if not student %}{{ nav('zeus.cohorts', 'mortarboard-fill', 'Cohortes', ('cohort.', 'zeus.cohort', 'zeus.course')) }}{% endif %}
+      {{ nav('zeus.classes', 'people', 'Mes classes' if student else 'Classes', ('zeus.klass', 'zeus.class_birthdays')) }}
       {% if not student %}{{ nav('zeus.calendar', 'calendar-week', 'Calendrier des cours') }}{% else %}{{ nav('zeus.calendar', 'calendar-week', 'Mon calendrier') }}{% endif %}
       {{ nav('zeus.roll_calls', 'person-check', 'Mes présences' if student else 'Appels', 'zeus.session') }}
-      <a class="nav-link {{ is_active('zeus.messages', 'zeus.conversation') }}" href="{{ url_for('zeus.messages') }}"><i class="bi bi-chat-dots" aria-hidden="true"></i><span class="nav-label">Messages</span> <span class="ms-auto">{{ unread_badge }}</span></a>
+      {% if not nav_desk %}<a class="nav-link {{ is_active('zeus.messages', 'zeus.conversation') }}" href="{{ url_for('zeus.messages') }}"><i class="bi bi-chat-dots" aria-hidden="true"></i><span class="nav-label">Messages</span> <span class="ms-auto">{{ unread_badge }}</span></a>{% endif %}
       {{ nav('zeus.notifications', 'megaphone', 'Notifications') }}
       {{ nav('direction.activities', 'calendar-event', 'Activités') }}
       {{ nav('library.index', 'book', 'Bibliothèque', 'library.index') }}
@@ -104,17 +125,41 @@
     {% block content %}{% endblock %}
   </main>
 </div>
-{# Five items at most (phones): Cohortes (staff) and Classes (students) stay in the menu drawer. #}
+{# Phones: the role's four main pages + "Plus" (sheet below), highlighted when the current page lives in the sheet. #}
 <nav class="bottom-nav d-lg-none" aria-label="Navigation Zeus">
-  {{ bnav('zeus.home', 'lightning-charge-fill', 'Accueil') }}
-  {% if not student %}{{ bnav('zeus.classes', 'people', 'Classes', 'zeus.klass') }}{% endif %}
-  {{ bnav('zeus.calendar', 'calendar-week', 'Calendrier') }}
-  {{ bnav('zeus.roll_calls', 'person-check', 'Présences' if student else 'Appels', 'zeus.session') }}
-  {% set active = is_active('zeus.messages', 'zeus.conversation') %}
-  <a class="bottom-nav-item {{ active }}" href="{{ url_for('zeus.messages') }}" {{ 'aria-current="page"' | safe if active }}>
-    <i class="bi bi-chat-dots" aria-hidden="true"></i><span>Messages</span>{{ unread_badge }}</a>
-  {% if student %}{{ bnav('zeus.notifications', 'megaphone', 'Notifs') }}{% endif %}
+  {% for endpoint, icon, label, match in nav_bar %}{% set active = is_active(endpoint, match) %}
+  <a class="bottom-nav-item {{ active }}" href="{{ url_for(endpoint) }}" {{ 'aria-current="page"' | safe if active }}>
+    <i class="bi bi-{{ icon }}" aria-hidden="true"></i><span>{{ label }}</span>{% if endpoint == 'zeus.messages' %}{{ unread_badge }}{% endif %}</a>
+  {% endfor %}
+  <button type="button" class="bottom-nav-item {{ '' if nav_state.in_bar else 'active' }}" data-bs-toggle="offcanvas" data-bs-target="#zeus-more"
+          aria-controls="zeus-more" aria-expanded="false"><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i><span>Plus</span></button>
 </nav>
+<div class="offcanvas offcanvas-bottom zeus-more d-lg-none" tabindex="-1" id="zeus-more" aria-labelledby="zeus-more-title">
+  <div class="offcanvas-header">
+    <h2 class="offcanvas-title" id="zeus-more-title">Plus</h2>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Fermer"></button>
+  </div>
+  <div class="offcanvas-body">
+    <nav class="zeus-more-grid" aria-label="Autres pages">
+    {% for endpoint, icon, label, match in nav_more %}{% set active = is_active(endpoint, match) %}
+      <a class="zeus-tile {{ active }}" href="{{ url_for(endpoint) }}" {{ 'aria-current="page"' | safe if active }}>
+        <i class="bi bi-{{ icon }}" aria-hidden="true"></i><span>{{ label }}</span>{% if endpoint == 'zeus.messages' %}{{ unread_badge }}{% endif %}</a>
+    {% endfor %}
+    </nav>
+    <div class="zeus-more-row">
+      <form method="post" action="{{ url_for('zeus.theme') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="theme" value="{{ 'light' if night else 'dark' }}"><input type="hidden" name="next" value="{{ request.full_path }}">
+        <button class="btn btn-outline-secondary w-100"><i class="bi bi-{{ 'sun-fill' if night else 'moon-stars-fill' }}" aria-hidden="true"></i> {{ 'Mode jour' if night else 'Mode nuit' }}</button>
+      </form>
+      {% if classic %}<a class="btn btn-outline-secondary" href="{{ classic }}"><i class="bi bi-arrow-left-right" aria-hidden="true"></i> Classique</a>{% endif %}
+      <form method="post" action="{{ url_for('auth.logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-outline-danger w-100"><i class="bi bi-box-arrow-right" aria-hidden="true"></i> Déconnexion</button>
+      </form>
+    </div>
+  </div>
+</div>
 <div id="copy-status" class="visually-hidden" role="status" aria-live="polite"></div>
 <script src="{{ url_for('static', filename='vendor/bootstrap.bundle.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>

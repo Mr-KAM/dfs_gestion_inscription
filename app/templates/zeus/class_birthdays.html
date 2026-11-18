@@ -1,33 +1,25 @@
-<!doctype html>
-<html lang="fr">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Anniversaires · {{ k.name }} · {{ french_months[first.month - 1] }} {{ first.year }}</title>
-  <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap.min.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons.min.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
-</head>
-{# The class's birthdays of a month, for its teaching staff: day and month only, never the year. #}
-<body class="bg-white p-3">
-  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
-    <div><h1 class="h4 mb-1"><i class="bi bi-cake2" aria-hidden="true"></i> Anniversaires de {{ french_months[first.month - 1] }} {{ first.year }}</h1>
-      <div class="small text-muted">Classe {{ k.name }} · cohorte {{ k.cohort.name }} · {{ rows | length }} anniversaire(s)</div></div>
-    <div class="d-flex flex-wrap gap-2 d-print-none">
-      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('zeus.klass', class_id=k.id) }}"><i class="bi bi-arrow-left"></i> Classe</a>
-      <div class="btn-group btn-group-sm" role="group" aria-label="Mois">
-        <a class="btn btn-outline-secondary" href="{{ url_for('zeus.class_birthdays', class_id=k.id, mois=prev) }}" aria-label="Mois précédent"><i class="bi bi-chevron-left"></i></a>
-        <a class="btn btn-outline-secondary" href="{{ url_for('zeus.class_birthdays', class_id=k.id) }}">Ce mois-ci</a>
-        <a class="btn btn-outline-secondary" href="{{ url_for('zeus.class_birthdays', class_id=k.id, mois=next) }}" aria-label="Mois suivant"><i class="bi bi-chevron-right"></i></a>
-      </div>
-      <button class="btn btn-primary btn-sm" type="button" data-print><i class="bi bi-printer"></i> Imprimer</button>
-    </div>
-  </div>
-  {% if off %}
-  <div class="alert alert-secondary">Les anniversaires sont désactivés par l'administration.</div>
-  {% else %}
-  <table class="table table-sm table-bordered align-middle">
+{% extends "zeus/base.html" %}
+{% from "_macros.html" import page_head %}
+{% block title %}Anniversaires · {{ k.name }}{% endblock %}
+{% block content %}
+{# The class's birthdays of a month, for its teaching staff: day and month only, never the year. Printable: the
+   Zeus header, menu and bottom bar are hidden on paper (zeus.css, @media print). #}
+{% set month = french_months[first.month - 1] ~ ' ' ~ first.year %}
+{% call page_head('Anniversaires de ' ~ month, eyebrow='Classe ' ~ k.name ~ ' · ' ~ k.cohort.name,
+                  back=url_for('zeus.klass', class_id=k.id), back_label='Classe ' ~ k.name) %}
+  <a class="btn btn-outline-secondary d-print-none" href="{{ url_for('zeus.class_birthdays', class_id=k.id, mois=prev) }}" title="Mois précédent">
+    <i class="bi bi-chevron-left" aria-hidden="true"></i> Précédent</a>
+  <a class="btn btn-outline-secondary d-print-none" href="{{ url_for('zeus.class_birthdays', class_id=k.id) }}">
+    <i class="bi bi-calendar-check" aria-hidden="true"></i> Ce mois-ci</a>
+  <a class="btn btn-outline-secondary d-print-none" href="{{ url_for('zeus.class_birthdays', class_id=k.id, mois=next) }}" title="Mois suivant">
+    Suivant <i class="bi bi-chevron-right" aria-hidden="true"></i></a>
+  <button class="btn btn-primary d-print-none" type="button" data-print><i class="bi bi-printer" aria-hidden="true"></i> Imprimer</button>
+{% endcall %}
+{% if off %}
+<div class="alert alert-secondary">Les anniversaires sont désactivés par l'administration.</div>
+{% else %}
+<div class="card"><div class="table-responsive">
+  <table class="table table-sm align-middle mb-0">
     <thead><tr><th style="width: 9rem">Date</th><th>Nom et prénoms</th><th>Dans la classe</th></tr></thead>
     <tbody>
     {% for p, occ in rows %}
@@ -37,8 +29,7 @@
     {% endfor %}
     </tbody>
   </table>
-  <p class="small text-muted">Les personnes qui ont choisi de ne pas afficher leur anniversaire n'apparaissent pas.</p>
-  {% endif %}
-  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
-</body>
-</html>
+</div></div>
+<p class="small text-muted mt-2">{{ rows | length }} anniversaire(s). Les personnes qui ont choisi de ne pas afficher leur anniversaire n'apparaissent pas.</p>
+{% endif %}
+{% endblock %}

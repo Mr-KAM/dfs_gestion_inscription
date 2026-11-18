@@ -9,7 +9,8 @@
   {% if s.coach %}<span class="meta"><i class="bi bi-person-workspace"></i>{{ s.coach.display_name }}</span>{% endif %}{% endset %}
 {% call page_head(s.course.name, eyebrow='Séance · ' ~ s.course.cohort.name, back=url_for('zeus.calendar', week=s.starts_at | dt('%Y-%m-%d')), back_label='Calendrier', meta=head_meta) %}
   {% if can_manage %}<form method="post" data-confirm="Supprimer cette séance et son appel ?">{{ csrf() }}
-    <button class="btn btn-outline-danger" name="action" value="delete"><i class="bi bi-trash"></i> Supprimer</button></form>{% endif %}
+    <button class="btn btn-outline-danger" name="action" value="delete" title="Supprimer la séance" aria-label="Supprimer la séance">
+      <i class="bi bi-trash" aria-hidden="true"></i><span class="d-none d-sm-inline"> Supprimer</span></button></form>{% endif %}
 {% endcall %}
 
 {% if me %}
