@@ -208,6 +208,7 @@ PostgreSQL n'est **jamais publié** hors du réseau Docker (pas de `ports:` sur 
 | 0013 – 0014 | rôles coach / accueil / cité, notifications, exercices, registre, problèmes, classes et invitations |
 | 0015 – 0017 | profil du personnel, registre des passages (pièce, provenance, activité), heures pointées des appels |
 | 0018 | infrastructures, matériel, consommables |
+| 0041 | messagerie de classe Zeus : conversations (étudiant × classe), messages, marqueurs de lecture |
 
 Les migrations 0007 à 0009 sont des **mises à jour de données** (cases « Validé » cochées pour les tests terminés et les admis au SAS) : elles ne s'annulent pas.
 
@@ -302,6 +303,7 @@ Correspondance : **CNI → Email → Téléphone → Code candidat → Nom compl
 * **Registre des passages** (accueil) : nom, provenance, type et numéro de pièce, téléphone ; motif **Visite** (candidat ou étudiant visité) ou **Autre activité** (catégorie + activité) ; heure d'arrivée et de départ.
 * **Étudiants du SAS** (accueil) : liste filtrable et profil en lecture seule (contact, classe, chambre, présences, problèmes, visites).
 * **Problèmes étudiants** : tout le personnel du SAS peut signaler (discipline, santé, logement, matériel, autre) ; l'accueil et l'admin voient tout et résolvent.
+* **Messagerie de classe (Zeus, `/zeus/messages`)** : chaque étudiant a une conversation privée par classe avec son équipe pédagogique. Tous les coachs acceptés de la classe (gestionnaires compris) lisent et répondent ; un coach peut aussi écrire le premier depuis la page de la classe. L'administrateur lit toutes les conversations, peut répondre et supprimer un message (journalisé). Texte seul (2 000 caractères max., liens cliquables), pas de temps réel : un compteur « Messages » dans le menu, rafraîchi chaque minute, et une carte sur l'accueil Zeus. Étudiant : conversations avec un nouveau message ; coach : messages d'étudiants non lus et encore sans réponse (une réponse de n'importe quel coach l'efface pour toute l'équipe). Les droits suivent la classe : un coach retiré perd l'accès, un coach ajouté voit l'historique ; un étudiant retiré de la classe garde sa conversation en lecture seule.
 
 ## Infrastructures, inventaire et consommables
 

@@ -1,0 +1,67 @@
+{% extends "zeus/base.html" %}
+{% from "_macros.html" import avatar, empty, page_head, pagination %}
+{% block title %}Messages{% endblock %}
+{% block content %}
+{% macro who(m, k) %}{{ 'Vous' if m.author_id == current_user.id else author(m, k)[0] }}{% endmacro %}
+{% if e %}
+{# Student: one row per class (and per former class whose conversation exists). #}
+{% call page_head('Messages', eyebrow='Zeus · mes classes',
+                  subtitle="Écrivez à l'équipe pédagogique de vos classes. Ce n'est pas une messagerie instantanée : la réponse peut prendre un peu de temps.") %}{% endcall %}
+<p class="small text-muted"><i class="bi bi-shield-lock" aria-hidden="true"></i> Vos messages sont lus par l'équipe pédagogique de la classe et l'administration DFS.</p>
+<div class="card"><div class="list-group list-group-flush">
+{% for r in rows %}
+  <a class="list-group-item list-group-item-action zeus-inbox-row {{ 'is-unread' if r.unread }}"
+     href="{{ url_for('zeus.conversation', class_id=r.klass.id, enrollment_id=e.id, _anchor='fin' if r.conversation else None) }}">
+    <span class="zeus-inbox-icon" aria-hidden="true"><i class="bi bi-people"></i></span>
+    <div class="flex-grow-1 min-w-0">
+      <div class="d-flex justify-content-between gap-2"><strong class="text-truncate">{{ r.klass.name }}</strong>
+        {% if r.conversation %}<small class="text-muted text-nowrap">{{ r.conversation.last_message_at | dt('%d/%m %H:%M') }}</small>{% endif %}</div>
+      <div class="small text-muted text-truncate">{{ r.klass.staff | map(attribute='user.display_name') | join(', ') or 'Équipe à venir' }}{% if not r.member %} · ancienne classe{% endif %}</div>
+      <div class="zeus-preview">{% if r.last %}{{ who(r.last, r.klass) }} : {{ r.last.body | truncate(120) }}{% else %}Aucun message : écrivez à l'équipe.{% endif %}</div>
+    </div>
+    {% if r.unread %}<span class="zeus-unread-dot" title="Nouveau message"><span class="visually-hidden">Nouveau message</span></span>{% endif %}
+  </a>
+{% else %}
+  <div class="list-group-item">{{ empty('chat-dots', "Vous ne faites encore partie d'aucune classe.") }}</div>
+{% endfor %}
+</div></div>
+
+{% else %}
+{# Class team / admin: the conversations of the classes one teaches (admin: every class). #}
+{% call page_head('Messages', eyebrow='Zeus · messagerie des classes',
+                  subtitle="Chaque étudiant écrit à l'équipe pédagogique de sa classe : tous ses coachs lisent et répondent.") %}{% endcall %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <ul class="nav nav-pills zeus-filter" aria-label="Filtre">
+    <li class="nav-item"><a class="nav-link {{ 'active' if not awaiting }}" href="{{ url_for('zeus.messages', classe=class_id) }}" {{ 'aria-current="page"' | safe if not awaiting }}>Toutes</a></li>
+    <li class="nav-item"><a class="nav-link {{ 'active' if awaiting }}" href="{{ url_for('zeus.messages', classe=class_id, a_repondre=1) }}" {{ 'aria-current="page"' | safe if awaiting }}>À répondre</a></li>
+  </ul>
+  {% if classes | length > 1 %}
+  <form method="get">{% if awaiting %}<input type="hidden" name="a_repondre" value="1">{% endif %}
+    <select class="form-select form-select-sm" name="classe" aria-label="Classe" data-autosubmit>
+      <option value="">Toutes {{ 'les' if current_user.role == 'admin' else 'mes' }} classes</option>
+      {% for k in classes %}<option value="{{ k.id }}" {{ 'selected' if class_id == k.id }}>{{ k.name }} · {{ k.cohort.name }}</option>{% endfor %}
+    </select></form>
+  {% endif %}
+</div>
+<div class="card"><div class="list-group list-group-flush">
+{% for c in convs %}{% set st = c.enrollment.candidate %}{% set m = last.get(c.id) %}{% set is_new = c.id in unread %}
+  <a class="list-group-item list-group-item-action zeus-inbox-row {{ 'is-unread' if is_new }}"
+     href="{{ url_for('zeus.conversation', class_id=c.class_id, enrollment_id=c.enrollment_id, _anchor='fin') }}">
+    {{ avatar(st, url_for('candidates.photo', candidate_id=st.id), 40) }}
+    <div class="flex-grow-1 min-w-0">
+      <div class="d-flex justify-content-between gap-2"><strong class="text-truncate">{{ st.full_name }}</strong>
+        <small class="text-muted text-nowrap">{{ c.last_message_at | dt('%d/%m %H:%M') }}</small></div>
+      <div class="small text-muted">Classe {{ c.klass.name }} · <code>{{ c.enrollment.matricule }}</code>
+        {% if c.awaiting_reply %}<span class="status status-warning">À répondre</span>{% endif %}</div>
+      {% if m %}<div class="zeus-preview">{{ who(m, c.klass) }} : {{ m.body | truncate(140) }}</div>{% endif %}
+    </div>
+    {% if is_new %}<span class="zeus-unread-dot" title="Nouveau message"><span class="visually-hidden">Nouveau message</span></span>{% endif %}
+  </a>
+{% else %}
+  <div class="list-group-item">{{ empty('chat-dots', 'Aucune conversation en attente de réponse.' if awaiting else
+    "Aucun message pour le moment. Les étudiants écrivent depuis leur espace Zeus ; pour écrire à un étudiant, ouvrez la page de sa classe.") }}</div>
+{% endfor %}
+</div></div>
+{{ pagination(page, args) }}
+{% endif %}
+{% endblock %}

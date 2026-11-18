@@ -2,16 +2,16 @@
 Admin, reception, residence, the coaches of a cohort and the registered students land here at login."""
 from datetime import timedelta
 
-from flask import Blueprint, abort, flash, make_response, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, jsonify, make_response, redirect, render_template, request, url_for
 from flask import session as cookie_session  # `session` is the session (séance) view below
 from flask_login import current_user, login_required
 
 from app.auth import _safe_next
 from app.extensions import db
-from app.models import (Cohort, ZeusClass, ZeusClassCoach, ZeusClassMember, ZeusClassRole, ZeusCourse,
-                        ZeusNotification, ZeusSession)
+from app.models import (Cohort, Enrollment, ZeusClass, ZeusClassCoach, ZeusClassMember, ZeusClassRole, ZeusCourse,
+                        ZeusMessage, ZeusNotification, ZeusSession)
 from app.models.user import ROLE_ADMIN, ROLE_TRADE_COACH
-from app.services import candidate_service, direction_service, zeus_service
+from app.services import candidate_service, direction_service, zeus_message_service, zeus_service
 from app.services.candidate_service import BusinessError
 from app.utils import allow_camera
 
@@ -61,7 +61,8 @@ def home():
                            invitations=zeus_service.invitations_for(e) if e else [],
                            notifications=zeus_service.notifications_for(current_user, limit=3) if e else [],
                            classes=zeus_service.classes_for_student(e) if e else [],
-                           coach_invitations=[] if e else zeus_service.coach_invitations_for(current_user))
+                           coach_invitations=[] if e else zeus_service.coach_invitations_for(current_user),
+                           messages_unread=zeus_message_service.unread_count(current_user))
 
 
 THEME_COOKIE_DAYS = 365
@@ -208,6 +209,7 @@ def klass(class_id: int):
     can_manage = zeus_service.can_manage_class(current_user, k)
     return render_template("zeus/class.html", k=k, cohort=c, invitable=zeus_service.invitable(k),
                            can_manage=can_manage, is_admin=is_admin, roles=zeus_service.class_roles(),
+                           can_message=zeus_service.can_teach_class(current_user, k),
                            coach_choices=zeus_service.coach_choices(k) if can_manage else [])
 
 
@@ -290,6 +292,72 @@ def notification_delete(notification_id: int):
     zeus_service.delete_notification(n)
     flash("Notification supprimée.", "success")
     return redirect(url_for("zeus.notifications"))
+
+
+# ---- class messaging (student <-> class team; not real time)
+
+@bp.get("/messages")
+def messages():
+    """Student: one row per class. Staff: the conversations of the classes one teaches (admin: all)."""
+    e = zeus_service.student_enrollment(current_user)
+    if e:
+        return render_template("zeus/messages.html", e=e, rows=zeus_message_service.student_inbox(e, current_user),
+                               author=zeus_message_service.author)
+    class_id, awaiting = request.args.get("classe", type=int), request.args.get("a_repondre") == "1"
+    page = zeus_message_service.inbox(current_user, class_id, awaiting, request.args.get("page", 1, type=int))
+    convs = list(page.items)
+    return render_template("zeus/messages.html", e=None, page=page, convs=convs,
+                           last=zeus_message_service.last_messages(convs),
+                           unread=zeus_message_service.unread_ids(current_user, convs),
+                           classes=zeus_message_service.inbox_classes(current_user), class_id=class_id,
+                           awaiting=awaiting, args={k: v for k, v in request.args.items() if k != "page"},
+                           author=zeus_message_service.author)
+
+
+@bp.get("/messages/non-lus")
+def unread():
+    """The menu badge, polled by app.js (initUnread)."""
+    return jsonify(count=zeus_message_service.unread_count(current_user))
+
+
+@bp.route("/messages/<int:class_id>/<int:enrollment_id>", methods=["GET", "POST"])
+def conversation(class_id: int, enrollment_id: int):
+    k = db.get_or_404(ZeusClass, class_id)
+    e = db.get_or_404(Enrollment, enrollment_id)
+    _cohort(k.cohort_id)
+    if not zeus_message_service.can_read(current_user, k, e):
+        abort(404)
+    can_write = zeus_message_service.can_write(current_user, k, e)
+    if request.method == "POST":
+        if not can_write:
+            abort(403)
+        try:
+            zeus_message_service.send(k, e, request.form.get("body", ""), current_user)
+        except BusinessError as exc:
+            db.session.rollback()
+            flash(str(exc), "danger")  # no anchor: the message shows at the top of the page
+            return redirect(url_for("zeus.conversation", class_id=k.id, enrollment_id=e.id))
+        return redirect(url_for("zeus.conversation", class_id=k.id, enrollment_id=e.id, _anchor="fin"))
+    conv = zeus_message_service.conversation(k, e)
+    if conv:
+        zeus_message_service.mark_read(conv, current_user)
+    return render_template("zeus/conversation.html", k=k, e=e, conv=conv, can_write=can_write,
+                           student=zeus_service.student_enrollment(current_user) is not None,
+                           is_admin=current_user.role == ROLE_ADMIN, author=zeus_message_service.author,
+                           max_length=zeus_message_service.MAX_LENGTH)
+
+
+@bp.post("/messages/supprimer/<int:message_id>")
+def message_delete(message_id: int):
+    if current_user.role != ROLE_ADMIN:
+        abort(403)
+    m = db.get_or_404(ZeusMessage, message_id)
+    k, e = m.conversation.klass, m.conversation.enrollment
+    conv = zeus_message_service.delete_message(m)
+    flash("Message supprimé.", "success")
+    if conv is None:
+        return redirect(url_for("zeus.messages"))
+    return redirect(url_for("zeus.conversation", class_id=k.id, enrollment_id=e.id, _anchor="fin"))
 
 
 # ---- calendar (scheduled sessions)

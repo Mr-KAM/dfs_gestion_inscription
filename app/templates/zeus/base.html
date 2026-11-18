@@ -17,10 +17,13 @@
 </head>
 {# Zeus mode: the training-cohort interface. Same shell classes as base.html (app.js drawer / rail), DFS colors and
    the Zeus-branding kit (static/img/zeus). #}
-<body class="zeus {{ 'sidebar-collapsed' if request.cookies.get('sidebar') == 'collapsed' }}">
+<body class="zeus {{ 'sidebar-collapsed' if request.cookies.get('sidebar') == 'collapsed' }}" data-unread-url="{{ url_for('zeus.unread') }}">
 {% from "_macros.html" import avatar %}
 {% set role = current_user.role %}
 {% set student = role == 'candidate' %}
+{# Class messaging badge (zeus_message_service.unread_count), refreshed every minute by app.js (initUnread). #}
+{% set zeus_unread = zeus_unread_count(current_user) %}
+{% set unread_badge %}<span class="badge rounded-pill zeus-count" data-unread-badge {{ 'hidden' if not zeus_unread }}><span data-unread-count>{{ zeus_unread }}</span><span class="visually-hidden"> {{ 'conversation(s) non lue(s)' if student else "message(s) d'étudiants en attente" }}</span></span>{% endset %}
 {% macro is_active(endpoint, match=None) -%}
   {{- 'active' if request.endpoint == endpoint or (match and request.endpoint and request.endpoint.startswith(match)) -}}
 {%- endmacro %}
@@ -75,6 +78,7 @@
       {{ nav('zeus.classes', 'people', 'Mes classes' if student else 'Classes', 'zeus.klass') }}
       {% if not student %}{{ nav('zeus.calendar', 'calendar-week', 'Calendrier des cours') }}{% else %}{{ nav('zeus.calendar', 'calendar-week', 'Mon calendrier') }}{% endif %}
       {{ nav('zeus.roll_calls', 'person-check', 'Mes présences' if student else 'Appels', 'zeus.session') }}
+      <a class="nav-link {{ is_active('zeus.messages', 'zeus.conversation') }}" href="{{ url_for('zeus.messages') }}"><i class="bi bi-chat-dots" aria-hidden="true"></i><span class="nav-label">Messages</span> <span class="ms-auto">{{ unread_badge }}</span></a>
       {{ nav('zeus.notifications', 'megaphone', 'Notifications') }}
       {{ nav('direction.activities', 'calendar-event', 'Activités') }}
       {{ nav('library.index', 'book', 'Bibliothèque', 'library.index') }}
@@ -100,12 +104,15 @@
     {% block content %}{% endblock %}
   </main>
 </div>
+{# Five items at most (phones): Cohortes (staff) and Classes (students) stay in the menu drawer. #}
 <nav class="bottom-nav d-lg-none" aria-label="Navigation Zeus">
   {{ bnav('zeus.home', 'lightning-charge-fill', 'Accueil') }}
-  {% if not student %}{{ bnav('cohort.index', 'mortarboard-fill', 'Cohortes', ('cohort.', 'zeus.cohort', 'zeus.course')) }}{% endif %}
-  {{ bnav('zeus.classes', 'people', 'Classes', 'zeus.klass') }}
+  {% if not student %}{{ bnav('zeus.classes', 'people', 'Classes', 'zeus.klass') }}{% endif %}
   {{ bnav('zeus.calendar', 'calendar-week', 'Calendrier') }}
   {{ bnav('zeus.roll_calls', 'person-check', 'Présences' if student else 'Appels', 'zeus.session') }}
+  {% set active = is_active('zeus.messages', 'zeus.conversation') %}
+  <a class="bottom-nav-item {{ active }}" href="{{ url_for('zeus.messages') }}" {{ 'aria-current="page"' | safe if active }}>
+    <i class="bi bi-chat-dots" aria-hidden="true"></i><span>Messages</span>{{ unread_badge }}</a>
   {% if student %}{{ bnav('zeus.notifications', 'megaphone', 'Notifs') }}{% endif %}
 </nav>
 <div id="copy-status" class="visually-hidden" role="status" aria-live="polite"></div>

@@ -79,7 +79,7 @@ def _register_web_helpers(app: Flask) -> None:
 
     from app.models import PasswordResetRequest
     from app.models.user import ROLES
-    from app.services import candidate_service, settings_service, zeus_service
+    from app.services import candidate_service, settings_service, zeus_message_service, zeus_service
 
     # Zeus users never see the classic shell: their account pages, the library and the activities in Zeus too.
     ZEUS_ACCOUNT_PAGES = ("portal.profile", "portal.password", "auth.profile", "direction.activities")
@@ -136,6 +136,8 @@ def _register_web_helpers(app: Flask) -> None:
                 "zeus_link": current_user.is_authenticated and zeus_service.lands_in_zeus(current_user)}
 
     app.add_template_global(candidate_service.matricule_qr, "matricule_qr")  # global: visible inside macros
+    # Messages badge: computed by zeus/base.html only, so pages of the classic interface never pay for the query.
+    app.add_template_global(zeus_message_service.unread_count, "zeus_unread_count")
 
     @app.before_request
     def staff_password_change():

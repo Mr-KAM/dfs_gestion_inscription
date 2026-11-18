@@ -9,6 +9,7 @@
 {% call page_head(k.name, eyebrow='Classe · ' ~ cohort.name, back=url_for('zeus.cohort', cohort_id=cohort.id), back_label='Cohorte ' ~ cohort.name,
                   subtitle=k.description or None, meta=head_meta) %}
   <a class="btn btn-outline-primary" href="{{ url_for('zeus.calendar', cohort=cohort.id) }}"><i class="bi bi-calendar-week"></i> Calendrier</a>
+  {% if can_message %}<a class="btn btn-outline-primary" href="{{ url_for('zeus.messages', classe=k.id) }}"><i class="bi bi-chat-dots"></i> Messages de la classe</a>{% endif %}
   {% if is_admin %}<button class="btn btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#edit-class"
           aria-expanded="false" aria-controls="edit-class"><i class="bi bi-pencil"></i> Modifier</button>{% endif %}
 {% endcall %}
@@ -78,14 +79,18 @@
 
     <div class="card"><div class="card-header"><i class="bi bi-people"></i> Étudiants</div>
       <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
-      <thead><tr><th></th><th>Nom et prénoms</th><th>Matricule DFS</th><th>Statut</th>{% if can_manage %}<th></th>{% endif %}</tr></thead>
+      <thead><tr><th></th><th>Nom et prénoms</th><th>Matricule DFS</th><th>Statut</th>{% if can_manage or can_message %}<th><span class="visually-hidden">Actions</span></th>{% endif %}</tr></thead>
       <tbody>
       {% for m in k.members %}{% set c = m.enrollment.candidate %}
         <tr><td>{{ avatar(c, url_for('candidates.photo', candidate_id=c.id), 32, zoom=True) }}</td>
           <td>{{ c.full_name }}</td><td><code>{{ m.enrollment.matricule }}</code></td>
           <td>{% if m.joined_at %}<span class="status status-success">Membre</span>{% else %}<span class="status status-warning">Invité</span>{% endif %}</td>
-          {% if can_manage %}<td class="text-end"><form method="post" data-confirm="Retirer {{ c.full_name }} de la classe ?">{{ csrf() }}
-            <input type="hidden" name="member_id" value="{{ m.id }}"><button class="btn btn-sm btn-outline-danger" name="action" value="remove" title="Retirer"><i class="bi bi-person-dash"></i></button></form></td>{% endif %}</tr>
+          {% if can_manage or can_message %}<td class="text-end"><div class="d-inline-flex gap-1">
+            {% if can_message and m.joined_at %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('zeus.conversation', class_id=k.id, enrollment_id=m.enrollment_id, _anchor='fin') }}"
+               title="Écrire à {{ c.full_name }}" aria-label="Écrire à {{ c.full_name }}"><i class="bi bi-chat-dots"></i></a>{% endif %}
+            {% if can_manage %}<form method="post" data-confirm="Retirer {{ c.full_name }} de la classe ?">{{ csrf() }}
+            <input type="hidden" name="member_id" value="{{ m.id }}"><button class="btn btn-sm btn-outline-danger" name="action" value="remove" title="Retirer" aria-label="Retirer {{ c.full_name }}"><i class="bi bi-person-dash"></i></button></form>{% endif %}
+          </div></td>{% endif %}</tr>
       {% else %}
         <tr><td colspan="5">{{ empty('people', "Aucun étudiant : invitez les inscrits de la cohorte.") }}</td></tr>
       {% endfor %}

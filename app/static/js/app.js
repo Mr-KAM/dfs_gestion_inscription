@@ -47,6 +47,27 @@
     });
   }
 
+  // Zeus messages badge: <body data-unread-url> + every <span data-unread-badge><span data-unread-count>.
+  // One request a minute for all badges. Unlike initPolling, never reloads the page (a message being typed would be
+  // lost): a redirect (session over) or an error just stops the polling until the next page load.
+  function initUnread() {
+    const url = document.body.dataset.unreadUrl;
+    const badges = document.querySelectorAll("[data-unread-badge]");
+    if (!url || !badges.length) return;
+    const timer = setInterval(async () => {
+      if (document.hidden) return;
+      try {
+        const res = await fetch(url, { headers: { "X-Requested-With": "fetch", Accept: "application/json" }, cache: "no-store" });
+        if (res.redirected || !res.ok) { clearInterval(timer); return; }
+        const count = Number((await res.json()).count) || 0;
+        badges.forEach((el) => {
+          el.querySelector("[data-unread-count]").textContent = String(count);
+          el.hidden = count === 0;
+        });
+      } catch (e) { /* network blip: retry next minute */ }
+    }, 60000);
+  }
+
   // Start-test form: reload free workstations for the chosen room, gate the submit button.
   function initStartForm() {
     const form = document.getElementById("start-test-form");
@@ -391,6 +412,7 @@
     initTimers(document);
     setInterval(tick, 1000);
     initPolling();
+    initUnread();
     initStartForm();
     syncRail();
     initTabs();

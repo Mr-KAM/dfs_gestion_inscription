@@ -75,6 +75,7 @@ ACTION_LABELS = {
     "zeus_mode": "Activation / désactivation du mode Zeus",
     "zeus_update": "Zeus : classes, cours, séances",
     "zeus_attendance": "Zeus : appel",
+    "zeus_message_deleted": "Zeus : message de classe supprimé (modération)",
     "activity_update": "Calendrier des activités",
     "library_update": "Bibliothèque : livres",
     "library_loan": "Bibliothèque : emprunts",

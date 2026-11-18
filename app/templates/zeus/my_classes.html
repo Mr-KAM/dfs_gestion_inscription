@@ -18,9 +18,11 @@
 {% endif %}
 <div class="row g-3">
 {% for k in classes %}
-  <div class="col-md-6 col-xl-4"><div class="card h-100"><div class="card-body">
+  <div class="col-md-6 col-xl-4"><div class="card h-100"><div class="card-body d-flex flex-column">
     <h2 class="card-title-lg">{{ k.name }}</h2>
     <div class="small text-muted">{{ k.coach.display_name if k.coach else 'Coach à venir' }} · {{ k.joined | length }} étudiant(s)</div>
+    <a class="btn btn-sm btn-outline-primary align-self-start mt-3" href="{{ url_for('zeus.conversation', class_id=k.id, enrollment_id=e.id, _anchor='fin') }}">
+      <i class="bi bi-chat-dots"></i> Écrire à l'équipe</a>
   </div></div></div>
 {% else %}
   <div class="col-12"><div class="card">{{ empty('people', 'Vous ne faites encore partie d\'aucune classe.') }}</div></div>
