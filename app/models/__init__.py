@@ -13,8 +13,9 @@ from app.models.sas import Sas
 from app.models.technical_test import TechnicalTestSession
 from app.models.user import PasswordResetRequest, User
 from app.models.workstation import Room, Workstation
-from app.models.zeus import (ZeusAttendance, ZeusClass, ZeusClassCoach, ZeusClassMember, ZeusClassRole, ZeusCourse,
-                             ZeusNotification, ZeusSession)
+from app.models.zeus import (ZeusAttendance, ZeusClass, ZeusClassCoach, ZeusClassMember, ZeusClassRole,
+                             ZeusConversation, ZeusConversationRead, ZeusCourse, ZeusMessage, ZeusNotification,
+                             ZeusSession)
 
 __all__ = ["Attendance", "AttendanceSession", "AuditLog", "Setting", "Candidate", "ClassInvitation", "Exercise",
            "ExerciseSubmission", "Incident", "Notification", "SasClass", "Visit", "KoboSubmission", "Sas",
@@ -23,4 +24,4 @@ __all__ = ["Attendance", "AttendanceSession", "AuditLog", "Setting", "Candidate"
            "PasswordResetRequest", "Evaluation", "Defense", "Jury", "JuryCandidate", "JuryMember", "CoachInvitation",
            "Lesson", "Cohort", "CohortCoach", "Enrollment", "ZeusAttendance", "ZeusClass", "ZeusClassMember",
            "ZeusCourse", "ZeusNotification", "ZeusSession", "ZeusClassCoach", "ZeusClassRole", "Activity", "Book",
-           "BookLoan"]
+           "BookLoan", "ZeusConversation", "ZeusConversationRead", "ZeusMessage"]

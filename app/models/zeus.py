@@ -196,3 +196,64 @@ class ZeusAttendance(db.Model):
     __table_args__ = (
         db.UniqueConstraint("session_id", "enrollment_id", name="uq_zeus_attendances_session_enrollment"),
     )
+
+
+class ZeusConversation(db.Model):
+    """Class messaging: the private one-to-one conversation of a student with one coach of one of his classes. The
+    other coaches never see it; the admin reviews it, read-only (each review is audit logged). Created with its first
+    message. Access is derived from the class at read time: a coach removed from the class loses it."""
+    __tablename__ = "zeus_conversations"
+
+    id = db.Column(db.Integer, primary_key=True)
+    class_id = db.Column(db.Integer, db.ForeignKey("zeus_classes.id", ondelete="CASCADE"), nullable=False, index=True)
+    enrollment_id = db.Column(db.Integer, db.ForeignKey("cohort_enrollments.id", ondelete="CASCADE"), nullable=False,
+                              index=True)
+    coach_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    last_message_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow, index=True)
+    # The student wrote last: the coach owes an answer (his badge, "À répondre" filter).
+    awaiting_reply = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
+
+    klass = db.relationship("ZeusClass")
+    enrollment = db.relationship("Enrollment")
+    coach = db.relationship("User")
+    messages = db.relationship("ZeusMessage", back_populates="conversation", cascade="all, delete-orphan",
+                               order_by="ZeusMessage.id")
+    reads = db.relationship("ZeusConversationRead", back_populates="conversation", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        db.UniqueConstraint("class_id", "enrollment_id", "coach_id",
+                            name="uq_zeus_conversations_class_enrollment_coach"),
+    )
+
+
+class ZeusMessage(db.Model):
+    """Plain text (links made clickable on display). Never edited; the admin may delete one (moderation)."""
+    __tablename__ = "zeus_messages"
+
+    id = db.Column(db.Integer, primary_key=True)
+    conversation_id = db.Column(db.Integer, db.ForeignKey("zeus_conversations.id", ondelete="CASCADE"),
+                                nullable=False, index=True)
+    author_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
+    body = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+
+    conversation = db.relationship("ZeusConversation", back_populates="messages")
+    author = db.relationship("User")
+
+
+class ZeusConversationRead(db.Model):
+    """Where one reader stopped in a conversation: unread = a message after last_read_at."""
+    __tablename__ = "zeus_conversation_reads"
+
+    id = db.Column(db.Integer, primary_key=True)
+    conversation_id = db.Column(db.Integer, db.ForeignKey("zeus_conversations.id", ondelete="CASCADE"),
+                                nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    last_read_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+
+    conversation = db.relationship("ZeusConversation", back_populates="reads")
+
+    __table_args__ = (
+        db.UniqueConstraint("conversation_id", "user_id", name="uq_zeus_conversation_reads_conversation_user"),
+    )

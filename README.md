@@ -208,6 +208,8 @@ PostgreSQL n'est **jamais publié** hors du réseau Docker (pas de `ports:` sur 
 | 0013 – 0014 | rôles coach / accueil / cité, notifications, exercices, registre, problèmes, classes et invitations |
 | 0015 – 0017 | profil du personnel, registre des passages (pièce, provenance, activité), heures pointées des appels |
 | 0018 | infrastructures, matériel, consommables |
+| 0041 | messagerie de classe Zeus : conversations (étudiant × classe), messages, marqueurs de lecture |
+| 0042 | messagerie Zeus en tête-à-tête : une conversation par étudiant, classe et coach (`coach_id`) |
 
 Les migrations 0007 à 0009 sont des **mises à jour de données** (cases « Validé » cochées pour les tests terminés et les admis au SAS) : elles ne s'annulent pas.
 
@@ -302,6 +304,7 @@ Correspondance : **CNI → Email → Téléphone → Code candidat → Nom compl
 * **Registre des passages** (accueil) : nom, provenance, type et numéro de pièce, téléphone ; motif **Visite** (candidat ou étudiant visité) ou **Autre activité** (catégorie + activité) ; heure d'arrivée et de départ.
 * **Étudiants du SAS** (accueil) : liste filtrable et profil en lecture seule (contact, classe, chambre, présences, problèmes, visites).
 * **Problèmes étudiants** : tout le personnel du SAS peut signaler (discipline, santé, logement, matériel, autre) ; l'accueil et l'admin voient tout et résolvent.
+* **Messagerie de classe (Zeus, `/zeus/messages`)** : conversations privées en tête-à-tête entre un étudiant et un coach de sa classe. Dans une classe à deux coachs, l'étudiant a deux conversations distinctes ; un coach ne voit jamais celles de ses collègues. Tout coach accepté de la classe (gestionnaires et coachs métier compris) peut recevoir des messages ou écrire le premier depuis la page de la classe. L'administrateur consulte toutes les conversations en lecture seule (« Revue des messages », filtres par classe et par coach) : il n'écrit ni ne supprime rien. Journal d'audit : chaque message envoyé (classe, étudiant, coach, auteur, sans le texte) et chaque consultation par l'administration. Texte seul (2 000 caractères max., liens cliquables), pas de temps réel : un compteur « Messages » dans le menu, rafraîchi chaque minute, et une carte sur l'accueil Zeus. Étudiant : conversations avec un nouveau message ; coach : ses conversations où l'étudiant attend une réponse qu'il n'a pas encore lue. Les droits suivent la classe : un coach retiré perd l'accès à ses conversations (l'étudiant les garde en lecture seule) ; un étudiant retiré de la classe garde ses conversations en lecture seule.
 
 ## Infrastructures, inventaire et consommables
 

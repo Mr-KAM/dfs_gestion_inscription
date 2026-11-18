@@ -32,6 +32,15 @@
 </form>
 {% endif %}
 
+{% if messages_unread %}
+<a class="card card-body mb-3 d-flex flex-row align-items-center gap-3 text-decoration-none text-reset zeus-home-messages" href="{{ url_for('zeus.messages', a_repondre=None if e else 1) }}">
+  <i class="bi bi-chat-dots fs-3 text-primary" aria-hidden="true"></i>
+  <span class="flex-grow-1"><strong>{{ messages_unread }} {{ 'conversation(s) avec un nouveau message' if e else "message(s) d'étudiants en attente de réponse" }}</strong>
+    <span class="d-block small text-muted">{{ "Réponse de vos coachs." if e else 'Les étudiants de vos classes vous ont écrit.' }}</span></span>
+  <span class="btn btn-sm btn-primary">Lire</span>
+</a>
+{% endif %}
+
 {% if e %}
   {% for m in invitations %}
   <div class="alert alert-warning d-flex justify-content-between align-items-center flex-wrap gap-2">
