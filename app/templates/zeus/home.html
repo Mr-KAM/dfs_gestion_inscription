@@ -32,6 +32,94 @@
 </form>
 {% endif %}
 
+{% set b = birthdays %}
+{% if current_user.role == 'admin' %}
+<form class="card card-body mb-4 d-flex flex-row flex-wrap align-items-center gap-3" method="post" action="{{ url_for('zeus.birthday_settings') }}">
+  {{ csrf() }}
+  <i class="bi bi-cake2 fs-2 {{ 'text-muted' if b.scope == 'off' else 'text-primary' }}" aria-hidden="true"></i>
+  <div class="flex-grow-1"><strong>Anniversaires</strong>
+    <div class="small text-muted">Qui les voit (jour et mois seulement) : les personnes d'une même classe, ou toute la cohorte de formation. L'administrateur les voit tous.</div></div>
+  <select class="form-select w-auto" name="scope" aria-label="Affichage des anniversaires">
+    {% for key, label in birthday_scopes.items() %}<option value="{{ key }}" {{ 'selected' if b.scope == key }}>{{ label }}</option>{% endfor %}</select>
+  <div class="form-check mb-0"><input class="form-check-input" type="checkbox" id="bd-wishes" name="wishes" value="1" {{ 'checked' if b.wishes_on }}>
+    <label class="form-check-label" for="bd-wishes">Vœux</label></div>
+  <button class="btn btn-outline-primary">Enregistrer</button>
+</form>
+{% endif %}
+
+{% if b.prompt %}
+<form class="card mb-3 zeus-birthday" method="post" action="{{ url_for('zeus.birthday_save') }}">{{ csrf() }}
+  <div class="card-body d-flex flex-wrap align-items-end gap-3">
+    <i class="bi bi-cake2 fs-2" aria-hidden="true"></i>
+    <div class="flex-grow-1"><strong>Quand est votre anniversaire ?</strong>
+      <div class="small text-muted">Pour le fêter avec votre classe. Seuls le jour et le mois sont affichés, jamais l'année.</div></div>
+    {% if b.student %}
+    <div><label class="form-label small mb-1" for="bd-date">Date de naissance</label>
+      <input class="form-control" type="date" id="bd-date" name="birth_date" autocomplete="bday"></div>
+    {% else %}
+    <div><label class="form-label small mb-1" for="bd-day">Jour</label>
+      <select class="form-select" id="bd-day" name="birthday_day"><option value="">—</option>{% for d in range(1, 32) %}<option>{{ d }}</option>{% endfor %}</select></div>
+    <div><label class="form-label small mb-1" for="bd-month">Mois</label>
+      <select class="form-select" id="bd-month" name="birthday_month"><option value="">—</option>{% for m in french_months %}<option value="{{ loop.index }}">{{ m }}</option>{% endfor %}</select></div>
+    {% endif %}
+  </div>
+  <div class="card-footer d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <div class="form-check mb-0"><input class="form-check-input" type="checkbox" id="bd-hide" name="hide_birthday" value="1">
+      <label class="form-check-label" for="bd-hide">Ne pas afficher mon anniversaire</label></div>
+    <div class="d-flex gap-2">
+      <button class="btn btn-sm btn-outline-secondary" name="action" value="later">Plus tard</button>
+      <button class="btn btn-sm btn-primary" name="action" value="save"><i class="bi bi-check2"></i> Enregistrer</button></div>
+  </div>
+</form>
+{% endif %}
+
+{% if b.mine or b.received %}
+<div class="card mb-3 zeus-birthday">
+  <div class="card-body d-flex align-items-center gap-3">
+    <i class="bi bi-cake2-fill fs-1" aria-hidden="true"></i>
+    <div>{% if b.mine %}<strong class="fs-5">Joyeux anniversaire, {{ e.candidate.full_name if e else current_user.display_name }} !</strong>
+      <div class="small text-muted">Toute l'équipe Zeus vous souhaite une très belle journée.</div>
+      {% else %}<strong>Vos vœux d'anniversaire</strong>{% endif %}</div>
+  </div>
+  {% if b.received %}
+  <ul class="list-group list-group-flush" aria-label="Vœux reçus">
+  {% for w in b.received %}{% set sender = w.author.candidate.full_name if w.author.is_candidate and w.author.candidate else w.author.display_name %}
+    <li class="list-group-item d-flex justify-content-between align-items-start gap-2">
+      <div><strong>{{ sender }}</strong><div class="pre-line">{{ w.body }}</div></div>
+      <form method="post" action="{{ url_for('zeus.birthday_wish_delete', wish_id=w.id) }}" data-confirm="Supprimer le vœu de {{ sender }} ?">{{ csrf() }}
+        <button class="btn btn-sm btn-link text-muted" title="Supprimer" aria-label="Supprimer le vœu de {{ sender }}"><i class="bi bi-x-lg"></i></button></form>
+    </li>
+  {% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if b.celebrated %}
+<div class="card mb-3"><div class="card-header"><i class="bi bi-cake2"></i> Anniversaires du jour</div>
+  <ul class="list-group list-group-flush">
+  {% for p, occ in b.celebrated %}
+    <li class="list-group-item">
+      <div class="d-flex justify-content-between flex-wrap gap-2 align-items-center">
+        <span><strong>{{ p.name }}</strong> <span class="small text-muted">· {{ p.label }}</span></span>
+        <span class="small text-muted">{{ "aujourd'hui" if occ == b.day else 'ce week-end (' ~ (occ | day_month) ~ ')' }}</span></div>
+      {% if b.wishes_on and p.user %}
+        {% if p.user.id in b.wished %}<div class="small text-success mt-1"><i class="bi bi-check2" aria-hidden="true"></i> Vœu envoyé</div>
+        {% else %}
+        <details class="mt-2 zeus-wish"><summary>Souhaiter son anniversaire</summary>
+          <form class="mt-2" method="post" action="{{ url_for('zeus.birthday_wish', user_id=p.user.id) }}">{{ csrf() }}
+            <label class="visually-hidden" for="wish-{{ p.key }}">Votre vœu pour {{ p.name }}</label>
+            <textarea class="form-control" id="wish-{{ p.key }}" name="body" rows="2" maxlength="280" required placeholder="Joyeux anniversaire !"></textarea>
+            <div class="d-flex justify-content-between align-items-center gap-2 mt-2">
+              <span class="form-text m-0">Lu par {{ p.name }} seulement.</span><button class="btn btn-sm btn-primary"><i class="bi bi-send"></i> Envoyer</button></div>
+          </form></details>
+        {% endif %}
+      {% endif %}
+    </li>
+  {% endfor %}
+  </ul></div>
+{% endif %}
+
 {% if messages_unread %}
 <a class="card card-body mb-3 d-flex flex-row align-items-center gap-3 text-decoration-none text-reset zeus-home-messages" href="{{ url_for('zeus.messages', a_repondre=None if e else 1) }}">
   <i class="bi bi-chat-dots fs-3 text-primary" aria-hidden="true"></i>

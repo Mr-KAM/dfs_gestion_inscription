@@ -8,10 +8,11 @@ from flask_login import current_user, login_required
 
 from app.auth import _safe_next
 from app.extensions import db
-from app.models import (Cohort, Enrollment, User, ZeusClass, ZeusClassCoach, ZeusClassMember, ZeusClassRole,
-                        ZeusCourse, ZeusNotification, ZeusSession)
+from app.models import (Cohort, Enrollment, User, ZeusBirthdayWish, ZeusClass, ZeusClassCoach, ZeusClassMember,
+                        ZeusClassRole, ZeusCourse, ZeusNotification, ZeusSession)
 from app.models.user import ROLE_ADMIN, ROLE_TRADE_COACH
-from app.services import candidate_service, direction_service, zeus_message_service, zeus_service
+from app.services import (candidate_service, direction_service, zeus_birthday_service, zeus_message_service,
+                          zeus_service)
 from app.services.candidate_service import BusinessError
 from app.utils import allow_camera
 
@@ -62,7 +63,9 @@ def home():
                            notifications=zeus_service.notifications_for(current_user, limit=3) if e else [],
                            classes=zeus_service.classes_for_student(e) if e else [],
                            coach_invitations=[] if e else zeus_service.coach_invitations_for(current_user),
-                           messages_unread=zeus_message_service.unread_count(current_user))
+                           messages_unread=zeus_message_service.unread_count(current_user),
+                           birthdays=zeus_birthday_service.home(current_user, zeus_birthday_service.today()),
+                           birthday_scopes=zeus_birthday_service.SCOPES)
 
 
 THEME_COOKIE_DAYS = 365
@@ -207,9 +210,12 @@ def klass(class_id: int):
             flash(str(exc), "danger")
         return redirect(url_for("zeus.klass", class_id=k.id))
     can_manage = zeus_service.can_manage_class(current_user, k)
+    today = zeus_birthday_service.today()
     return render_template("zeus/class.html", k=k, cohort=c, invitable=zeus_service.invitable(k),
                            can_manage=can_manage, is_admin=is_admin, roles=zeus_service.class_roles(),
                            can_message=zeus_message_service.on_team(k, current_user),
+                           birthdays=zeus_birthday_service.upcoming(zeus_birthday_service.class_people(k), today),
+                           birthdays_on=zeus_birthday_service.scope() != zeus_birthday_service.SCOPE_OFF, today=today,
                            coach_choices=zeus_service.coach_choices(k) if can_manage else [])
 
 
@@ -358,6 +364,79 @@ def conversation(class_id: int, enrollment_id: int, coach_id: int):
                            member=zeus_message_service.is_member(k, e), max_length=zeus_message_service.MAX_LENGTH)
 
 
+# ---- birthdays (in the app only, worked out when a page is shown)
+
+@bp.post("/anniversaire")
+def birthday_save():
+    """The home prompt: give one's birthday (or hide it), or "Plus tard"."""
+    try:
+        if request.form.get("action") == "later":
+            zeus_birthday_service.snooze(current_user, zeus_birthday_service.today())
+            flash("Nous vous le redemanderons dans un mois.", "info")
+        else:
+            zeus_birthday_service.save_birthday(current_user, request.form)
+            flash("Anniversaire enregistré. Vous pouvez le modifier depuis votre profil.", "success")
+    except BusinessError as exc:
+        db.session.rollback()
+        flash(str(exc), "danger")
+    return redirect(url_for("zeus.home"))
+
+
+@bp.post("/anniversaire/reglages")
+def birthday_settings():
+    if current_user.role != ROLE_ADMIN:
+        abort(403)
+    try:
+        zeus_birthday_service.save_settings(request.form.get("scope", ""), request.form.get("wishes") == "1",
+                                            current_user)
+        flash("Réglages des anniversaires enregistrés.", "success")
+    except BusinessError as exc:
+        db.session.rollback()
+        flash(str(exc), "danger")
+    return redirect(url_for("zeus.home"))
+
+
+@bp.post("/anniversaire/voeux/<int:user_id>")
+def birthday_wish(user_id: int):
+    person = zeus_birthday_service.find(current_user, user_id)
+    if person is None:
+        abort(404)
+    try:
+        zeus_birthday_service.add_wish(current_user, person, request.form.get("body", ""),
+                                       zeus_birthday_service.today())
+        flash(f"Vœu envoyé à {person.name}.", "success")
+    except BusinessError as exc:
+        db.session.rollback()
+        flash(str(exc), "danger")
+    return redirect(url_for("zeus.home"))
+
+
+@bp.post("/anniversaire/voeux/<int:wish_id>/supprimer")
+def birthday_wish_delete(wish_id: int):
+    wish = db.get_or_404(ZeusBirthdayWish, wish_id)
+    if wish.recipient_id != current_user.id:
+        abort(404)
+    zeus_birthday_service.delete_wish(wish)
+    flash("Vœu supprimé.", "success")
+    return redirect(url_for("zeus.home"))
+
+
+@bp.get("/classes/<int:class_id>/anniversaires")
+def class_birthdays(class_id: int):
+    """The class's birthdays of a month (?mois=YYYY-MM), printable: for its teaching staff."""
+    k = db.get_or_404(ZeusClass, class_id)
+    _cohort(k.cohort_id)
+    if not zeus_service.can_teach_class(current_user, k):
+        abort(404)
+    first = zeus_birthday_service.month_start(request.args.get("mois"), zeus_birthday_service.today())
+    last = (first + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+    return render_template("zeus/class_birthdays.html", k=k, first=first,
+                           rows=zeus_birthday_service.in_range(zeus_birthday_service.class_people(k), first, last),
+                           off=zeus_birthday_service.scope() == zeus_birthday_service.SCOPE_OFF,
+                           prev=(first - timedelta(days=1)).strftime("%Y-%m"),
+                           next=(last + timedelta(days=1)).strftime("%Y-%m"))
+
+
 # ---- calendar (scheduled sessions)
 
 @bp.route("/calendrier", methods=["GET", "POST"])
@@ -393,7 +472,9 @@ def calendar():
                            cohorts=zeus_service.cohorts_for(current_user), manageable=manageable,
                            prev=(start - timedelta(days=7)).date().isoformat(),
                            next=(start + timedelta(days=7)).date().isoformat(), forms=forms,
-                           activities=direction_service.activities_for(current_user, start, start + timedelta(days=7)))
+                           activities=direction_service.activities_for(current_user, start, start + timedelta(days=7)),
+                           birthdays=zeus_birthday_service.by_day(zeus_birthday_service.in_range(
+                               zeus_birthday_service.circle(current_user), days[0].date(), days[6].date())))
 
 
 # ---- sessions and roll calls

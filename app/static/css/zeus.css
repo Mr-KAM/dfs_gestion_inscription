@@ -122,7 +122,7 @@ body.zeus {
 .zeus-filter .nav-link.active { border-color: var(--zeus-navy); }
 
 /* Week calendar: 7 columns from 1200px, one row per day below (date on the left, events on the right). */
-.zeus-week { --wk-surface: #fff; --wk-course: #eaf0fa; --wk-activity: #ecf7ea;
+.zeus-week { --wk-surface: #fff; --wk-course: #eaf0fa; --wk-activity: #ecf7ea; --wk-birthday: #fdf1e0;
   display: grid; gap: .5rem; grid-template-columns: minmax(0, 1fr); }
 .zeus-wday { display: grid; grid-template-columns: 4.25rem minmax(0, 1fr); background: var(--wk-surface);
   border: 1px solid var(--zeus-line); }
@@ -143,12 +143,22 @@ body.zeus {
 .zeus-event small { font-size: .74rem; color: var(--dfs-muted); }
 .zeus-event.is-course { background: var(--wk-course); border-color: var(--zeus-blue); }
 .zeus-event.is-activity { background: var(--wk-activity); border-color: var(--zeus-green); }
+.zeus-event.is-birthday { background: var(--wk-birthday); border-color: var(--zeus-cake); }
+.zeus-event.is-birthday i { color: var(--zeus-cake); }
 a.zeus-event:hover, a.zeus-event:focus-visible { color: var(--dfs-ink); box-shadow: inset 0 0 0 1px var(--zeus-blue); }
 .zeus-free { margin: 0; font-size: .75rem; color: var(--dfs-muted); align-self: flex-start; padding: .35rem 0; }
 .zeus-legend { display: flex; flex-wrap: wrap; align-items: center; gap: .9rem; }
 .zeus-legend .is-course::before, .zeus-legend .is-activity::before { content: ""; display: inline-block; width: .7rem; height: .7rem;
   margin-right: .35rem; vertical-align: -.05rem; border-left: 3px solid var(--zeus-blue); background: var(--wk-course, #eaf0fa); }
 .zeus-legend .is-activity::before { border-color: var(--zeus-green); background: #ecf7ea; }
+.zeus-legend .is-birthday::before { content: ""; display: inline-block; width: .7rem; height: .7rem; margin-right: .35rem;
+  vertical-align: -.05rem; border-left: 3px solid var(--zeus-cake); background: #fdf1e0; }
+/* Birthdays: a warm accent, distinct from courses (blue) and activities (green). */
+.zeus { --zeus-cake: #d9822b; }
+.zeus-birthday { border-left: 3px solid var(--zeus-cake); }
+.zeus-birthday > .card-body > .bi { color: var(--zeus-cake); }
+.zeus-wish > summary { display: inline-block; cursor: pointer; font-size: .85rem; color: var(--zeus-blue); }
+.zeus-wish[open] > summary { color: var(--dfs-muted); }
 @media (min-width: 1200px) {
   .zeus-week { grid-template-columns: repeat(7, minmax(0, 1fr)); }
   .zeus-wday { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; min-height: 16rem; }
@@ -246,11 +256,15 @@ a.zeus-event:hover, a.zeus-event:focus-visible { color: var(--dfs-ink); box-shad
 [data-bs-theme="dark"] .zeus .alert-warning { --bs-alert-color: var(--dfs-ink); --bs-alert-bg: #1c2552; --bs-alert-border-color: #34417c; }
 [data-bs-theme="dark"] .zeus .text-success { color: #a6e09e !important; }
 [data-bs-theme="dark"] .zeus .stat-icon { background: var(--dfs-blue-light); color: #a9c0f5; }
-[data-bs-theme="dark"] .zeus .zeus-week { --wk-surface: var(--zeus-surface); --wk-course: #1f2a5c; --wk-activity: #1b3a2e; }
+[data-bs-theme="dark"] .zeus .zeus-week { --wk-surface: var(--zeus-surface); --wk-course: #1f2a5c; --wk-activity: #1b3a2e;
+  --wk-birthday: #3a2c1a; }
 [data-bs-theme="dark"] .zeus .zeus-wday { border-color: var(--dfs-border); }
 [data-bs-theme="dark"] .zeus .zeus-wday > header { border-color: var(--dfs-border); }
 [data-bs-theme="dark"] .zeus .zeus-legend .is-course::before { background: #1f2a5c; }
 [data-bs-theme="dark"] .zeus .zeus-legend .is-activity::before { background: #1b3a2e; }
+[data-bs-theme="dark"] .zeus .zeus-legend .is-birthday::before { background: #3a2c1a; }
+[data-bs-theme="dark"] .zeus { --zeus-cake: #f0a95b; }
+[data-bs-theme="dark"] .zeus .zeus-wish > summary { color: #8fb0f0; }
 [data-bs-theme="dark"] .zeus .zeus-msg-body { background: var(--zeus-surface-2); border-color: var(--dfs-border); border-left-color: var(--zeus-green); }
 [data-bs-theme="dark"] .zeus .zeus-msg.is-mine .zeus-msg-body { background: var(--zeus-blue); border-color: var(--zeus-blue); }
 [data-bs-theme="dark"] .zeus .zeus-thread-day::before, [data-bs-theme="dark"] .zeus .zeus-thread-day::after { border-color: var(--dfs-border); }

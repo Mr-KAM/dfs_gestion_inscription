@@ -77,6 +77,7 @@ ACTION_LABELS = {
     "zeus_attendance": "Zeus : appel",
     "zeus_message_sent": "Zeus : message envoyé (étudiant ↔ coach)",
     "zeus_conversation_review": "Zeus : consultation d'une conversation (administration)",
+    "zeus_birthday_wish": "Zeus : vœu d'anniversaire envoyé",
     "activity_update": "Calendrier des activités",
     "library_update": "Bibliothèque : livres",
     "library_loan": "Bibliothèque : emprunts",

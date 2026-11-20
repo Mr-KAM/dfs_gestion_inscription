@@ -38,6 +38,12 @@
       <label class="form-label" for="birth_place">Lieu de naissance</label>
       <input class="form-control" id="birth_place" name="birth_place" maxlength="120" value="{{ request.form.get('birth_place', c.birth_place or '') }}">
     </div>
+    {% if zeus_student %}
+    <div class="col-12"><input type="hidden" name="birthday_prefs" value="1">
+      <div class="form-check"><input class="form-check-input" type="checkbox" id="hide_birthday" name="hide_birthday" value="1" {{ 'checked' if current_user.hide_birthday }}>
+        <label class="form-check-label" for="hide_birthday">Ne pas afficher mon anniversaire dans Zeus</label></div>
+      <div class="form-text">Sinon, le jour et le mois (jamais l'année) sont affichés aux personnes de votre classe.</div></div>
+    {% endif %}
     <div class="col-md-6">
       <label class="form-label" for="gender">Sexe</label>
       {% set gender = request.form.get('gender', c.gender or '') %}
