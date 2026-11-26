@@ -535,6 +535,17 @@ def calendar():
     return response
 
 
+@bp.get("/calendrier.ics")
+def calendar_ics():
+    """What the view shows (sessions and activities, no birthdays), to import into a calendar app."""
+    view, scope = _calendar_context(request.args)
+    events, _ = zeus_calendar_service.collect(current_user, view, scope, birthdays=False, status=False)
+    response = make_response(zeus_calendar_service.to_ics(events, f"Zeus · {view.title}"))
+    response.headers["Content-Type"] = "text/calendar; charset=utf-8"
+    response.headers["Content-Disposition"] = f'attachment; filename="zeus-{view.kind}-{view.anchor.isoformat()}.ics"'
+    return response
+
+
 # ---- sessions and roll calls
 
 def _session(session_id: int) -> ZeusSession:

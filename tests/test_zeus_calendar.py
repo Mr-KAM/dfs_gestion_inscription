@@ -1,6 +1,6 @@
 """Zeus calendar: day / week / month views, the time-grid layout, filters, programming (repeat, conflicts, edit,
-delete, notifications) and the roll-call labels. The school is in Europe/Paris here: UTC+0 (the default,
-Africa/Abidjan) would hide every time-zone mistake."""
+delete, notifications), roll-call labels and the .ics export. The school is in Europe/Paris here: UTC+0 (the
+default, Africa/Abidjan) would hide every time-zone mistake."""
 from datetime import date, datetime, timezone
 from types import SimpleNamespace
 
@@ -347,6 +347,37 @@ def test_slots_and_links_for_schedulers_only(client, db, w):
         _as(client, user)
         html = client.get("/zeus/calendrier?vue=semaine&date=2030-03-05").get_data(as_text=True)
         assert "data-slot" not in html and 'id="schedule"' not in html, user.email
+
+
+# ---- .ics
+
+def test_ics_export(client, db, w):
+    w.python.name = "Python; avancé, niveau 2"
+    s = _session(db, w.python, w.web, "2030-03-05T08:00", "2030-03-05T10:00", coach=w.r, room="S1")
+    _session(db, w.sql, w.data, "2030-03-05T10:00", "2030-03-05T12:00")
+    db.session.add(Activity(title="Visite", everyone=True, place="Hall", description="Élèves, parents : " + "é" * 80,
+                            starts_at=campus_service.local_datetime("2030-03-06T09:00"),
+                            ends_at=campus_service.local_datetime("2030-03-06T10:00")))
+    db.session.commit()
+    url = "/zeus/calendrier.ics?vue=semaine&date=2030-03-05"
+    assert client.get(url).status_code == 302  # login first
+    _as(client, w.admin)
+    response = client.get(url)
+    body = response.get_data(as_text=True)
+    assert response.headers["Content-Type"].startswith("text/calendar")
+    assert 'filename="zeus-semaine-2030-03-04.ics"' in response.headers["Content-Disposition"]
+    assert body.startswith("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:") and body.endswith("END:VCALENDAR\r\n")
+    assert body.count("BEGIN:VEVENT") == body.count("DTSTAMP:") == 3
+    assert f"UID:zeus-session-{s.id}@dfs-zeus" in body and "DTSTART:20300305T070000Z" in body  # 08:00 in Paris
+    assert "SUMMARY:Python\\; avancé\\, niveau 2" in body and "LOCATION:S1" in body
+    assert all(len(line.encode()) <= 75 for line in body.split("\r\n"))
+    unfolded = body.replace("\r\n ", "")
+    assert "DESCRIPTION:Élèves\\, parents : " + "é" * 80 in unfolded
+    _as(client, w.alpha)  # his class and cohort only
+    body = client.get(url).get_data(as_text=True)
+    assert "Python" in body and "SQL" not in body and body.count("BEGIN:VEVENT") == 2
+    _as(client, w.m)
+    assert client.get(f"{url}&cohort={w.y.id}").status_code == 404
 
 
 def test_session_back_link_and_home_shortcut(client, db, w):

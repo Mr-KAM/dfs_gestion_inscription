@@ -1,10 +1,10 @@
 """Zeus calendar: the day, week and month views of what a user sees (course sessions, the direction's activities,
-birthdays), the time-grid layout and the roll-call labels. Presentation only: zeus_service saves
+birthdays), the time-grid layout, the roll-call labels and the .ics export. Presentation only: zeus_service saves
 the sessions and says who may do what. Times are shown in the school's time zone."""
 import calendar as calendar_module
 import math
 from dataclasses import dataclass, field
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 
 from sqlalchemy import func, select
 
@@ -23,6 +23,7 @@ DAY_START, DAY_END = 7, 20  # hours always on the time grid, widened to the even
 MIN_MINUTES = 30  # an event is drawn (and laid out) at least this long
 BIRTHDAYS_GROUPED = 3  # from this many birthdays on a day: one « N anniversaires » item
 MONTH_CHIPS = 3  # items listed in a month cell, then « +N »
+ICS_DOMAIN = "dfs-zeus"  # fixed, not the host: Zeus answers on two domains and a re-import must keep the UIDs
 
 
 # ---- the view: which days, from the URL (or the remembered view)
@@ -343,3 +344,55 @@ def roll_calls(sessions: list[ZeusSession], user) -> dict[int, tuple[str, str]]:
         elif zeus_service.can_call(user, s):
             labels[s.id] = ("warning", "Appel à faire")
     return labels
+
+
+# ---- .ics export (iCalendar, RFC 5545)
+
+def _ics_time(value: datetime) -> str:
+    return as_utc(value).astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+
+def _ics_text(value: str) -> str:
+    return (value.replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,")
+            .replace("\r\n", "\\n").replace("\n", "\\n"))
+
+
+def _fold(line: str) -> str:
+    """Lines of 75 octets at most, cut between UTF-8 characters; a continuation starts with a space."""
+    parts, current, size, limit = [], "", 0, 75
+    for char in line:
+        width = len(char.encode())
+        if size + width > limit:
+            parts.append(current)
+            current, size, limit = "", 0, 74
+        current += char
+        size += width
+    parts.append(current)
+    return "\r\n ".join(parts)
+
+
+def to_ics(events: list[Event], name: str, now: datetime | None = None) -> str:
+    """The sessions and activities of the events (no birthdays). UIDs are stable: a client that updates on
+    re-import (not all do) changes the same events."""
+    stamp = _ics_time(now or utcnow())
+    lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Digital Farming School//Zeus//FR", "CALSCALE:GREGORIAN",
+             "METHOD:PUBLISH", f"X-WR-CALNAME:{_ics_text(name)}"]
+    for e in events:
+        if e.kind == "course":
+            s = e.obj
+            uid, location = f"zeus-session-{s.id}@{ICS_DOMAIN}", s.room or ""
+            description = "\n".join([f"Cohorte {s.course.cohort.name}",
+                                     f"Classe {s.klass.name}" if s.klass else "Toute la cohorte"]
+                                    + ([f"Coach : {s.coach.display_name}"] if s.coach else []))
+        elif e.kind == "activity":
+            a = e.obj
+            uid, location, description = f"zeus-activity-{a.id}@{ICS_DOMAIN}", a.place or "", a.description or ""
+        else:
+            continue
+        lines += ["BEGIN:VEVENT", f"UID:{uid}", f"DTSTAMP:{stamp}", f"DTSTART:{_ics_time(e.start)}",
+                  f"DTEND:{_ics_time(e.end)}", f"SUMMARY:{_ics_text(e.title)}"]
+        lines += [f"LOCATION:{_ics_text(location)}"] if location else []
+        lines += [f"DESCRIPTION:{_ics_text(description)}"] if description else []
+        lines.append("END:VEVENT")
+    lines.append("END:VCALENDAR")
+    return "".join(_fold(line) + "\r\n" for line in lines)
