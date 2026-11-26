@@ -1,13 +1,14 @@
-"""Zeus calendar: day / week / month views, the time-grid layout, filters and programming (repeat, conflicts). The
-school is in Europe/Paris here: UTC+0 (the default, Africa/Abidjan) would hide every time-zone mistake."""
+"""Zeus calendar: day / week / month views, the time-grid layout, filters, programming (repeat, conflicts) and the
+roll-call labels. The school is in Europe/Paris here: UTC+0 (the default, Africa/Abidjan) would hide every time-zone
+mistake."""
 from datetime import date, datetime
 from types import SimpleNamespace
 
 import pytest
 from werkzeug.datastructures import MultiDict
 
-from app.models import (Activity, AuditLog, Cohort, CohortCoach, ZeusClass, ZeusClassCoach, ZeusClassMember,
-                        ZeusCourse, ZeusSession)
+from app.models import (Activity, AuditLog, Cohort, CohortCoach, ZeusAttendance, ZeusClass, ZeusClassCoach,
+                        ZeusClassMember, ZeusCourse, ZeusSession)
 from app.services import campus_service, settings_service, zeus_service
 from app.services import zeus_calendar_service as cal
 from app.utils import as_utc, utcnow
@@ -245,6 +246,24 @@ def test_filters_apply_to_sessions_and_ignore_forged_values(client, db, w):
     _as(client, w.charlie)  # a student: his class and the whole cohort; another class's id is ignored
     html = client.get(f"{base}&classe={w.web.id}").get_data(as_text=True)
     assert html.count("zeus-event is-course") == 2 and "Python" in html and "Classe Web" not in html
+
+
+def test_roll_call_labels(client, db, w):
+    called = _session(db, w.python, w.web, "2026-01-05T08:00", "2026-01-05T10:00")
+    missed = _session(db, w.sql, w.web, "2026-01-06T08:00", "2026-01-06T10:00")
+    db.session.add(ZeusAttendance(session=called, enrollment=w.a))
+    db.session.commit()
+    week = "/zeus/calendrier?vue=semaine&date=2026-01-05"
+    _as(client, w.m)
+    html = client.get(week).get_data(as_text=True)
+    assert "Appel 1/2" in html and "Appel à faire" in html
+    _as(client, w.reception)  # reads the calendar, does not call: nothing « à faire »
+    html = client.get(week).get_data(as_text=True)
+    assert "Appel 1/2" in html and "Appel à faire" not in html
+    _as(client, w.alpha)
+    html = client.get(week).get_data(as_text=True)
+    assert "Présent(e)" in html and "Absent(e)" in html
+    assert missed.id and "Appel 1/2" not in html
 
 
 def test_slots_and_links_for_schedulers_only(client, db, w):

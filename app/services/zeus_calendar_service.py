@@ -1,12 +1,15 @@
 """Zeus calendar: the day, week and month views of what a user sees (course sessions, the direction's activities,
-birthdays), the time-grid layout. Presentation only: zeus_service saves
+birthdays), the time-grid layout and the roll-call labels. Presentation only: zeus_service saves
 the sessions and says who may do what. Times are shown in the school's time zone."""
 import calendar as calendar_module
 import math
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 
-from app.models import Cohort, User, ZeusClass, ZeusSession
+from sqlalchemy import func, select
+
+from app.extensions import db
+from app.models import Cohort, Enrollment, User, ZeusAttendance, ZeusClass, ZeusClassMember, ZeusSession
 from app.models.user import COACH_ROLES
 from app.services import direction_service, zeus_birthday_service, zeus_service
 from app.services.zeus_birthday_service import MONTHS
@@ -169,12 +172,14 @@ class Day:
         return not (self.timed or self.all_day or self.birthdays)
 
 
-def collect(user, view: View, scope: Scope, birthdays: bool = True) -> tuple[list[Event], list[ZeusSession]]:
+def collect(user, view: View, scope: Scope, birthdays: bool = True,
+            status: bool = True) -> tuple[list[Event], list[ZeusSession]]:
     """What the user sees in the view: his sessions (filtered, crossing the range), the activities concerning him,
     the birthdays of his circle."""
     tz = view.start.tzinfo
     sessions = zeus_service.sessions_for(user, view.start, view.end, scope.cohort, klass=scope.klass,
                                          coach_id=scope.coach_id, overlap=True, cohorts=scope.cohorts)
+    labels = roll_calls(sessions, user) if status else {}
     several = scope.cohort is None and len(scope.cohorts) > 1
     events = []
     for s in sessions:
@@ -183,7 +188,7 @@ def collect(user, view: View, scope: Scope, birthdays: bool = True) -> tuple[lis
         who = " · ".join(x for x in (s.coach.display_name if s.coach else "", s.room or "") if x)
         lines += [who] if who else []
         events.append(Event("course", s.course.name, as_utc(s.starts_at).astimezone(tz),
-                            as_utc(s.ends_at).astimezone(tz), lines=lines, obj=s))
+                            as_utc(s.ends_at).astimezone(tz), lines=lines, status=labels.get(s.id), obj=s))
     for a in direction_service.activities_for(user, view.start, view.end):
         events.append(Event("activity", a.title, as_utc(a.starts_at).astimezone(tz), as_utc(a.ends_at).astimezone(tz),
                             lines=[a.place] if a.place else [], obj=a))
@@ -284,3 +289,42 @@ def build_grid(days: list[Day], tz, now: datetime | None = None) -> Grid:
     if any(d.date == local.date() for d in days) and lo * 60 <= minutes < hi * 60:
         now_top = (minutes - lo * 60) / ((hi - lo) * 60) * 100
     return Grid(days, lo, hi, local.date(), now_top)
+
+
+# ---- roll calls
+
+def roll_calls(sessions: list[ZeusSession], user) -> dict[int, tuple[str, str]]:
+    """The roll-call label of each started session, in a few queries for the whole view. Staff: « Appel 12/15 »,
+    else « Appel à faire » for those who may call it; a student: present (first), absent, or in progress."""
+    now = utcnow()
+    started = [s for s in sessions if as_utc(s.starts_at) <= now]
+    if not started:
+        return {}
+    ids = [s.id for s in started]
+    e = zeus_service.student_enrollment(user)
+    labels = {}
+    if e is not None:
+        present = set(db.session.scalars(select(ZeusAttendance.session_id).where(
+            ZeusAttendance.session_id.in_(ids), ZeusAttendance.enrollment_id == e.id)))
+        for s in started:
+            labels[s.id] = (("success", "Présent(e)") if s.id in present else
+                            ("danger", "Absent(e)") if as_utc(s.ends_at) <= now else ("info", "En cours"))
+        return labels
+    marks = dict(db.session.execute(select(ZeusAttendance.session_id, func.count()).where(
+        ZeusAttendance.session_id.in_(ids)).group_by(ZeusAttendance.session_id)).all())
+    class_ids = {s.class_id for s in started if s.class_id}
+    cohort_ids = {s.course.cohort_id for s in started if not s.class_id}
+    members = dict(db.session.execute(select(ZeusClassMember.class_id, func.count()).where(
+        ZeusClassMember.class_id.in_(class_ids), ZeusClassMember.joined_at.is_not(None))
+        .group_by(ZeusClassMember.class_id)).all()) if class_ids else {}
+    registered = dict(db.session.execute(select(Enrollment.cohort_id, func.count()).where(
+        Enrollment.cohort_id.in_(cohort_ids), Enrollment.matricule.is_not(None), Enrollment.matricule != "")
+        .group_by(Enrollment.cohort_id)).all()) if cohort_ids else {}
+    for s in started:
+        n = marks.get(s.id, 0)
+        if n:
+            expected = members.get(s.class_id, 0) if s.class_id else registered.get(s.course.cohort_id, 0)
+            labels[s.id] = ("success", f"Appel {n}/{expected}")
+        elif zeus_service.can_call(user, s):
+            labels[s.id] = ("warning", "Appel à faire")
+    return labels
