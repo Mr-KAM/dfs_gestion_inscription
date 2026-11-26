@@ -15,7 +15,7 @@ from app.models.zeus import METHOD_MANUAL, METHOD_SCAN, METHOD_SELF
 from app.services import attendance_service, audit_service, settings_service
 from app.services.campus_service import local_datetime
 from app.services.candidate_service import BusinessError, decode_matricule
-from app.utils import utcnow
+from app.utils import as_utc, utcnow
 
 DESK_ROLES = (ROLE_ADMIN, ROLE_RECEPTION, ROLE_RESIDENCE)  # every cohort, read (desk: registrations)
 
@@ -349,6 +349,19 @@ def delete_session(session: ZeusSession) -> None:
     audit_service.log("zeus_update", session.course, {"session_deleted": session.starts_at.isoformat()})
     db.session.delete(session)
     db.session.commit()
+
+
+def week_overview(user, week: datetime) -> dict:
+    """The Zeus home's sessions of the week: today's first, the rest of the week, then the past ones; with the
+    sessions of today the user may call (a "Faire l'appel" shortcut)."""
+    tz = week.tzinfo
+    today = datetime.now(tz).date()
+    sessions = sessions_for(user, week, week + timedelta(days=7))
+    day = {s.id: as_utc(s.starts_at).astimezone(tz).date() for s in sessions}
+    todays = [s for s in sessions if day[s.id] == today]
+    return {"today": todays, "later": [s for s in sessions if day[s.id] > today],
+            "past": [s for s in sessions if day[s.id] < today],
+            "callable": {s.id for s in todays if can_call(user, s)}}
 
 
 def week_start(value: str | None) -> datetime:

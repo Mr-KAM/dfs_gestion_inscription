@@ -145,6 +145,10 @@ class ZeusSession(db.Model):
         return as_utc(self.ends_at) <= utcnow()
 
     @property
+    def is_live(self) -> bool:
+        return as_utc(self.starts_at) <= utcnow() < as_utc(self.ends_at)
+
+    @property
     def expected(self) -> list:
         """Enrollments expected at the session: the class members, or every registered student of the cohort."""
         if self.klass:

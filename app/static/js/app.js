@@ -69,6 +69,19 @@
   }
 
   // Start-test form: reload free workstations for the chosen room, gate the submit button.
+  // Zeus roll call (zeus/session.html, form[data-call]): live count of the ticked rows; "Tous présents" ticks them all.
+  // Without JS the rows still toggle (labels) and the count shows the saved value.
+  function initCall() {
+    document.querySelectorAll("form[data-call]").forEach((form) => {
+      const boxes = () => [...form.querySelectorAll('input[name="present"]')];
+      const count = form.querySelector("[data-call-count]");
+      const update = () => { if (count) count.textContent = String(boxes().filter((b) => b.checked).length); };
+      form.addEventListener("change", update);
+      const all = form.querySelector("[data-call-all]");
+      if (all) all.addEventListener("click", () => { boxes().forEach((b) => { b.checked = true; }); update(); });
+    });
+  }
+
   function initStartForm() {
     const form = document.getElementById("start-test-form");
     if (!form) return;
@@ -413,6 +426,7 @@
     setInterval(tick, 1000);
     initPolling();
     initUnread();
+    initCall();
     initStartForm();
     syncRail();
     initTabs();

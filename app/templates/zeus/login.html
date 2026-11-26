@@ -1,5 +1,6 @@
 <!doctype html>
-<html lang="fr">
+{# Night mode, as in zeus/base.html: the zeus_theme cookie chosen in Zeus (kept after logout). #}
+<html lang="fr" data-bs-theme="{{ 'dark' if request.cookies.get('zeus_theme') == 'dark' else 'light' }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">

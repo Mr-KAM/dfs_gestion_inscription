@@ -120,7 +120,7 @@ def test_hidden_birthday_and_never_the_year(client, db, w):
     calendar = client.get("/zeus/calendrier?week=2026-11-16").get_data(as_text=True)
     assert "ALPHA" in calendar and "1998" not in calendar
     monthly = client.get(f"/zeus/classes/{w.web.id}/anniversaires?mois=2026-11").get_data(as_text=True)
-    assert "<td>18 novembre</td><td>ALPHA</td>" in monthly and "1998" not in monthly
+    assert '<td>18 novembre</td><td class="text-wrap">ALPHA</td>' in monthly and "1998" not in monthly
 
     w.alpha.hide_birthday = True
     db.session.commit()
@@ -239,7 +239,7 @@ def test_calendar_class_card_and_monthly_list(client, w):
     assert "Prochains anniversaires" in page
     assert "21 novembre" in page and "25 novembre" in page and "2 décembre" in page  # next 30 days, himself too
     monthly = client.get(f"/zeus/classes/{w.web.id}/anniversaires?mois=2026-12").get_data(as_text=True)
-    assert "<td>2 décembre</td><td>TRADE</td>" in monthly and "ALPHA" not in monthly
+    assert '<td>2 décembre</td><td class="text-wrap">TRADE</td>' in monthly and "ALPHA" not in monthly
     assert "novembre 2026" in client.get(f"/zeus/classes/{w.web.id}/anniversaires?mois=2026-13").get_data(as_text=True)
     for outsider in (w.o, w.alpha):  # another class's coach, a student
         _as(client, outsider)
