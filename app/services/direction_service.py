@@ -3,6 +3,7 @@ from collections import Counter
 from datetime import datetime, timezone
 
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.extensions import db
 from app.models import Activity, Cohort, Defense, User
@@ -80,7 +81,7 @@ def delete(a: Activity) -> None:
 def activities_for(user, start: datetime | None = None, end: datetime | None = None,
                    limit: int | None = None) -> list[Activity]:
     """The activities of [start, end) concerning the user; the planners see them all."""
-    stmt = select(Activity).order_by(Activity.starts_at)
+    stmt = select(Activity).options(selectinload(Activity.participants)).order_by(Activity.starts_at)
     if start:
         stmt = stmt.where(Activity.ends_at > start.astimezone(timezone.utc))
     if end:
