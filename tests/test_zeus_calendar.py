@@ -1,14 +1,14 @@
-"""Zeus calendar: day / week / month views, the time-grid layout, filters, programming (repeat, conflicts) and the
-roll-call labels. The school is in Europe/Paris here: UTC+0 (the default, Africa/Abidjan) would hide every time-zone
-mistake."""
-from datetime import date, datetime
+"""Zeus calendar: day / week / month views, the time-grid layout, filters, programming (repeat, conflicts, edit,
+delete, notifications) and the roll-call labels. The school is in Europe/Paris here: UTC+0 (the default,
+Africa/Abidjan) would hide every time-zone mistake."""
+from datetime import date, datetime, timezone
 from types import SimpleNamespace
 
 import pytest
 from werkzeug.datastructures import MultiDict
 
 from app.models import (Activity, AuditLog, Cohort, CohortCoach, ZeusAttendance, ZeusClass, ZeusClassCoach,
-                        ZeusClassMember, ZeusCourse, ZeusSession)
+                        ZeusClassMember, ZeusCourse, ZeusNotification, ZeusSession)
 from app.services import campus_service, settings_service, zeus_service
 from app.services import zeus_calendar_service as cal
 from app.utils import as_utc, utcnow
@@ -190,7 +190,7 @@ def test_repeat_keeps_the_local_hour_across_dst(client, db, w):
 
 
 def test_conflicts_shown_then_forced(client, db, w):
-    _session(db, w.python, w.web, "2030-03-05T08:00", "2030-03-05T10:00", coach=w.r, room="Salle É")
+    first = _session(db, w.python, w.web, "2030-03-05T08:00", "2030-03-05T10:00", coach=w.r, room="Salle É")
     _session(db, w.agri, w.agro, "2030-03-06T08:00", "2030-03-06T10:00", coach=w.r)  # another cohort, same coach
     _as(client, w.admin)
 
@@ -216,6 +216,71 @@ def test_conflicts_shown_then_forced(client, db, w):
     assert forced.status_code == 302 and ZeusSession.query.count() == 4
     log = AuditLog.query.filter_by(entity_type="ZeusSession").order_by(AuditLog.id.desc()).first()
     assert "forced" in log.details
+    # Editing a session never conflicts with itself.
+    _as(client, w.admin)
+    edit = _slot(w, w.python, "2030-03-05T08:30", "2030-03-05T10:00", w.web, room="Salle É", coach_id=w.r.id)
+    assert client.post(f"/zeus/seances/{first.id}", data={**edit, "action": "edit"}).status_code == 302
+    db.session.expire_all()
+    assert _local(first.starts_at).strftime("%H:%M") == "08:30"
+
+
+# ---- edit, delete, who may
+
+def test_edit_and_delete_permissions(client, db, w):
+    s = _session(db, w.python, w.web, "2030-03-05T08:00", "2030-03-05T10:00", coach=w.t)
+    whole = _session(db, w.sql, None, "2030-03-07T08:00", "2030-03-07T10:00")
+    edit = {**_slot(w, w.python, "2030-03-05T09:00", "2030-03-05T11:00", w.web), "action": "edit", "coach_id": w.t.id}
+
+    _as(client, w.m)  # the class's manager
+    assert "Modifier" in client.get(f"/zeus/seances/{s.id}").get_data(as_text=True)
+    assert client.post(f"/zeus/seances/{s.id}", data=edit).status_code == 302
+    db.session.expire_all()
+    assert _local(s.starts_at).strftime("%H:%M") == "09:00" and ZeusNotification.query.count() == 0
+    assert client.post(f"/zeus/seances/{s.id}", data={**edit, "class_id": w.data.id}).status_code == 403
+    assert client.post(f"/zeus/seances/{s.id}", data={**edit, "class_id": ""}).status_code == 403
+    assert client.post(f"/zeus/seances/{whole.id}", data={**edit, "action": "edit"}).status_code in (403, 404)
+    assert client.post(f"/zeus/seances/{whole.id}", data={"action": "delete"}).status_code in (403, 404)
+    log = AuditLog.query.filter_by(entity_type="ZeusSession", entity_id=str(s.id)).one()
+    assert "08:00" in log.details["before"] and "09:00" in log.details["after"]
+
+    _as(client, w.t)  # a coach of the class, and the session's coach: the roll call, not the schedule
+    page = client.get(f"/zeus/seances/{s.id}").get_data(as_text=True)
+    assert 'id="edit-session"' not in page
+    assert client.post(f"/zeus/seances/{s.id}", data=edit).status_code == 403
+    assert client.post(f"/zeus/seances/{s.id}", data={"action": "delete"}).status_code == 403
+    assert client.post(f"/zeus/seances/{s.id}", data={"present": [w.a.id]}).status_code == 302
+    _as(client, w.reception)
+    assert client.post(f"/zeus/seances/{s.id}", data=edit).status_code == 403
+
+    _as(client, w.admin)  # a roll call was taken: the class stays
+    page = client.post(f"/zeus/seances/{s.id}", data={**edit, "class_id": w.data.id}).get_data(as_text=True)
+    assert "Un appel a déjà été fait" in page
+    db.session.expire_all()
+    assert s.class_id == w.web.id
+    response = client.post(f"/zeus/seances/{s.id}", data={"action": "delete"})
+    assert response.status_code == 302 and "date=2030-03-05" in response.location
+    assert db.session.get(ZeusSession, s.id) is None
+
+
+def test_notifications_of_schedule_changes(client, db, w):
+    _as(client, w.admin)
+    client.post("/zeus/calendrier", data=_slot(w, w.python, "2030-03-05T08:00", "2030-03-05T10:00", w.web, notify="1",
+                                               repeat="3"))
+    n = ZeusNotification.query.one()
+    assert (n.klass, n.title) == (w.web, "Séance programmée : Python")
+    assert "Chaque mardi, 08:00–10:00, du 05/03 au 26/03/2030 (4 séances)" in n.body
+    s = ZeusSession.query.order_by(ZeusSession.starts_at).first()
+    client.post(f"/zeus/seances/{s.id}", data={**_slot(w, w.python, "2030-03-05T14:00", "2030-03-05T16:00", w.data),
+                                               "action": "edit", "notify": "1"})
+    moved = ZeusNotification.query.filter_by(title="Séance modifiée : Python").all()
+    assert {m.klass for m in moved} == {w.web, w.data}  # the class it leaves and the one it joins
+    assert "Avant : mardi 05/03/2030, 08:00–10:00 · classe Web" in moved[0].body
+    client.post(f"/zeus/seances/{s.id}", data={"action": "delete", "notify": "1"})
+    gone = ZeusNotification.query.filter_by(title="Séance annulée : Python").one()
+    assert gone.klass == w.data
+    _as(client, w.charlie)  # Data's student reads the move and the cancellation
+    html = client.get("/zeus/notifications").get_data(as_text=True)
+    assert "Séance modifiée : Python" in html and "Séance annulée : Python" in html
 
 
 # ---- filters, roll calls, slots
@@ -282,3 +347,12 @@ def test_slots_and_links_for_schedulers_only(client, db, w):
         _as(client, user)
         html = client.get("/zeus/calendrier?vue=semaine&date=2030-03-05").get_data(as_text=True)
         assert "data-slot" not in html and 'id="schedule"' not in html, user.email
+
+
+def test_session_back_link_and_home_shortcut(client, db, w):
+    s = _session(db, w.python, w.web, "2030-03-05T23:30", "2030-03-06T00:30")  # 22:30 UTC: still the 5th in Paris
+    _as(client, w.m)
+    page = client.get(f"/zeus/seances/{s.id}").get_data(as_text=True)
+    assert f"/zeus/calendrier?date=2030-03-05&amp;cohort={w.x.id}" in page
+    assert "/zeus/calendrier?vue=jour" in client.get("/zeus/").get_data(as_text=True)
+    assert as_utc(s.starts_at) == datetime(2030, 3, 5, 22, 30, tzinfo=timezone.utc)

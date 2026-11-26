@@ -468,8 +468,38 @@ def create_sessions(cohort: Cohort, form, user, notify: bool = False,
     return sessions, conflicts
 
 
-def delete_session(session: ZeusSession) -> None:
-    audit_service.log("zeus_update", session.course, {"session_deleted": session.starts_at.isoformat()})
+def update_session(session: ZeusSession, form, user, notify: bool = False, force: bool = False) -> list[str]:
+    """Course, class, times, coach, room. The class stays once a roll call was taken. Overlaps: nothing is saved
+    unless forced. A class change notifies the former audience too."""
+    cohort = session.course.cohort
+    f = _session_fields(cohort, form)
+    if session.marks and f["klass"] != session.klass:
+        raise BusinessError("Un appel a déjà été fait : la séance ne peut plus changer de classe.")
+    conflicts = session_conflicts(user, [(f["starts"], f["ends"])], cohort, f["klass"], f["coach"], f["room"],
+                                  exclude_id=session.id)
+    if conflicts and not force:
+        return conflicts
+    before = _describe(session.starts_at, session.ends_at, session.klass, session.room, session.coach)
+    old_klass = session.klass
+    session.course, session.klass, session.coach = f["course"], f["klass"], f["coach"]
+    session.starts_at, session.ends_at, session.room = f["starts"], f["ends"], f["room"]
+    after = _describe(session.starts_at, session.ends_at, session.klass, session.room, session.coach)
+    details = {"course": session.course.name, "before": before, "after": after}
+    if conflicts:
+        details["forced"] = conflicts[:5]
+    audit_service.log("zeus_update", session, details)
+    if notify and before != after:
+        _notify(session, "updated", user, before=before)
+        if old_klass != session.klass:
+            _notify(session, "updated", user, before=before, klass=old_klass)
+    db.session.commit()
+    return conflicts
+
+
+def delete_session(session: ZeusSession, user, notify: bool = False) -> None:
+    if notify:  # before the delete: the notification names the course and the class
+        _notify(session, "deleted", user)
+    audit_service.log("zeus_update", session.course, {"session_deleted": as_utc(session.starts_at).isoformat()})
     db.session.delete(session)
     db.session.commit()
 

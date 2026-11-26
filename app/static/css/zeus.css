@@ -459,8 +459,8 @@ a.zeus-mchip:hover, a.zeus-mchip:focus-visible { color: var(--dfs-ink); box-shad
   .zeus .page-head-actions .btn { width: 100%; min-height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: .15rem; padding: .3rem .25rem; font-size: .62rem; line-height: 1.15; white-space: normal; }
   .zeus .page-head-actions .btn i { font-size: 1.05rem; order: -1; }   /* icon above the label, wherever it is written */
-  .zeus .page-head-actions > form[data-confirm] { flex: 0 0 auto; margin-left: auto; }   /* delete: last, icon only */
-  .zeus .page-head-actions > form[data-confirm] .btn { width: 48px; }
+  .zeus .page-head-actions > form[data-confirm], .zeus .page-head-actions > .is-end { flex: 0 0 auto; margin-left: auto; }   /* delete: last, icon only */
+  .zeus .page-head-actions > form[data-confirm] .btn, .zeus .page-head-actions > .btn.is-end { width: 48px; }
   .zeus-hero .eyebrow { max-width: 70%; }
 }
 

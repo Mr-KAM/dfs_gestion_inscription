@@ -546,6 +546,24 @@ def _session(session_id: int) -> ZeusSession:
     return s
 
 
+def _session_page(s: ZeusSession, edit=None, conflicts=None, error=None):
+    """The session (roll call, or the student's presence); its edit form shown again with conflicts or an error."""
+    can_call = zeus_service.can_call(current_user, s)
+    can_manage = zeus_service.can_schedule(current_user, s.course.cohort, s.klass)
+    form = None
+    if can_manage:
+        cohort = s.course.cohort
+        classes, full = zeus_service.schedulable(current_user, cohort)
+        form = {"classes": classes, "full": full, "courses": zeus_service.courses_of(cohort),
+                "coaches": zeus_service.cohort_coaches(cohort)}
+    return allow_camera(make_response(render_template(
+        "zeus/session.html", s=s, present={m.enrollment_id for m in s.marks}, can_call=can_call,
+        can_manage=can_manage, form=form, values=edit or zeus_calendar_service.session_values(s),
+        conflicts=conflicts, error=error, show_edit=edit is not None, day=zeus_calendar_service.local_day(s),
+        qr=zeus_service.call_qr(s) if can_call and request.args.get("appel") == "qr" else None,
+        me=zeus_service.student_enrollment(current_user))))
+
+
 @bp.route("/seances/<int:session_id>", methods=["GET", "POST"])
 def session(session_id: int):
     s = _session(session_id)
@@ -553,23 +571,36 @@ def session(session_id: int):
     if request.method == "POST":
         if not can_call:
             abort(403)
-        if request.form.get("action") == "delete":
-            if not zeus_service.can_schedule(current_user, s.course.cohort, s.klass):
-                abort(403)
-            zeus_service.delete_session(s)
-            flash("Séance supprimée.", "success")
-            return redirect(url_for("zeus.calendar", cohort=s.course.cohort_id))
+        action, notify = request.form.get("action"), request.form.get("notify") == "1"
+        if action in ("edit", "delete"):
+            cohort = s.course.cohort
+            if not zeus_service.can_schedule(current_user, cohort, s.klass) or (
+                    action == "edit" and not zeus_service.can_schedule(
+                        current_user, cohort, zeus_service.form_class(cohort, request.form))):
+                abort(403)  # edit: on the session's class and on the one it moves to
+        if action == "delete":
+            day, cohort_id = zeus_calendar_service.local_day(s), s.course.cohort_id
+            zeus_service.delete_session(s, current_user, notify=notify)
+            flash("Séance supprimée." + (" Les étudiants sont prévenus." if notify else ""), "success")
+            return redirect(url_for("zeus.calendar", date=day.isoformat(), cohort=cohort_id))
+        if action == "edit":
+            force = request.form.get("force") == "1"
+            try:
+                conflicts = zeus_service.update_session(s, request.form, current_user, notify=notify, force=force)
+            except BusinessError as exc:
+                db.session.rollback()
+                return _session_page(s, edit=request.form, error=str(exc))
+            if conflicts and not force:
+                return _session_page(s, edit=request.form, conflicts=conflicts)
+            flash("Séance enregistrée." + (" Les étudiants sont prévenus." if notify else ""), "success")
+            return redirect(url_for("zeus.session", session_id=s.id))
         n = zeus_service.save_roll_call(s, set(request.form.getlist("present", type=int)), current_user)
         flash(f"Appel enregistré : {n} présent(s) sur {len(s.expected)}.", "success")
         return redirect(url_for("zeus.session", session_id=s.id))
-    present = {m.enrollment_id for m in s.marks}
     if can_call and request.args.get("partial"):  # roll call by QR code: refreshed every 10 s
-        return render_template("zeus/_call_live.html", s=s, present=present, qr=zeus_service.call_qr(s))
-    return allow_camera(make_response(render_template(
-        "zeus/session.html", s=s, present=present, can_call=can_call,
-        can_manage=zeus_service.can_schedule(current_user, s.course.cohort, s.klass),
-        qr=zeus_service.call_qr(s) if can_call and request.args.get("appel") == "qr" else None,
-        me=zeus_service.student_enrollment(current_user))))
+        return render_template("zeus/_call_live.html", s=s, present={m.enrollment_id for m in s.marks},
+                               qr=zeus_service.call_qr(s))
+    return _session_page(s)
 
 
 @bp.post("/seances/<int:session_id>/scan")

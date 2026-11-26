@@ -291,6 +291,21 @@ def build_grid(days: list[Day], tz, now: datetime | None = None) -> Grid:
     return Grid(days, lo, hi, local.date(), now_top)
 
 
+def local_day(session: ZeusSession) -> date:
+    """The session's day in the school's time zone."""
+    return as_utc(session.starts_at).astimezone(zeus_service.school_tz()).date()
+
+
+def session_values(session: ZeusSession) -> dict:
+    """A session's edit form, filled in (datetime-local inputs are in the school's time zone). An upcoming session
+    notifies its students by default."""
+    tz = zeus_service.school_tz()
+    return {"course_id": session.course_id, "class_id": session.class_id or "", "coach_id": session.coach_id or "",
+            "starts_at": as_utc(session.starts_at).astimezone(tz).strftime("%Y-%m-%dT%H:%M"),
+            "ends_at": as_utc(session.ends_at).astimezone(tz).strftime("%Y-%m-%dT%H:%M"), "room": session.room or "",
+            "notify": "" if session.is_past else "1"}
+
+
 # ---- roll calls
 
 def roll_calls(sessions: list[ZeusSession], user) -> dict[int, tuple[str, str]]:
