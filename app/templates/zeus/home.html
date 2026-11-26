@@ -209,7 +209,8 @@
   </li>
 {% endmacro %}
 <div class="card"><div class="card-header d-flex justify-content-between align-items-center">
-  <span><i class="bi bi-calendar-week"></i> Séances de la semaine</span><a class="small" href="{{ url_for('zeus.calendar') }}">Calendrier</a></div>
+  <span><i class="bi bi-calendar-week"></i> Séances de la semaine</span>
+  <span class="d-flex gap-3"><a class="small" href="{{ url_for('zeus.calendar', vue='jour') }}">Aujourd'hui</a><a class="small" href="{{ url_for('zeus.calendar') }}">Calendrier</a></span></div>
   {% if week.today %}<div class="zeus-session-group">Aujourd'hui</div>
   <ul class="list-group list-group-flush">{% for s in week.today %}{{ session_row(s) }}{% endfor %}</ul>{% endif %}
   {% if week.later %}<div class="zeus-session-group">Plus tard cette semaine</div>

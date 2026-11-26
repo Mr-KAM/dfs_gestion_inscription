@@ -1,0 +1,43 @@
+{# Day and week views: the time grid (hours on the left, events placed by zeus_calendar_service.layout through CSS
+   custom properties). Below 1200px the week's same markup becomes one row per day (zeus.css), events in time order. #}
+{% set DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'] %}
+{% macro event_item(seg, timed=False) -%}
+  {%- set e = seg.event -%}
+  {%- set place = ('style="--top:%.3f;--len:%.3f;--col:%d;--cols:%d"' | format(seg.top, seg.height, seg.col, seg.cols)) | safe if timed else '' -%}
+  {%- set narrow = 'is-narrow' if timed and seg.cols > 1 and view.kind == 'semaine' else '' -%}
+  {%- if e.kind == 'course' -%}
+  <a class="zeus-event is-course {{ narrow }}" href="{{ url_for('zeus.session', session_id=e.obj.id) }}" {{ place }}>
+    <time>{{ seg.label }}</time><strong>{{ e.title }}</strong>{% for line in e.lines %}<small>{{ line }}</small>{% endfor %}
+    {%- if e.status %}<span class="status status-{{ e.status[0] }}">{{ e.status[1] }}</span>{% endif %}</a>
+  {%- elif e.kind == 'activity' -%}
+  <a class="zeus-event is-activity {{ narrow }}" href="{{ url_for('direction.activities', week=e.start.strftime('%Y-%m-%d')) }}" {{ place }}>
+    <time><i class="bi bi-calendar-event" aria-hidden="true"></i> {{ seg.label }}</time><strong>{{ e.title }}</strong>
+    {%- if e.lines %}<small><i class="bi bi-geo-alt" aria-hidden="true"></i> {{ e.lines[0] }}</small>{% endif %}</a>
+  {%- elif e.kind == 'birthdays' -%}
+  <details class="zeus-event is-birthday is-group"><summary><i class="bi bi-cake2" aria-hidden="true"></i> {{ e.title }}</summary>
+    <ul>{% for b in e.obj %}<li>{{ b.title }} <small>{{ b.obj.label }}</small></li>{% endfor %}</ul></details>
+  {%- else -%}
+  <div class="zeus-event is-birthday"><strong><i class="bi bi-cake2" aria-hidden="true"></i> {{ e.title }}</strong><small>{{ e.lines[0] }}</small></div>
+  {%- endif -%}
+{%- endmacro %}
+{% set strip_rows = grid.days | map(attribute='strip') | map('length') | max %}
+<div class="zeus-tg {{ 'is-day' if view.kind == 'jour' else 'is-week' }} {{ 'has-strip' if grid.has_strip }}"
+     style="--hours:{{ grid.hi - grid.lo }};--days:{{ grid.days | length }};--strip-rows:{{ strip_rows }}">
+  <div class="zeus-tg-gutter" aria-hidden="true">
+    <div class="zeus-tg-corner"></div>
+    <div class="zeus-tg-strip"><span>Journée</span></div>
+    <div class="zeus-tg-hours">{% for h in grid.hours %}<span>{{ '%02d' % h }}:00</span>{% endfor %}</div>
+  </div>
+  {% for day in grid.days %}{% set iso = day.date.isoformat() %}{% set strip = day.strip %}
+  <section class="zeus-tg-day {{ 'is-today' if day.date == grid.today }} {{ 'is-weekend' if day.date.weekday() > 4 }}" aria-label="{{ DAYS[day.date.weekday()] }} {{ day.date.strftime('%d/%m') }}">
+    <header>{% if view.kind == 'semaine' %}<a href="{{ url_for('zeus.calendar', vue='jour', date=iso, **keep) }}" title="Voir la journée du {{ day.date.strftime('%d/%m') }}">{% endif %}
+      <span>{{ DAYS[day.date.weekday()][:3] }}</span><b>{{ day.date.day }}</b>{% if view.kind == 'semaine' %}</a>{% endif %}</header>
+    <div class="zeus-tg-strip {{ 'is-empty' if not strip }}">{% for seg in strip %}{{ event_item(seg) }}{% endfor %}</div>
+    <div class="zeus-tg-time">
+      {%- for seg in day.timed %}{{ event_item(seg, True) }}{% endfor %}
+      {%- if day.empty %}<p class="zeus-free">Libre</p>{% endif %}
+      {%- if grid.now_top is not none and day.date == grid.today %}<div class="zeus-tg-now" style="--top:{{ '%.3f' | format(grid.now_top) }}" aria-hidden="true"></div>{% endif %}
+    </div>
+  </section>
+  {% endfor %}
+</div>

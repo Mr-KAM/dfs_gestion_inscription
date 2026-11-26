@@ -8,7 +8,7 @@
   <span class="meta"><i class="bi bi-person-workspace"></i>{{ k.staff | length }} coach(s)</span>{% endset %}
 {% call page_head(k.name, eyebrow='Classe · ' ~ cohort.name, back=url_for('zeus.cohort', cohort_id=cohort.id), back_label='Cohorte ' ~ cohort.name,
                   subtitle=k.description or None, meta=head_meta) %}
-  <a class="btn btn-outline-primary" href="{{ url_for('zeus.calendar', cohort=cohort.id) }}"><i class="bi bi-calendar-week"></i> Calendrier</a>
+  <a class="btn btn-outline-primary" href="{{ url_for('zeus.calendar', cohort=cohort.id, classe=k.id) }}"><i class="bi bi-calendar-week"></i> Calendrier</a>
   {% if can_message or is_admin %}<a class="btn btn-outline-primary" href="{{ url_for('zeus.messages', classe=k.id) }}"><i class="bi bi-chat-dots"></i> {{ 'Mes messages' if can_message else 'Revue des messages' }}</a>{% endif %}
   {% if is_admin %}<button class="btn btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#edit-class"
           aria-expanded="false" aria-controls="edit-class"><i class="bi bi-pencil"></i> Modifier</button>{% endif %}

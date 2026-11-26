@@ -6,6 +6,7 @@ import segno
 from flask import url_for
 from markupsafe import Markup
 from sqlalchemy import or_, select
+from sqlalchemy.orm import selectinload
 
 from app.extensions import db
 from app.models import (Cohort, Enrollment, User, ZeusAttendance, ZeusClass, ZeusClassCoach, ZeusClassMember,
@@ -18,6 +19,7 @@ from app.services.candidate_service import BusinessError, decode_matricule
 from app.utils import as_utc, utcnow
 
 DESK_ROLES = (ROLE_ADMIN, ROLE_RECEPTION, ROLE_RESIDENCE)  # every cohort, read (desk: registrations)
+WEEKDAYS = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche")
 MIN_YEAR, MAX_YEAR = 2000, 2100  # dates outside: today (no overflow on prev / next)
 
 
@@ -99,6 +101,12 @@ def can_teach_class(user, klass: ZeusClass) -> bool:
 def can_schedule(user, cohort: Cohort, klass: ZeusClass | None = None) -> bool:
     """Programme a session: for the whole cohort (cohort level), or for a class one manages."""
     return can_manage(user, cohort) or (klass is not None and can_manage_class(user, klass))
+
+
+def schedulable(user, cohort: Cohort) -> tuple[list[ZeusClass], bool]:
+    """Where the user may programme sessions in the cohort: (the classes, the whole cohort too?)."""
+    full = can_manage(user, cohort)
+    return [k for k in classes_of(cohort) if full or can_manage_class(user, k)], full
 
 
 def can_call(user, session: ZeusSession) -> bool:
@@ -386,15 +394,29 @@ def week_start(value: str | None) -> datetime:
     return datetime(day.year, day.month, day.day, tzinfo=tz)
 
 
-def sessions_for(user, start: datetime, end: datetime, cohort: Cohort | None = None) -> list[ZeusSession]:
-    """The sessions of [start, end) the user may see: his cohorts; a student, those of his classes or the cohort."""
-    cohorts = [c for c in cohorts_for(user) if cohort is None or c.id == cohort.id]
+def sessions_for(user, start: datetime, end: datetime, cohort: Cohort | None = None, klass: ZeusClass | None = None,
+                 coach_id: int | None = None, overlap: bool = False,
+                 cohorts: list[Cohort] | None = None) -> list[ZeusSession]:
+    """The sessions starting in [start, end) the user may see (overlap: the sessions crossing it): his cohorts; a
+    student, those of his classes or the cohort. klass: that class's sessions and its cohort's whole-cohort ones;
+    coach_id: the sessions he gives. cohorts: cohorts_for(user), when the caller already has it."""
+    cohorts = [c for c in (cohorts_for(user) if cohorts is None else cohorts) if cohort is None or c.id == cohort.id]
     if not cohorts:
         return []
-    rows = db.session.scalars(select(ZeusSession).join(ZeusCourse).where(
-        ZeusCourse.cohort_id.in_([c.id for c in cohorts]),
-        ZeusSession.starts_at >= start.astimezone(timezone.utc), ZeusSession.starts_at < end.astimezone(timezone.utc))
-        .order_by(ZeusSession.starts_at)).all()
+    start, end = start.astimezone(timezone.utc), end.astimezone(timezone.utc)
+    stmt = select(ZeusSession).join(ZeusCourse).where(ZeusCourse.cohort_id.in_([c.id for c in cohorts]))
+    if overlap:
+        stmt = stmt.where(ZeusSession.starts_at < end, ZeusSession.ends_at > start)
+    else:
+        stmt = stmt.where(ZeusSession.starts_at >= start, ZeusSession.starts_at < end)
+    if klass is not None:
+        stmt = stmt.where(ZeusCourse.cohort_id == klass.cohort_id,
+                          or_(ZeusSession.class_id == klass.id, ZeusSession.class_id.is_(None)))
+    if coach_id:
+        stmt = stmt.where(ZeusSession.coach_id == coach_id)
+    rows = db.session.scalars(stmt.options(
+        selectinload(ZeusSession.course).selectinload(ZeusCourse.cohort), selectinload(ZeusSession.klass),
+        selectinload(ZeusSession.coach)).order_by(ZeusSession.starts_at, ZeusSession.id)).all()
     e = student_enrollment(user)
     if e:
         mine = {k.id for k in classes_for_student(e)}

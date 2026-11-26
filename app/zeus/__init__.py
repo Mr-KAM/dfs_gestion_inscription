@@ -11,7 +11,7 @@ from app.extensions import db
 from app.models import (Cohort, Enrollment, User, ZeusBirthdayWish, ZeusClass, ZeusClassCoach, ZeusClassMember,
                         ZeusClassRole, ZeusCourse, ZeusNotification, ZeusSession)
 from app.models.user import ROLE_ADMIN, ROLE_TRADE_COACH
-from app.services import (candidate_service, direction_service, zeus_birthday_service, zeus_message_service,
+from app.services import (candidate_service, zeus_birthday_service, zeus_calendar_service, zeus_message_service,
                           zeus_service)
 from app.services.candidate_service import BusinessError
 from app.utils import allow_camera
@@ -447,7 +447,52 @@ def class_birthdays(class_id: int):
                            next=(last + timedelta(days=1)).strftime("%Y-%m"))
 
 
-# ---- calendar (scheduled sessions)
+# ---- calendar: day, week and month views of the sessions, activities and birthdays; programming sessions
+
+def _calendar_context(args):
+    """The view and the filters (args: the URL, or the form sent back when it is shown again)."""
+    cohorts = zeus_service.cohorts_for(current_user)
+    selected = None
+    if args.get("cohort", type=int):
+        selected = db.get_or_404(Cohort, args.get("cohort", type=int))
+        if selected not in cohorts:
+            abort(404)
+    view = zeus_calendar_service.parse_view(args, request.cookies.get(zeus_calendar_service.VIEW_COOKIE),
+                                            candidate_service.today())
+    return view, zeus_calendar_service.resolve_scope(current_user, args, cohorts, selected)
+
+
+def _schedule_target(scope):
+    """The cohort the « Programmer » form writes to: the one in view (filter, or the only one) where the user may
+    schedule; (target, may schedule elsewhere: choose a cohort)."""
+    def allowed(c):
+        classes, full = zeus_service.schedulable(current_user, c)
+        return bool(classes or full)
+    in_view = scope.cohort or (scope.cohorts[0] if len(scope.cohorts) == 1 else None)
+    if in_view is not None:
+        return (in_view if allowed(in_view) else None), False
+    manageable = [c for c in scope.cohorts if allowed(c)]
+    return (manageable[0], False) if len(manageable) == 1 else (None, bool(manageable))
+
+
+def _calendar_page(args):
+    view, scope = _calendar_context(args)
+    events, sessions = zeus_calendar_service.collect(current_user, view, scope)
+    days = zeus_calendar_service.by_day(events, view)
+    target, choose = _schedule_target(scope)
+    form = None
+    if target is not None:
+        classes, full = zeus_service.schedulable(current_user, target)
+        form = {"classes": classes, "full": full, "courses": zeus_service.courses_of(target),
+                "coaches": zeus_service.cohort_coaches(target)}
+    return render_template(
+        "zeus/calendar.html", view=view, scope=scope, keep=scope.args, views=zeus_calendar_service.VIEWS,
+        days=days, month_chips=zeus_calendar_service.MONTH_CHIPS,
+        grid=zeus_calendar_service.build_grid(days, view.start.tzinfo) if view.kind != "mois" else None,
+        counts={"sessions": len(sessions), "activities": sum(1 for e in events if e.kind == "activity")},
+        has_birthdays=any(d.birthdays for d in days), today=candidate_service.today(),
+        target=target, choose=choose, form=form)
+
 
 @bp.route("/calendrier", methods=["GET", "POST"])
 def calendar():
@@ -464,27 +509,12 @@ def calendar():
             db.session.rollback()
             flash(str(exc), "danger")
         return redirect(url_for("zeus.calendar", cohort=c.id))
-    cohort_id = request.args.get("cohort", type=int)
-    selected = _cohort(cohort_id) if cohort_id else None
-    start = zeus_service.week_start(request.args.get("week"))
-    days = [start + timedelta(days=i) for i in range(7)]
-    sessions = zeus_service.sessions_for(current_user, start, start + timedelta(days=7), selected)
-    # Who may schedule where: the whole cohort (cohort level), or only the classes one manages.
-    forms = {}
-    for c in zeus_service.cohorts_for(current_user):
-        full = zeus_service.can_manage(current_user, c)
-        classes = [k for k in zeus_service.classes_of(c) if full or zeus_service.can_manage_class(current_user, k)]
-        if full or classes:
-            forms[c.id] = (classes, zeus_service.cohort_coaches(c), zeus_service.courses_of(c), full)
-    manageable = [c for c in zeus_service.cohorts_for(current_user) if c.id in forms]
-    return render_template("zeus/calendar.html", days=days, sessions=sessions, selected=selected,
-                           today=candidate_service.today().isoformat(),
-                           cohorts=zeus_service.cohorts_for(current_user), manageable=manageable,
-                           prev=(start - timedelta(days=7)).date().isoformat(),
-                           next=(start + timedelta(days=7)).date().isoformat(), forms=forms,
-                           activities=direction_service.activities_for(current_user, start, start + timedelta(days=7)),
-                           birthdays=zeus_birthday_service.by_day(zeus_birthday_service.in_range(
-                               zeus_birthday_service.circle(current_user), days[0].date(), days[6].date())))
+    response = make_response(_calendar_page(request.args))
+    if request.args.get("vue") in zeus_calendar_service.VIEWS:  # the last view used comes back next time
+        response.set_cookie(zeus_calendar_service.VIEW_COOKIE, request.args["vue"],
+                            max_age=THEME_COOKIE_DAYS * 24 * 3600, samesite="Lax", secure=request.is_secure,
+                            httponly=True)
+    return response
 
 
 # ---- sessions and roll calls
