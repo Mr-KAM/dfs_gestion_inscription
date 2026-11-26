@@ -420,7 +420,53 @@
     });
   }
 
+  // Zeus calendar and session forms (form[data-session-form]): "YYYY-MM-DDTHH:MM" values in the school's time zone,
+  // computed as UTC so the browser's own time zone never shifts them. The end follows the start (same duration); a
+  // free hour of the calendar ([data-slot]) opens the "Programmer" form (#schedule) on that hour; a modal with
+  // [data-show-on-load] opens with the page (form sent back with its conflicts, "Programmer une séance" links).
+  const parseLocal = (value) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(value || "");
+    return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) : NaN;
+  };
+  const formatLocal = (ms) => new Date(ms).toISOString().slice(0, 16);
+
+  function initCalendar() {
+    document.querySelectorAll("form[data-session-form]").forEach((form) => {
+      const start = form.querySelector('[name="starts_at"]');
+      const end = form.querySelector('[name="ends_at"]');
+      if (!start || !end) return;
+      start.dataset.previous = start.value;
+      start.addEventListener("change", () => {
+        const before = parseLocal(start.dataset.previous);
+        const after = parseLocal(start.value);
+        const duration = parseLocal(end.value) - before;
+        if (!Number.isNaN(after) && duration > 0) end.value = formatLocal(after + duration);
+        start.dataset.previous = start.value;
+      });
+    });
+    const schedule = document.getElementById("schedule");
+    const form = schedule && schedule.querySelector("form[data-session-form]");
+    if (form && window.bootstrap) {
+      document.addEventListener("click", (e) => {
+        const slot = e.target.closest("[data-slot]");
+        if (!slot) return;
+        const start = form.querySelector('[name="starts_at"]');
+        const end = form.querySelector('[name="ends_at"]');
+        if (!start || !end) return;
+        const duration = parseLocal(end.value) - parseLocal(start.value);
+        start.value = slot.dataset.slot;
+        start.dataset.previous = start.value;
+        end.value = formatLocal(parseLocal(start.value) + (duration > 0 ? duration : 2 * 3600 * 1000));
+        bootstrap.Modal.getOrCreateInstance(schedule).show();
+      });
+    }
+    if (window.bootstrap) {
+      document.querySelectorAll(".modal[data-show-on-load]").forEach((m) => bootstrap.Modal.getOrCreateInstance(m).show());
+    }
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
+    initCalendar();
     initSignature();
     initTimers(document);
     setInterval(tick, 1000);

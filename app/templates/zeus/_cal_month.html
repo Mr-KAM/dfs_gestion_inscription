@@ -28,6 +28,7 @@
         {% for seg in chips[:month_chips] %}{{ chip(seg) }}{% endfor %}
         {% if chips | length > month_chips %}<a class="zeus-mmore" href="{{ url_for('zeus.calendar', vue='jour', date=iso, **keep) }}">+{{ chips | length - month_chips }} autre(s)</a>{% endif %}
       </div>{% endif %}
+      {% if slots %}<button type="button" class="zeus-slot is-month" data-slot="{{ iso }}T08:00" tabindex="-1" aria-hidden="true" title="Programmer ce jour"><i class="bi bi-plus-lg"></i></button>{% endif %}
     </td>
     {% endfor %}
   </tr>{% endfor %}

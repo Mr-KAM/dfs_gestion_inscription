@@ -2,8 +2,11 @@
 {% from "_macros.html" import bar, csrf, page_head %}
 {% block title %}{{ course.name }}{% endblock %}
 {% block content %}
+{% set schedule_url = url_for('zeus.calendar', cohort=cohort.id, cours=course.id, programmer=1) %}
 {% call page_head(course.name, eyebrow='Cours · ' ~ cohort.name, back=url_for('zeus.cohort', cohort_id=cohort.id) ~ '#cours', back_label='Cohorte ' ~ cohort.name,
-                  subtitle=course.description or None) %}{% endcall %}
+                  subtitle=course.description or None) %}
+  {% if can_schedule %}<a class="btn btn-primary" href="{{ schedule_url }}"><i class="bi bi-calendar-plus" aria-hidden="true"></i> Programmer une séance</a>{% endif %}
+{% endcall %}
 <div class="mb-3"><div class="progress-line"><span>Heures programmées / volume prévu</span><strong>{{ '%g' % course.scheduled_hours }} h / {{ course.hours }} h</strong></div>
   {{ bar(100 * course.scheduled_hours / course.hours if course.hours else 0, 'Heures programmées') }}</div>
 <div class="row g-3">
@@ -15,7 +18,7 @@
           <span>{{ s.starts_at | dt('%d/%m/%Y %H:%M') }} – {{ s.ends_at | dt('%H:%M') }} · {{ s.klass.name if s.klass else 'toute la cohorte' }}</span>
           <span class="small text-muted">{{ s.coach.display_name if s.coach else '' }}{% if s.room %} · {{ s.room }}{% endif %}</span></a>
       {% else %}
-        <li class="list-group-item text-muted">Aucune séance : programmez-en depuis le calendrier.</li>
+        <li class="list-group-item text-muted">Aucune séance : programmez-en depuis le {% if can_schedule %}<a href="{{ schedule_url }}">calendrier</a>{% else %}calendrier{% endif %}.</li>
       {% endfor %}
       </ul></div>
   </div>

@@ -1,5 +1,7 @@
 {# Day and week views: the time grid (hours on the left, events placed by zeus_calendar_service.layout through CSS
-   custom properties). Below 1200px the week's same markup becomes one row per day (zeus.css), events in time order. #}
+   custom properties). Below 1200px the week's same markup becomes one row per day (zeus.css), events in time order.
+   Slot buttons: a click opens the « Programmer » form on that hour (app.js initCalendar); the keyboard uses the
+   header button. #}
 {% set DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'] %}
 {% macro event_item(seg, timed=False) -%}
   {%- set e = seg.event -%}
@@ -34,6 +36,7 @@
       <span>{{ DAYS[day.date.weekday()][:3] }}</span><b>{{ day.date.day }}</b>{% if view.kind == 'semaine' %}</a>{% endif %}</header>
     <div class="zeus-tg-strip {{ 'is-empty' if not strip }}">{% for seg in strip %}{{ event_item(seg) }}{% endfor %}</div>
     <div class="zeus-tg-time">
+      {%- if slots %}{% for h in grid.hours %}<button type="button" class="zeus-slot" data-slot="{{ iso }}T{{ '%02d' % h }}:00" style="--h:{{ loop.index0 }}" tabindex="-1" aria-hidden="true"></button>{% endfor %}{% endif %}
       {%- for seg in day.timed %}{{ event_item(seg, True) }}{% endfor %}
       {%- if day.empty %}<p class="zeus-free">Libre</p>{% endif %}
       {%- if grid.now_top is not none and day.date == grid.today %}<div class="zeus-tg-now" style="--top:{{ '%.3f' | format(grid.now_top) }}" aria-hidden="true"></div>{% endif %}

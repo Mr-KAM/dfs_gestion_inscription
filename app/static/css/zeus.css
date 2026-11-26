@@ -192,6 +192,12 @@ a.zeus-event:hover, a.zeus-event:focus-visible { color: var(--dfs-ink); box-shad
   pointer-events: none; }
 .zeus-tg-now::before { content: ""; position: absolute; left: -1px; top: -6px; width: 10px; height: 10px; border-radius: 50%;
   background: var(--zeus-green-dark); }
+/* Free hours (schedulers): a click opens the « Programmer » form on that hour (app.js). */
+.zeus-slot { position: absolute; z-index: 1; left: 0; right: 0; top: calc(var(--h) * var(--hour-h)); height: var(--hour-h);
+  padding: 0; border: 0; background: transparent; cursor: pointer; }
+.zeus-slot:hover { background: rgba(66, 104, 174, .1); }
+.zeus-tg .zeus-slot:hover::after { content: "+"; position: absolute; top: .15rem; right: .4rem; color: var(--zeus-blue); font-weight: 700; }
+@media (hover: none) { .zeus-tg .zeus-slot::after { content: "+"; position: absolute; top: .1rem; right: .35rem; color: var(--dfs-muted); opacity: .5; } }
 @supports not (grid-template-rows: subgrid) {  /* older browsers: fixed header and strip heights keep the hours aligned */
   .zeus-tg-gutter, .zeus-tg-day { display: flex; flex-direction: column; }
   .zeus-tg-corner, .zeus-tg-day > header { height: 2.6rem; }
@@ -211,7 +217,7 @@ a.zeus-event:hover, a.zeus-event:focus-visible { color: var(--dfs-ink); box-shad
   .zeus-tg.is-week .zeus-tg-time { grid-area: time; height: auto; display: flex; flex-direction: column; gap: .4rem; padding: .5rem;
     background: none; }
   .zeus-tg.is-week .zeus-tg-time .zeus-event { position: static; width: auto; height: auto; min-height: 0; padding: .4rem .55rem; gap: .1rem; }
-  .zeus-tg.is-week .zeus-tg-now { display: none; }
+  .zeus-tg.is-week .zeus-slot, .zeus-tg.is-week .zeus-tg-now { display: none; }
   .zeus-tg.is-week .zeus-tg-time .zeus-free { display: block; }
   .zeus-tg.is-week .zeus-tg-day.is-weekend:not(.is-today) { background: transparent; }
 }
@@ -248,10 +254,14 @@ a.zeus-event:hover, a.zeus-event:focus-visible { color: var(--dfs-ink); box-shad
 a.zeus-mchip:hover, a.zeus-mchip:focus-visible { color: var(--dfs-ink); box-shadow: inset 0 0 0 1px var(--zeus-blue); }
 .zeus-mmore { font-size: .72rem; padding-left: .35rem; }
 .zeus-mdots { display: none; }
+.zeus-slot.is-month { left: auto; right: .25rem; top: .25rem; width: 1.75rem; height: 1.75rem; display: grid; place-items: center;
+  color: var(--zeus-blue); opacity: 0; }
+.zeus-month td:hover .zeus-slot.is-month { opacity: 1; }
+@media (hover: none) { .zeus-slot.is-month { opacity: .6; } }
 @media (max-width: 767.98px) {
   .zeus-month th { font-size: .6rem; letter-spacing: .04em; }
   .zeus-month td { height: 3.4rem; padding: .15rem; text-align: center; }
-  .zeus-mitems { display: none; }
+  .zeus-mitems, .zeus-slot.is-month { display: none; }
   .zeus-mday { flex-direction: column; gap: .15rem; }
   .zeus-mday::after { content: ""; position: absolute; inset: 0; }   /* the whole cell opens the day */
   .zeus-mdots { display: flex; justify-content: center; gap: .2rem; }
@@ -473,7 +483,7 @@ a.zeus-mchip:hover, a.zeus-mchip:focus-visible { color: var(--dfs-ink); box-shad
 @media print {
   .zeus .app-header, .zeus .sidebar, .zeus .bottom-nav, .zeus .zeus-more, .zeus .d-print-none { display: none !important; }
   .zeus .main { padding: 0 !important; }
-  .zeus .zeus-tg-now { display: none !important; }
+  .zeus .zeus-slot, .zeus .zeus-tg-now { display: none !important; }
   .zeus { background: #fff !important; }
 }
 
