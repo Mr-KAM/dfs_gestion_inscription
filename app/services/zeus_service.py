@@ -1,5 +1,5 @@
 """Zeus mode: who may enter, classes and invitations, courses, scheduled sessions, roll calls (DFS matricule)."""
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import segno
@@ -18,6 +18,7 @@ from app.services.candidate_service import BusinessError, decode_matricule
 from app.utils import as_utc, utcnow
 
 DESK_ROLES = (ROLE_ADMIN, ROLE_RECEPTION, ROLE_RESIDENCE)  # every cohort, read (desk: registrations)
+MIN_YEAR, MAX_YEAR = 2000, 2100  # dates outside: today (no overflow on prev / next)
 
 
 # ---- mode and access
@@ -325,6 +326,10 @@ def courses_of(cohort: Cohort) -> list[ZeusCourse]:
                               .order_by(ZeusCourse.name)).all()
 
 
+def school_tz() -> ZoneInfo:
+    return ZoneInfo(settings_service.get("timezone") or "UTC")
+
+
 def create_session(cohort: Cohort, form, user) -> ZeusSession:
     course = db.session.get(ZeusCourse, form.get("course_id", 0, type=int))
     if course is None or course.cohort_id != cohort.id:
@@ -364,13 +369,19 @@ def week_overview(user, week: datetime) -> dict:
             "callable": {s.id for s in todays if can_call(user, s)}}
 
 
+def parse_day(value: str | None, default: date) -> date:
+    """A YYYY-MM-DD date of the URL; the default when missing, invalid or out of 2000-2100."""
+    try:
+        day = date.fromisoformat((value or "")[:10])
+    except ValueError:
+        return default
+    return day if MIN_YEAR <= day.year <= MAX_YEAR else default
+
+
 def week_start(value: str | None) -> datetime:
     """Monday 00:00 (school time zone) of the week of `value` (YYYY-MM-DD), this week by default."""
-    tz = ZoneInfo(settings_service.get("timezone") or "UTC")
-    try:
-        day = datetime.fromisoformat(value).date() if value else datetime.now(tz).date()
-    except ValueError:
-        day = datetime.now(tz).date()
+    tz = school_tz()
+    day = parse_day(value, datetime.now(tz).date())
     day -= timedelta(days=day.weekday())
     return datetime(day.year, day.month, day.day, tzinfo=tz)
 
