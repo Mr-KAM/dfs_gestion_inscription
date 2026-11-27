@@ -1,0 +1,47 @@
+{# The fields of a session: programmed from the calendar (create), edited on its page. f: the choices (courses,
+   classes, coaches, full = the whole cohort too); v: the values (a session's, or the form sent back with its
+   conflicts / error). Conflicts: saved only with the box ticked (a checkbox, so Enter never forces). #}
+{% macro session_fields(f, v, create=True, upcoming=True, conflicts=None, error=None, prefix='s-', cohort=None) -%}
+  {% if error %}<div class="alert alert-danger py-2 small" role="alert">{{ error }}</div>{% endif %}
+  {% if conflicts %}
+  <div class="alert alert-warning small" role="alert">
+    <strong><i class="bi bi-exclamation-triangle" aria-hidden="true"></i> Conflit d'horaire</strong>
+    <ul class="mb-2 ps-3">{% for c in conflicts[:5] %}<li>{{ c }}</li>{% endfor %}</ul>
+    {% if conflicts | length > 5 %}<p class="mb-2">… et {{ conflicts | length - 5 }} autre(s).</p>{% endif %}
+    <div class="form-check mb-0"><input class="form-check-input" type="checkbox" id="{{ prefix }}force" name="force" value="1">
+      <label class="form-check-label fw-semibold" for="{{ prefix }}force">{{ 'Programmer' if create else 'Enregistrer' }} malgré les conflits</label></div>
+  </div>
+  {% endif %}
+  {% if f.courses %}
+  <div class="mb-2"><label class="form-label" for="{{ prefix }}course_id">Cours</label>
+    <select class="form-select" id="{{ prefix }}course_id" name="course_id" required>
+      {% for c in f.courses %}<option value="{{ c.id }}" {{ 'selected' if (v.get('course_id') or '') | string == c.id | string }}>{{ c.name }}</option>{% endfor %}</select></div>
+  <div class="mb-2"><label class="form-label" for="{{ prefix }}class_id">Pour</label>
+    <select class="form-select" id="{{ prefix }}class_id" name="class_id" {{ "required" if not f.full }}>
+      {% if f.full %}<option value="">Toute la cohorte</option>{% endif %}
+      {% for k in f.classes %}<option value="{{ k.id }}" {{ 'selected' if (v.get('class_id') or '') | string == k.id | string }}>Classe {{ k.name }}</option>{% endfor %}</select></div>
+  <div class="row g-2 mb-2">
+    <div class="col-sm-6"><label class="form-label" for="{{ prefix }}starts_at">Début</label>
+      <input class="form-control" type="datetime-local" id="{{ prefix }}starts_at" name="starts_at" value="{{ v.get('starts_at') or '' }}" required></div>
+    <div class="col-sm-6"><label class="form-label" for="{{ prefix }}ends_at">Fin</label>
+      <input class="form-control" type="datetime-local" id="{{ prefix }}ends_at" name="ends_at" value="{{ v.get('ends_at') or '' }}" required></div>
+  </div>
+  {% if create %}
+  <div class="mb-2"><label class="form-label" for="{{ prefix }}repeat">Répéter chaque semaine</label>
+    <div class="input-group"><input class="form-control" type="number" id="{{ prefix }}repeat" name="repeat" min="0" max="20" value="{{ v.get('repeat') or 0 }}" aria-describedby="{{ prefix }}repeat-help">
+      <span class="input-group-text">semaine(s) de plus</span></div>
+    <div class="form-text" id="{{ prefix }}repeat-help">0 : une seule séance. Jusqu'à 20 : même jour, même heure.</div></div>
+  {% endif %}
+  <div class="mb-2"><label class="form-label" for="{{ prefix }}coach_id">Coach</label>
+    <select class="form-select" id="{{ prefix }}coach_id" name="coach_id"><option value="">Coach du cours</option>
+      {% for u in f.coaches %}<option value="{{ u.id }}" {{ 'selected' if (v.get('coach_id') or '') | string == u.id | string }}>{{ u.display_name }}</option>{% endfor %}</select></div>
+  <div class="mb-2"><label class="form-label" for="{{ prefix }}room">Salle</label>
+    <input class="form-control" id="{{ prefix }}room" name="room" maxlength="100" value="{{ v.get('room') or '' }}"></div>
+  {% if upcoming %}
+  <div class="form-check mt-3 mb-0"><input class="form-check-input" type="checkbox" id="{{ prefix }}notify" name="notify" value="1" {{ 'checked' if v.get('notify') == '1' }}>
+    <label class="form-check-label" for="{{ prefix }}notify">Prévenir les étudiants <span class="text-muted small">(notification Zeus)</span></label></div>
+  {% endif %}
+  {% else %}
+  <p class="text-muted small mb-0">Ajoutez d'abord un cours au programme de la {% if cohort %}<a href="{{ url_for('zeus.cohort', cohort_id=cohort.id) }}#cours">cohorte</a>{% else %}cohorte{% endif %}.</p>
+  {% endif %}
+{%- endmacro %}

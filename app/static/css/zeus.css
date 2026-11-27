@@ -121,50 +121,160 @@ body.zeus {
   background: #fff; border: 1px solid var(--zeus-line); }
 .zeus-filter .nav-link.active { border-color: var(--zeus-navy); }
 
-/* Week calendar: 7 columns from 1200px, one row per day below (date on the left, events on the right). */
-.zeus-week { --wk-surface: #fff; --wk-course: #eaf0fa; --wk-activity: #ecf7ea; --wk-birthday: #fdf1e0;
-  display: grid; gap: .5rem; grid-template-columns: minmax(0, 1fr); }
-.zeus-wday { display: grid; grid-template-columns: 4.25rem minmax(0, 1fr); background: var(--wk-surface);
-  border: 1px solid var(--zeus-line); }
-.zeus-wday > header { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .1rem;
-  padding: .5rem .25rem; border-right: 1px solid var(--zeus-line); }
-.zeus-wday > header span { font-family: var(--font-mono); font-size: .66rem; letter-spacing: .16em; text-transform: uppercase; color: var(--dfs-muted); }
-.zeus-wday > header b { font-size: 1.35rem; line-height: 1; color: var(--dfs-navy); }
-.zeus-wday.is-today { border-color: var(--zeus-blue); box-shadow: 0 0 0 1px var(--zeus-blue); }
-.zeus-wday.is-today > header { background: var(--zeus-navy); }
-.zeus-wday.is-today > header span { color: var(--zeus-green); }
-.zeus-wday.is-today > header b { color: #fff; }
-.zeus-wday.is-weekend:not(.is-today) { background: transparent; }
-.zeus-wday-body { display: flex; flex-direction: column; gap: .4rem; padding: .5rem; min-width: 0; }
-.zeus-event { display: flex; flex-direction: column; gap: .1rem; padding: .4rem .55rem; border-left: 3px solid;
+/* ---- Calendar (zeus/calendar.html): day and week on a time grid, the month as a table. Courses blue, activities
+   green, birthdays warm (--zeus-cake). The --wk-* tokens are shared by the views and the legend (night: below). */
+.zeus { --wk-surface: #fff; --wk-line: var(--zeus-line); --wk-course: #eaf0fa; --wk-activity: #ecf7ea; --wk-birthday: #fdf1e0;
+  --wk-shade: rgba(35, 42, 96, .03); --wk-today: rgba(66, 104, 174, .06); }
+.zeus-cal-bar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .75rem; margin-bottom: .6rem; }
+.zeus-cal-bar form { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin: 0; }
+.zeus-cal-bar .form-control, .zeus-cal-bar .form-select { width: auto; max-width: 15rem; }
+.zeus-cal-views { flex-wrap: nowrap; }
+.zeus-cal-ics { margin-left: auto; }
+.zeus-event { display: flex; flex-direction: column; gap: .1rem; padding: .4rem .55rem; border-left: 3px solid; min-width: 0;
   color: var(--dfs-ink); text-decoration: none; overflow-wrap: anywhere; }
 .zeus-event time { font-family: var(--font-mono); font-size: .7rem; color: var(--dfs-muted); }
 .zeus-event strong { font-size: .88rem; line-height: 1.25; }
 .zeus-event small { font-size: .74rem; color: var(--dfs-muted); }
+.zeus-event .status { align-self: flex-start; margin-top: .15rem; font-size: .6rem; }
 .zeus-event.is-course { background: var(--wk-course); border-color: var(--zeus-blue); }
 .zeus-event.is-activity { background: var(--wk-activity); border-color: var(--zeus-green); }
 .zeus-event.is-birthday { background: var(--wk-birthday); border-color: var(--zeus-cake); }
 .zeus-event.is-birthday i { color: var(--zeus-cake); }
+.zeus-event.is-group summary { cursor: pointer; font-size: .85rem; font-weight: 600; }
+.zeus-event.is-group ul { margin: .3rem 0 0; padding-left: 1rem; font-size: .8rem; }
 a.zeus-event:hover, a.zeus-event:focus-visible { color: var(--dfs-ink); box-shadow: inset 0 0 0 1px var(--zeus-blue); }
-.zeus-free { margin: 0; font-size: .75rem; color: var(--dfs-muted); align-self: flex-start; padding: .35rem 0; }
-.zeus-legend { display: flex; flex-wrap: wrap; align-items: center; gap: .9rem; }
-.zeus-legend .is-course::before, .zeus-legend .is-activity::before { content: ""; display: inline-block; width: .7rem; height: .7rem;
-  margin-right: .35rem; vertical-align: -.05rem; border-left: 3px solid var(--zeus-blue); background: var(--wk-course, #eaf0fa); }
-.zeus-legend .is-activity::before { border-color: var(--zeus-green); background: #ecf7ea; }
-.zeus-legend .is-birthday::before { content: ""; display: inline-block; width: .7rem; height: .7rem; margin-right: .35rem;
-  vertical-align: -.05rem; border-left: 3px solid var(--zeus-cake); background: #fdf1e0; }
+.zeus-free { margin: 0; font-size: .75rem; color: var(--dfs-muted); }
+.zeus-legend { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .9rem; }
+.zeus-legend .is-course::before, .zeus-legend .is-activity::before, .zeus-legend .is-birthday::before { content: ""; display: inline-block;
+  width: .7rem; height: .7rem; margin-right: .35rem; vertical-align: -.05rem; border-left: 3px solid var(--zeus-blue); background: var(--wk-course); }
+.zeus-legend .is-activity::before { border-color: var(--zeus-green); background: var(--wk-activity); }
+.zeus-legend .is-birthday::before { border-color: var(--zeus-cake); background: var(--wk-birthday); }
+
+/* Time grid: an hours gutter + one column per day, three shared rows (subgrid): header, all-day strip, timeline.
+   Events are placed from --top / --len (% of the timeline) and --col / --cols (side by side when they overlap). */
+.zeus-tg { --hour-h: 3rem; display: grid; grid-template-columns: 3.25rem repeat(var(--days), minmax(0, 1fr));
+  grid-template-rows: auto auto auto; background: var(--wk-surface); border: 1px solid var(--wk-line); }
+.zeus-tg-gutter, .zeus-tg-day { grid-row: 1 / span 3; display: grid; grid-template-rows: subgrid; min-width: 0; }
+.zeus-tg-day { border-left: 1px solid var(--wk-line); }
+.zeus-tg-corner, .zeus-tg-day > header { border-bottom: 1px solid var(--wk-line); }
+.zeus-tg-day > header, .zeus-tg-day > header a { display: flex; align-items: center; justify-content: center; gap: .45rem;
+  color: inherit; text-decoration: none; }
+.zeus-tg-day > header { padding: .45rem .25rem; }
+.zeus-tg-day > header span { font-family: var(--font-mono); font-size: .66rem; letter-spacing: .16em; text-transform: uppercase; color: var(--dfs-muted); }
+.zeus-tg-day > header b { font-size: 1.35rem; line-height: 1; color: var(--dfs-navy); }
+.zeus-tg-day > header a:hover b, .zeus-tg-day > header a:focus-visible b { color: var(--zeus-blue); text-decoration: underline; }
+.zeus-tg-day.is-today > header { background: var(--zeus-navy); }
+.zeus-tg-day.is-today > header span { color: var(--zeus-green); }
+.zeus-tg-day.is-today > header b, .zeus-tg-day.is-today > header a:hover b { color: #fff; }
+.zeus-tg-strip { display: flex; flex-direction: column; gap: .25rem; padding: .3rem; min-width: 0; border-bottom: 1px solid var(--wk-line); }
+.zeus-tg:not(.has-strip) .zeus-tg-strip { display: none; }
+.zeus-tg-strip .zeus-event { padding: .25rem .45rem; }
+.zeus-tg-gutter .zeus-tg-strip span { font-family: var(--font-mono); font-size: .58rem; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--dfs-muted); }
+.zeus-tg-hours, .zeus-tg-time { position: relative; height: calc(var(--hours) * var(--hour-h)); }
+.zeus-tg-hours span { display: block; height: var(--hour-h); padding: .15rem .35rem 0 0; text-align: right; font-family: var(--font-mono);
+  font-size: .66rem; color: var(--dfs-muted); }
+.zeus-tg-time { background-image: repeating-linear-gradient(to bottom, var(--wk-line) 0 1px, transparent 1px var(--hour-h)); }
+.zeus-tg-day.is-weekend .zeus-tg-time { background-color: var(--wk-shade); }
+.zeus-tg-day.is-today .zeus-tg-time { background-color: var(--wk-today); }
+.zeus-tg-time .zeus-event { position: absolute; z-index: 2; top: calc(var(--top) * 1%); height: calc(var(--len) * 1%); min-height: 1.4rem;
+  left: calc(var(--col) * 100% / var(--cols) + 2px); width: calc(100% / var(--cols) - 4px); padding: .2rem .4rem; gap: 0; overflow: hidden; }
+.zeus-tg-time .zeus-event strong { font-size: .82rem; }
+.zeus-tg-time .zeus-event { overflow-wrap: break-word; hyphens: auto; }
+.zeus-tg-time .zeus-event .status { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zeus-tg-time .zeus-event.is-narrow small { display: none; }   /* side by side in the week: time, title, roll call */
+.zeus-tg-time .zeus-event.is-narrow:hover small, .zeus-tg-time .zeus-event.is-narrow:focus-visible small { display: block; }
+/* A short event shows all of it on hover / focus. */
+.zeus-tg-time a.zeus-event:hover, .zeus-tg-time a.zeus-event:focus-visible { z-index: 4; height: auto; min-height: calc(var(--len) * 1%);
+  box-shadow: 0 6px 18px -8px rgba(24, 29, 69, .45), inset 0 0 0 1px var(--zeus-blue); }
+.zeus-tg-time .zeus-free { display: none; }
+.zeus-tg-now { position: absolute; z-index: 3; left: 0; right: 0; top: calc(var(--top) * 1%); border-top: 2px solid var(--zeus-green-dark);
+  pointer-events: none; }
+.zeus-tg-now::before { content: ""; position: absolute; left: -1px; top: -6px; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--zeus-green-dark); }
+/* Free hours (schedulers): a click opens the « Programmer » form on that hour (app.js). */
+.zeus-slot { position: absolute; z-index: 1; left: 0; right: 0; top: calc(var(--h) * var(--hour-h)); height: var(--hour-h);
+  padding: 0; border: 0; background: transparent; cursor: pointer; }
+.zeus-slot:hover { background: rgba(66, 104, 174, .1); }
+.zeus-tg .zeus-slot:hover::after { content: "+"; position: absolute; top: .15rem; right: .4rem; color: var(--zeus-blue); font-weight: 700; }
+@media (hover: none) { .zeus-tg .zeus-slot::after { content: "+"; position: absolute; top: .1rem; right: .35rem; color: var(--dfs-muted); opacity: .5; } }
+@supports not (grid-template-rows: subgrid) {  /* older browsers: fixed header and strip heights keep the hours aligned */
+  .zeus-tg-gutter, .zeus-tg-day { display: flex; flex-direction: column; }
+  .zeus-tg-corner, .zeus-tg-day > header { height: 2.6rem; }
+  .zeus-tg.has-strip .zeus-tg-strip { height: calc(var(--strip-rows) * 2.9rem + .6rem); overflow: auto; }
+}
+/* Week below 1200px: the same markup as one row per day (date on the left, its events in time order on the right). */
+@media (max-width: 1199.98px) {
+  .zeus-tg.is-week { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; gap: .5rem; background: none; border: 0; }
+  .zeus-tg.is-week .zeus-tg-gutter { display: none; }
+  .zeus-tg.is-week .zeus-tg-day { grid-row: auto; grid-template-columns: 4.25rem minmax(0, 1fr); grid-template-rows: auto auto;
+    grid-template-areas: "head strip" "head time"; background: var(--wk-surface); border: 1px solid var(--wk-line); }
+  .zeus-tg.is-week .zeus-tg-day > header { grid-area: head; flex-direction: column; gap: .1rem; border-bottom: 0;
+    border-right: 1px solid var(--wk-line); }
+  .zeus-tg.is-week .zeus-tg-day > header a { flex-direction: column; gap: .1rem; }
+  .zeus-tg.is-week .zeus-tg-strip { grid-area: strip; padding: .5rem .5rem 0; border-bottom: 0; }
+  .zeus-tg.is-week .zeus-tg-strip.is-empty { display: none; }
+  .zeus-tg.is-week .zeus-tg-time { grid-area: time; height: auto; display: flex; flex-direction: column; gap: .4rem; padding: .5rem;
+    background: none; }
+  .zeus-tg.is-week .zeus-tg-time .zeus-event { position: static; width: auto; height: auto; min-height: 0; padding: .4rem .55rem; gap: .1rem; }
+  .zeus-tg.is-week .zeus-slot, .zeus-tg.is-week .zeus-tg-now { display: none; }
+  .zeus-tg.is-week .zeus-tg-time .zeus-free { display: block; }
+  .zeus-tg.is-week .zeus-tg-day.is-weekend:not(.is-today) { background: transparent; }
+}
+@media (min-width: 1200px) and (max-width: 1399.98px) {  /* seven narrow columns: compact events */
+  .zeus-tg.is-week .zeus-tg-time .zeus-event strong { font-size: .78rem; }
+  .zeus-tg.is-week .zeus-event small { font-size: .68rem; }
+}
+
+/* Month: a table of whole weeks. Phones: the whole cell opens its day, dots say what it holds. */
+.zeus-month-wrap { background: var(--wk-surface); border: 1px solid var(--wk-line); }
+.zeus-month { width: 100%; table-layout: fixed; border-collapse: collapse; }
+.zeus-month th { padding: .45rem .25rem; text-align: center; font-family: var(--font-mono); font-size: .66rem; font-weight: 400;
+  letter-spacing: .16em; text-transform: uppercase; color: var(--dfs-muted); border-bottom: 1px solid var(--wk-line); }
+.zeus-month abbr { text-decoration: none; cursor: default; }
+.zeus-month td { position: relative; height: 7.5rem; padding: .25rem; vertical-align: top; border: 1px solid var(--wk-line); }
+.zeus-month tr > :first-child { border-left: 0; }
+.zeus-month tr > :last-child { border-right: 0; }
+.zeus-month tbody tr:last-child td { border-bottom: 0; }
+.zeus-month td.is-weekend { background: var(--wk-shade); }
+.zeus-month td.is-out { background: var(--zeus-bg); }
+.zeus-month td.is-out .zeus-mday b { color: var(--dfs-muted); font-weight: 400; }
+.zeus-month td.is-today { box-shadow: inset 0 0 0 2px var(--zeus-blue); }
+.zeus-mday { display: inline-flex; align-items: center; gap: .3rem; color: var(--dfs-navy); text-decoration: none; }
+.zeus-mday b { display: inline-grid; place-items: center; min-width: 1.75rem; height: 1.75rem; font-size: .85rem; }
+.zeus-mday:hover b, .zeus-mday:focus-visible b { background: var(--dfs-blue-light); }
+.zeus-month td.is-today .zeus-mday b { background: var(--zeus-navy); color: #fff; }
+.zeus-mitems { display: flex; flex-direction: column; gap: .15rem; margin-top: .15rem; min-width: 0; }
+.zeus-mchip { display: block; padding: .1rem .35rem; border-left: 3px solid var(--zeus-blue); background: var(--wk-course); color: var(--dfs-ink);
+  font-size: .74rem; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-decoration: none; }
+.zeus-mchip time { font-family: var(--font-mono); font-size: .66rem; color: var(--dfs-muted); }
+.zeus-mchip.is-activity { border-color: var(--zeus-green); background: var(--wk-activity); }
+.zeus-mchip.is-birthday { border-color: var(--zeus-cake); background: var(--wk-birthday); }
+.zeus-mchip.is-birthday i { color: var(--zeus-cake); }
+a.zeus-mchip:hover, a.zeus-mchip:focus-visible { color: var(--dfs-ink); box-shadow: inset 0 0 0 1px var(--zeus-blue); }
+.zeus-mmore { font-size: .72rem; padding-left: .35rem; }
+.zeus-mdots { display: none; }
+.zeus-slot.is-month { left: auto; right: .25rem; top: .25rem; width: 1.75rem; height: 1.75rem; display: grid; place-items: center;
+  color: var(--zeus-blue); opacity: 0; }
+.zeus-month td:hover .zeus-slot.is-month { opacity: 1; }
+@media (hover: none) { .zeus-slot.is-month { opacity: .6; } }
+@media (max-width: 767.98px) {
+  .zeus-month th { font-size: .6rem; letter-spacing: .04em; }
+  .zeus-month td { height: 3.4rem; padding: .15rem; text-align: center; }
+  .zeus-mitems, .zeus-slot.is-month { display: none; }
+  .zeus-mday { flex-direction: column; gap: .15rem; }
+  .zeus-mday::after { content: ""; position: absolute; inset: 0; }   /* the whole cell opens the day */
+  .zeus-mdots { display: flex; justify-content: center; gap: .2rem; }
+  .zeus-mdots i { width: .4rem; height: .4rem; border-radius: 50%; background: var(--zeus-blue); }
+  .zeus-mdots i.is-activity { background: var(--zeus-green-dark); }
+  .zeus-mdots i.is-birthday { background: var(--zeus-cake); }
+}
 /* Birthdays: a warm accent, distinct from courses (blue) and activities (green). */
 .zeus { --zeus-cake: #d9822b; }
 .zeus-birthday { border-left: 3px solid var(--zeus-cake); }
 .zeus-birthday > .card-body > .bi { color: var(--zeus-cake); }
 .zeus-wish > summary { display: inline-block; cursor: pointer; font-size: .85rem; color: var(--zeus-blue); }
 .zeus-wish[open] > summary { color: var(--dfs-muted); }
-@media (min-width: 1200px) {
-  .zeus-week { grid-template-columns: repeat(7, minmax(0, 1fr)); }
-  .zeus-wday { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; min-height: 16rem; }
-  .zeus-wday > header { flex-direction: row; gap: .45rem; border-right: 0; border-bottom: 1px solid var(--zeus-line); }
-  .zeus-free { align-self: center; margin-top: 1rem; }
-}
 
 /* Login page of the Zeus domain, with the textures of the classic login (48px grid, pixel tiles, D F S glyphs off
    the edge). >= 992px: navy hero | form on the grid. Below: navy band on top, form card under it (the classic
@@ -256,13 +366,9 @@ a.zeus-event:hover, a.zeus-event:focus-visible { color: var(--dfs-ink); box-shad
 [data-bs-theme="dark"] .zeus .alert-warning { --bs-alert-color: var(--dfs-ink); --bs-alert-bg: #1c2552; --bs-alert-border-color: #34417c; }
 [data-bs-theme="dark"] .zeus .text-success { color: #a6e09e !important; }
 [data-bs-theme="dark"] .zeus .stat-icon { background: var(--dfs-blue-light); color: #a9c0f5; }
-[data-bs-theme="dark"] .zeus .zeus-week { --wk-surface: var(--zeus-surface); --wk-course: #1f2a5c; --wk-activity: #1b3a2e;
-  --wk-birthday: #3a2c1a; }
-[data-bs-theme="dark"] .zeus .zeus-wday { border-color: var(--dfs-border); }
-[data-bs-theme="dark"] .zeus .zeus-wday > header { border-color: var(--dfs-border); }
-[data-bs-theme="dark"] .zeus .zeus-legend .is-course::before { background: #1f2a5c; }
-[data-bs-theme="dark"] .zeus .zeus-legend .is-activity::before { background: #1b3a2e; }
-[data-bs-theme="dark"] .zeus .zeus-legend .is-birthday::before { background: #3a2c1a; }
+[data-bs-theme="dark"] .zeus { --wk-surface: var(--zeus-surface); --wk-line: var(--dfs-border); --wk-course: #1f2a5c;
+  --wk-activity: #1b3a2e; --wk-birthday: #3a2c1a; --wk-shade: rgba(255, 255, 255, .02); --wk-today: rgba(143, 176, 240, .07); }
+[data-bs-theme="dark"] .zeus .zeus-month td.is-today .zeus-mday b { background: var(--zeus-blue); }
 [data-bs-theme="dark"] .zeus { --zeus-cake: #f0a95b; }
 [data-bs-theme="dark"] .zeus .zeus-wish > summary { color: #8fb0f0; }
 /* Outline buttons and links readable on the night background (≥ 4.5:1). */
@@ -353,8 +459,8 @@ a.zeus-event:hover, a.zeus-event:focus-visible { color: var(--dfs-ink); box-shad
   .zeus .page-head-actions .btn { width: 100%; min-height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: .15rem; padding: .3rem .25rem; font-size: .62rem; line-height: 1.15; white-space: normal; }
   .zeus .page-head-actions .btn i { font-size: 1.05rem; order: -1; }   /* icon above the label, wherever it is written */
-  .zeus .page-head-actions > form[data-confirm] { flex: 0 0 auto; margin-left: auto; }   /* delete: last, icon only */
-  .zeus .page-head-actions > form[data-confirm] .btn { width: 48px; }
+  .zeus .page-head-actions > form[data-confirm], .zeus .page-head-actions > .is-end { flex: 0 0 auto; margin-left: auto; }   /* delete: last, icon only */
+  .zeus .page-head-actions > form[data-confirm] .btn, .zeus .page-head-actions > .btn.is-end { width: 48px; }
   .zeus-hero .eyebrow { max-width: 70%; }
 }
 
@@ -373,17 +479,11 @@ a.zeus-event:hover, a.zeus-event:focus-visible { color: var(--dfs-ink); box-shad
   .zeus .app-header .ms-auto > a { min-width: 44px; min-height: 44px; justify-content: center; }
 }
 
-/* ---- Calendar on mid-size screens: seven narrow columns, keep events compact. */
-@media (min-width: 1200px) and (max-width: 1399.98px) {
-  .zeus-event { padding: .35rem .45rem; }
-  .zeus-event strong { font-size: .8rem; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-  .zeus-event small { font-size: .7rem; }
-}
-
 /* ---- Print (monthly birthdays list): the page only. */
 @media print {
   .zeus .app-header, .zeus .sidebar, .zeus .bottom-nav, .zeus .zeus-more, .zeus .d-print-none { display: none !important; }
   .zeus .main { padding: 0 !important; }
+  .zeus .zeus-slot, .zeus .zeus-tg-now { display: none !important; }
   .zeus { background: #fff !important; }
 }
 

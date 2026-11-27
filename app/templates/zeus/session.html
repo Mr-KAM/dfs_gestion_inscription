@@ -1,5 +1,6 @@
 {% extends "zeus/base.html" %}
 {% from "_macros.html" import avatar, csrf, empty, page_head, scanner %}
+{% from "zeus/_session_form.html" import session_fields with context %}
 {% block title %}{{ s.course.name }}{% endblock %}
 {% block content %}
 {% set expected = s.expected %}
@@ -7,11 +8,44 @@
   <span class="meta"><i class="bi bi-people"></i>{{ s.klass.name if s.klass else 'Toute la cohorte' }}</span>
   {% if s.room %}<span class="meta"><i class="bi bi-geo-alt"></i>{{ s.room }}</span>{% endif %}
   {% if s.coach %}<span class="meta"><i class="bi bi-person-workspace"></i>{{ s.coach.display_name }}</span>{% endif %}{% endset %}
-{% call page_head(s.course.name, eyebrow='Séance · ' ~ s.course.cohort.name, back=url_for('zeus.calendar', week=s.starts_at | dt('%Y-%m-%d')), back_label='Calendrier', meta=head_meta) %}
-  {% if can_manage %}<form method="post" data-confirm="Supprimer cette séance et son appel ?">{{ csrf() }}
-    <button class="btn btn-outline-danger" name="action" value="delete" title="Supprimer la séance" aria-label="Supprimer la séance">
-      <i class="bi bi-trash" aria-hidden="true"></i><span class="d-none d-sm-inline"> Supprimer</span></button></form>{% endif %}
+{% call page_head(s.course.name, eyebrow='Séance · ' ~ s.course.cohort.name, back=url_for('zeus.calendar', date=day.isoformat(), cohort=s.course.cohort_id), back_label='Calendrier', meta=head_meta) %}
+  {% if can_manage %}<button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#edit-session">
+      <i class="bi bi-pencil" aria-hidden="true"></i> Modifier</button>
+    <button type="button" class="btn btn-outline-danger is-end" data-bs-toggle="modal" data-bs-target="#delete-session" title="Supprimer la séance" aria-label="Supprimer la séance">
+      <i class="bi bi-trash" aria-hidden="true"></i><span class="d-none d-sm-inline"> Supprimer</span></button>{% endif %}
 {% endcall %}
+
+{% if can_manage %}
+<div class="modal fade" id="edit-session" tabindex="-1" aria-labelledby="edit-session-title" aria-hidden="true" {{ 'data-show-on-load' if show_edit }}>
+  <div class="modal-dialog"><div class="modal-content">
+    <form method="post" data-session-form>{{ csrf() }}
+      <div class="modal-header"><h2 class="modal-title h6" id="edit-session-title"><i class="bi bi-pencil" aria-hidden="true"></i> Modifier la séance</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button></div>
+      <div class="modal-body">
+        {% if s.marks %}<p class="small text-muted">Un appel a déjà été fait : la classe ne peut plus changer.</p>{% endif %}
+        {{ session_fields(form, values, create=False, upcoming=not s.is_past, conflicts=conflicts, error=error, prefix='e-', cohort=s.course.cohort) }}</div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fermer</button>
+        <button class="btn btn-primary" name="action" value="edit"><i class="bi bi-save" aria-hidden="true"></i> Enregistrer</button></div>
+    </form>
+  </div></div>
+</div>
+<div class="modal fade" id="delete-session" tabindex="-1" aria-labelledby="delete-session-title" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <form method="post">{{ csrf() }}
+      <div class="modal-header"><h2 class="modal-title h6" id="delete-session-title"><i class="bi bi-trash" aria-hidden="true"></i> Supprimer la séance</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button></div>
+      <div class="modal-body">
+        <p class="mb-2"><strong>{{ s.course.name }}</strong> · {{ s.starts_at | dt('%d/%m/%Y %H:%M') }} – {{ s.ends_at | dt('%H:%M') }}</p>
+        <p class="small text-muted mb-0">{{ "Son appel est supprimé avec elle." if s.marks else "La séance disparaît du calendrier." }}</p>
+        {% if not s.is_past %}<div class="form-check mt-3 mb-0"><input class="form-check-input" type="checkbox" id="d-notify" name="notify" value="1" checked>
+          <label class="form-check-label" for="d-notify">Prévenir les étudiants de l'annulation <span class="text-muted small">(notification Zeus)</span></label></div>{% endif %}
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fermer</button>
+        <button class="btn btn-danger" name="action" value="delete"><i class="bi bi-trash" aria-hidden="true"></i> Supprimer la séance</button></div>
+    </form>
+  </div></div>
+</div>
+{% endif %}
 
 {% if me %}
   <div class="card card-body">

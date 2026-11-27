@@ -1,93 +1,80 @@
 {% extends "zeus/base.html" %}
-{% from "_macros.html" import csrf %}
+{% from "_macros.html" import csrf, page_head %}
+{% from "zeus/_session_form.html" import session_fields with context %}
 {% block title %}Calendrier{% endblock %}
 {% block content %}
-{% from "_macros.html" import page_head %}
-{% set DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'] %}
-{% set keep = {'cohort': selected.id} if selected else {} %}
-{% set target = selected if selected in manageable else (manageable[0] if manageable | length == 1 else None) %}
-{% set events = (sessions + activities) | sort(attribute='starts_at') %}
-{% set head_meta %}<span class="meta"><i class="bi bi-journal-bookmark" aria-hidden="true"></i>{{ sessions | length }} séance(s)</span>
-  <span class="meta"><i class="bi bi-calendar-event" aria-hidden="true"></i>{{ activities | length }} activité(s)</span>{% endset %}
-{% call page_head('Semaine du ' ~ (days[0] | dt('%d/%m')) ~ ' au ' ~ (days[6] | dt('%d/%m/%Y')), eyebrow='Calendrier', meta=head_meta) %}
-  <a class="btn btn-outline-secondary" href="{{ url_for('zeus.calendar', week=prev, **keep) }}" title="Semaine précédente"><i class="bi bi-chevron-left" aria-hidden="true"></i> Précédente</a>
-  <a class="btn btn-outline-secondary" href="{{ url_for('zeus.calendar', **keep) }}"><i class="bi bi-calendar-check" aria-hidden="true"></i> Aujourd'hui</a>
-  <a class="btn btn-outline-secondary" href="{{ url_for('zeus.calendar', week=next, **keep) }}" title="Semaine suivante">Suivante <i class="bi bi-chevron-right" aria-hidden="true"></i></a>
+{% set anchor = view.anchor.isoformat() %}
+{% set step = {'jour': ('Jour précédent', 'Jour suivant'), 'semaine': ('Semaine précédente', 'Semaine suivante'),
+               'mois': ('Mois précédent', 'Mois suivant')}[view.kind] %}
+{% set head_meta %}<span class="meta"><i class="bi bi-journal-bookmark" aria-hidden="true"></i>{{ counts.sessions }} séance(s)</span>
+  <span class="meta"><i class="bi bi-calendar-event" aria-hidden="true"></i>{{ counts.activities }} activité(s)</span>{% endset %}
+{% call page_head(view.title, eyebrow='Calendrier', meta=head_meta) %}
+  <a class="btn btn-outline-secondary" href="{{ url_for('zeus.calendar', vue=view.kind, date=view.prev.isoformat(), **keep) }}" title="{{ step[0] }}" aria-label="{{ step[0] }}"><i class="bi bi-chevron-left" aria-hidden="true"></i> Précédent</a>
+  <a class="btn btn-outline-secondary" href="{{ url_for('zeus.calendar', vue=view.kind, **keep) }}"><i class="bi bi-calendar-check" aria-hidden="true"></i> Aujourd'hui</a>
+  <a class="btn btn-outline-secondary" href="{{ url_for('zeus.calendar', vue=view.kind, date=view.next.isoformat(), **keep) }}" title="{{ step[1] }}" aria-label="{{ step[1] }}">Suivant <i class="bi bi-chevron-right" aria-hidden="true"></i></a>
   {% if target %}<button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#schedule">
     <i class="bi bi-calendar-plus" aria-hidden="true"></i> Programmer</button>{% endif %}
 {% endcall %}
 
-<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-  {% if cohorts | length > 1 %}
-  <form method="get"><input type="hidden" name="week" value="{{ days[0] | dt('%Y-%m-%d') }}">
+<div class="zeus-cal-bar d-print-none">
+  <nav class="nav nav-pills zeus-filter zeus-cal-views" aria-label="Affichage du calendrier">
+  {% for key, label in views.items() %}
+    <a class="nav-link {{ 'active' if key == view.kind }}" href="{{ url_for('zeus.calendar', vue=key, date=anchor, **keep) }}" {{ 'aria-current="page"' | safe if key == view.kind }}>{{ label }}</a>
+  {% endfor %}
+  </nav>
+  <form class="zeus-cal-jump" method="get" action="{{ url_for('zeus.calendar') }}">
+    <input type="hidden" name="vue" value="{{ view.kind }}">{% for k, v in keep.items() if v %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+    <label class="visually-hidden" for="cal-date">Aller au</label>
+    <input class="form-control form-control-sm" type="date" id="cal-date" name="date" value="{{ anchor }}" min="2000-01-01" max="2100-12-31">
+    <button class="btn btn-sm btn-outline-secondary">Aller</button>
+  </form>
+  {% if scope.cohorts | length > 1 or scope.classes or scope.coaches or scope.can_mine %}
+  <form class="zeus-cal-filters" method="get" action="{{ url_for('zeus.calendar') }}">
+    <input type="hidden" name="vue" value="{{ view.kind }}"><input type="hidden" name="date" value="{{ anchor }}">
+    {% if scope.cohorts | length > 1 %}
     <select class="form-select form-select-sm" name="cohort" aria-label="Cohorte" data-autosubmit>
       <option value="">Toutes mes cohortes</option>
-      {% for c in cohorts %}<option value="{{ c.id }}" {{ 'selected' if selected and selected.id == c.id }}>{{ c.name }}</option>{% endfor %}</select>
-  </form>{% else %}<span></span>{% endif %}
-  <div class="zeus-legend small text-muted"><span class="is-course">Séance de cours</span><span class="is-activity">Activité</span>{% if birthdays %}<span class="is-birthday">Anniversaire</span>{% endif %}
-    {% if manageable and not target %}<span class="ms-2">Choisissez une cohorte pour programmer une séance.</span>{% endif %}</div>
+      {% for c in scope.cohorts %}<option value="{{ c.id }}" {{ 'selected' if scope.cohort and scope.cohort.id == c.id }}>{{ c.name }}</option>{% endfor %}</select>
+    {% endif %}
+    {% if scope.classes %}
+    <select class="form-select form-select-sm" name="classe" aria-label="Classe" data-autosubmit>
+      <option value="">Toutes les classes</option>
+      {% for k in scope.classes %}<option value="{{ k.id }}" {{ 'selected' if scope.klass and scope.klass.id == k.id }}>Classe {{ k.name }}</option>{% endfor %}</select>
+    {% endif %}
+    {% if scope.coaches or scope.can_mine %}
+    <select class="form-select form-select-sm" name="coach" aria-label="Coach" data-autosubmit>
+      <option value="">Tous les coachs</option>
+      {% if scope.can_mine %}<option value="moi" {{ 'selected' if scope.mine }}>Mes séances</option>{% endif %}
+      {% for u in scope.coaches %}<option value="{{ u.id }}" {{ 'selected' if not scope.mine and scope.coach_id == u.id }}>{{ u.display_name }}</option>{% endfor %}</select>
+    {% endif %}
+    <noscript><button class="btn btn-sm btn-outline-secondary">Filtrer</button></noscript>
+  </form>
+  {% endif %}
+  <a class="btn btn-sm btn-outline-secondary zeus-cal-ics" href="{{ url_for('zeus.calendar_ics', vue=view.kind, date=anchor, **keep) }}"
+     title="Télécharger les séances et activités affichées, à importer dans un agenda (Google, Outlook…)"><i class="bi bi-download" aria-hidden="true"></i> .ics</a>
+</div>
+<div class="zeus-legend small text-muted mb-3">
+  <span class="is-course">Séance de cours</span><span class="is-activity">Activité</span>{% if has_birthdays %}<span class="is-birthday">Anniversaire</span>{% endif %}
+  {% if scope.filtered %}<span><i class="bi bi-funnel" aria-hidden="true"></i> Filtres appliqués aux séances</span>{% endif %}
+  {% if choose %}<span>Choisissez une cohorte pour programmer une séance.</span>{% elif target %}<span class="d-none d-lg-inline">{{ "Le + d'un jour y programme une séance." if view.kind == 'mois' else 'Cliquez sur une heure libre pour y programmer une séance.' }}</span>{% endif %}
 </div>
 
-<div class="zeus-week">
-{% for day in days %}{% set key = day | dt('%Y-%m-%d') %}
-  <section class="zeus-wday {{ 'is-today' if key == today }} {{ 'is-weekend' if loop.index > 5 }}" aria-label="{{ DAYS[loop.index0] }} {{ day | dt('%d/%m') }}">
-    <header><span>{{ DAYS[loop.index0][:3] }}</span><b>{{ day | dt('%d') }}</b></header>
-    <div class="zeus-wday-body">
-    {% set bdays = birthdays.get(key, []) %}
-    {% for p in bdays %}
-      <div class="zeus-event is-birthday"><strong><i class="bi bi-cake2" aria-hidden="true"></i> {{ p.name }}</strong>
-        <small>Anniversaire · {{ p.label }}</small></div>
-    {% endfor %}
-    {% for e in events if (e.starts_at | dt('%Y-%m-%d')) == key %}
-      {% if e.course %}
-      <a class="zeus-event is-course" href="{{ url_for('zeus.session', session_id=e.id) }}">
-        <time>{{ e.starts_at | dt('%H:%M') }} – {{ e.ends_at | dt('%H:%M') }}</time>
-        <strong>{{ e.course.name }}</strong>
-        <small>{{ 'Classe ' ~ e.klass.name if e.klass else 'Toute la cohorte' }}{% if not selected and cohorts | length > 1 %} · {{ e.course.cohort.name }}{% endif %}</small>
-        {% if e.coach or e.room %}<small>{{ e.coach.display_name if e.coach else '' }}{% if e.coach and e.room %} · {% endif %}{{ e.room or '' }}</small>{% endif %}
-      </a>
-      {% else %}
-      <div class="zeus-event is-activity">
-        <time><i class="bi bi-calendar-event" aria-hidden="true"></i> {{ e.starts_at | dt('%H:%M') }} – {{ e.ends_at | dt('%H:%M') }}</time>
-        <strong>{{ e.title }}</strong>
-        {% if e.place %}<small><i class="bi bi-geo-alt" aria-hidden="true"></i> {{ e.place }}</small>{% endif %}
-      </div>
-      {% endif %}
-    {% else %}
-      {% if not bdays %}<p class="zeus-free">Libre</p>{% endif %}
-    {% endfor %}
-    </div>
-  </section>
-{% endfor %}
-</div>
+{% set slots = target is not none and form.courses %}
+{% if view.kind == 'mois' %}{% include "zeus/_cal_month.html" %}{% else %}{% include "zeus/_cal_grid.html" %}{% endif %}
 
-{% if target %}{% set classes, coaches, courses, full = forms[target.id] %}
-<div class="modal fade" id="schedule" tabindex="-1" aria-labelledby="schedule-title" aria-hidden="true">
+{% if target %}
+<div class="modal fade" id="schedule" tabindex="-1" aria-labelledby="schedule-title" aria-hidden="true" {{ 'data-show-on-load' if show_form }}>
   <div class="modal-dialog"><div class="modal-content">
-    <form method="post">{{ csrf() }}<input type="hidden" name="cohort_id" value="{{ target.id }}">
-      <div class="modal-header"><h2 class="modal-title h6" id="schedule-title"><i class="bi bi-calendar-plus"></i> Programmer une séance · {{ target.name }}</h2>
+    <form method="post" action="{{ url_for('zeus.calendar') }}" data-session-form>{{ csrf() }}
+      <input type="hidden" name="cohort_id" value="{{ target.id }}">
+      {# Where to come back: this view and its filters (`cohort` here is the filter, cohort_id the target). #}
+      <input type="hidden" name="vue" value="{{ view.kind }}"><input type="hidden" name="date" value="{{ anchor }}">
+      {% for k, v in keep.items() if v %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+      <div class="modal-header"><h2 class="modal-title h6" id="schedule-title"><i class="bi bi-calendar-plus" aria-hidden="true"></i> Programmer une séance · {{ target.name }}</h2>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button></div>
-      <div class="modal-body">
-      {% if courses %}
-        <div class="mb-2"><label class="form-label" for="course_id">Cours</label>
-          <select class="form-select" id="course_id" name="course_id" required>{% for c in courses %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></div>
-        <div class="mb-2"><label class="form-label" for="class_id">Pour</label>
-          <select class="form-select" id="class_id" name="class_id" {{ "required" if not full }}>{% if full %}<option value="">Toute la cohorte</option>{% endif %}
-            {% for k in classes %}<option value="{{ k.id }}">Classe {{ k.name }}</option>{% endfor %}</select></div>
-        <div class="row g-2 mb-2">
-          <div class="col-6"><label class="form-label" for="starts_at">Début</label><input class="form-control" type="datetime-local" id="starts_at" name="starts_at" required></div>
-          <div class="col-6"><label class="form-label" for="ends_at">Fin</label><input class="form-control" type="datetime-local" id="ends_at" name="ends_at" required></div>
-        </div>
-        <div class="mb-2"><label class="form-label" for="coach_id">Coach</label>
-          <select class="form-select" id="coach_id" name="coach_id"><option value="">Coach du cours</option>
-            {% for u in coaches %}<option value="{{ u.id }}">{{ u.display_name }}</option>{% endfor %}</select></div>
-        <div><label class="form-label" for="room">Salle</label><input class="form-control" id="room" name="room" maxlength="100"></div>
-      {% else %}
-        <p class="text-muted small mb-0">Ajoutez d'abord un cours au programme de la <a href="{{ url_for('zeus.cohort', cohort_id=target.id) }}#cours">cohorte</a>.</p>
-      {% endif %}
-      </div>
-      {% if courses %}<div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
-        <button class="btn btn-primary"><i class="bi bi-lightning-charge-fill"></i> Programmer</button></div>{% endif %}
+      <div class="modal-body">{{ session_fields(form, values, create=True, conflicts=conflicts, error=error, cohort=target) }}</div>
+      {% if form.courses %}<div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+        <button class="btn btn-primary"><i class="bi bi-lightning-charge-fill" aria-hidden="true"></i> Programmer</button></div>{% endif %}
     </form>
   </div></div>
 </div>

@@ -11,10 +11,10 @@ from app.extensions import db
 from app.models import (Cohort, Enrollment, User, ZeusBirthdayWish, ZeusClass, ZeusClassCoach, ZeusClassMember,
                         ZeusClassRole, ZeusCourse, ZeusNotification, ZeusSession)
 from app.models.user import ROLE_ADMIN, ROLE_TRADE_COACH
-from app.services import (candidate_service, direction_service, zeus_birthday_service, zeus_message_service,
+from app.services import (candidate_service, zeus_birthday_service, zeus_calendar_service, zeus_message_service,
                           zeus_service)
 from app.services.candidate_service import BusinessError
-from app.utils import allow_camera
+from app.utils import allow_camera, as_utc
 
 bp = Blueprint("zeus", __name__, url_prefix="/zeus")
 
@@ -151,8 +151,9 @@ def course(course_id: int):
             db.session.rollback()
             flash(str(exc), "danger")
         return redirect(url_for("zeus.course", course_id=course.id))
+    classes, full = zeus_service.schedulable(current_user, c)
     return render_template("zeus/course.html", course=course, cohort=c, coaches=zeus_service.cohort_coaches(c),
-                           can_manage=zeus_service.can_manage(current_user, c))
+                           can_manage=zeus_service.can_manage(current_user, c), can_schedule=bool(classes or full))
 
 
 # ---- classes and invitations
@@ -447,44 +448,102 @@ def class_birthdays(class_id: int):
                            next=(last + timedelta(days=1)).strftime("%Y-%m"))
 
 
-# ---- calendar (scheduled sessions)
+# ---- calendar: day, week and month views of the sessions, activities and birthdays; programming sessions
+
+def _calendar_context(args):
+    """The view and the filters (args: the URL, or the form sent back when it is shown again)."""
+    cohorts = zeus_service.cohorts_for(current_user)
+    selected = None
+    if args.get("cohort", type=int):
+        selected = db.get_or_404(Cohort, args.get("cohort", type=int))
+        if selected not in cohorts:
+            abort(404)
+    view = zeus_calendar_service.parse_view(args, request.cookies.get(zeus_calendar_service.VIEW_COOKIE),
+                                            candidate_service.today())
+    return view, zeus_calendar_service.resolve_scope(current_user, args, cohorts, selected)
+
+
+def _schedule_target(scope):
+    """The cohort the « Programmer » form writes to: the one in view (filter, or the only one) where the user may
+    schedule; (target, may schedule elsewhere: choose a cohort)."""
+    def allowed(c):
+        classes, full = zeus_service.schedulable(current_user, c)
+        return bool(classes or full)
+    in_view = scope.cohort or (scope.cohorts[0] if len(scope.cohorts) == 1 else None)
+    if in_view is not None:
+        return (in_view if allowed(in_view) else None), False
+    manageable = [c for c in scope.cohorts if allowed(c)]
+    return (manageable[0], False) if len(manageable) == 1 else (None, bool(manageable))
+
+
+def _calendar_page(args, pending=None, conflicts=None, error=None, target=None):
+    """The calendar; pending: the « Programmer » form sent back (to `target`) with its conflicts or error."""
+    view, scope = _calendar_context(args)
+    events, sessions = zeus_calendar_service.collect(current_user, view, scope)
+    days = zeus_calendar_service.by_day(events, view)
+    target, choose = (target, False) if target is not None else _schedule_target(scope)
+    form, values = None, pending
+    if target is not None:
+        classes, full = zeus_service.schedulable(current_user, target)
+        form = {"classes": classes, "full": full, "courses": zeus_service.courses_of(target),
+                "coaches": zeus_service.cohort_coaches(target)}
+        if values is None:  # a new session: on the day shown (today in the current week / month), 08:00-10:00
+            today = candidate_service.today()
+            day = today if today in view.days else view.anchor
+            course = request.args.get("cours", type=int)
+            values = {"starts_at": f"{day.isoformat()}T08:00", "ends_at": f"{day.isoformat()}T10:00",
+                      "class_id": scope.klass.id if scope.klass in classes else "",
+                      "course_id": course if any(c.id == course for c in form["courses"]) else ""}
+    return render_template(
+        "zeus/calendar.html", view=view, scope=scope, keep=scope.args, views=zeus_calendar_service.VIEWS,
+        days=days, month_chips=zeus_calendar_service.MONTH_CHIPS,
+        grid=zeus_calendar_service.build_grid(days, view.start.tzinfo) if view.kind != "mois" else None,
+        counts={"sessions": len(sessions), "activities": sum(1 for e in events if e.kind == "activity")},
+        has_birthdays=any(d.birthdays for d in days), today=candidate_service.today(),
+        target=target, choose=choose, form=form, values=values or {}, conflicts=conflicts, error=error,
+        show_form=target is not None and (pending is not None or request.args.get("programmer") == "1"))
+
 
 @bp.route("/calendrier", methods=["GET", "POST"])
 def calendar():
     if request.method == "POST":
         c = _cohort(request.form.get("cohort_id", 0, type=int))
-        k = next((k for k in zeus_service.classes_of(c) if k.id == request.form.get("class_id", type=int)), None)
-        if not zeus_service.can_schedule(current_user, c, k):
+        if not zeus_service.can_schedule(current_user, c, zeus_service.form_class(c, request.form)):
             abort(403)
+        notify = request.form.get("notify") == "1"
         try:
-            s = zeus_service.create_session(c, request.form, current_user)
-            flash(f"Séance programmée : {s.course.name}.", "success")
-            return redirect(url_for("zeus.calendar", week=request.form.get("starts_at", "")[:10], cohort=c.id))
-        except BusinessError as exc:
+            sessions, conflicts = zeus_service.create_sessions(c, request.form, current_user, notify=notify,
+                                                               force=request.form.get("force") == "1")
+        except BusinessError as exc:  # shown in the form, with what was typed
             db.session.rollback()
-            flash(str(exc), "danger")
-        return redirect(url_for("zeus.calendar", cohort=c.id))
-    cohort_id = request.args.get("cohort", type=int)
-    selected = _cohort(cohort_id) if cohort_id else None
-    start = zeus_service.week_start(request.args.get("week"))
-    days = [start + timedelta(days=i) for i in range(7)]
-    sessions = zeus_service.sessions_for(current_user, start, start + timedelta(days=7), selected)
-    # Who may schedule where: the whole cohort (cohort level), or only the classes one manages.
-    forms = {}
-    for c in zeus_service.cohorts_for(current_user):
-        full = zeus_service.can_manage(current_user, c)
-        classes = [k for k in zeus_service.classes_of(c) if full or zeus_service.can_manage_class(current_user, k)]
-        if full or classes:
-            forms[c.id] = (classes, zeus_service.cohort_coaches(c), zeus_service.courses_of(c), full)
-    manageable = [c for c in zeus_service.cohorts_for(current_user) if c.id in forms]
-    return render_template("zeus/calendar.html", days=days, sessions=sessions, selected=selected,
-                           today=candidate_service.today().isoformat(),
-                           cohorts=zeus_service.cohorts_for(current_user), manageable=manageable,
-                           prev=(start - timedelta(days=7)).date().isoformat(),
-                           next=(start + timedelta(days=7)).date().isoformat(), forms=forms,
-                           activities=direction_service.activities_for(current_user, start, start + timedelta(days=7)),
-                           birthdays=zeus_birthday_service.by_day(zeus_birthday_service.in_range(
-                               zeus_birthday_service.circle(current_user), days[0].date(), days[6].date())))
+            return _calendar_page(request.form, pending=request.form, error=str(exc), target=c)
+        if not sessions:
+            return _calendar_page(request.form, pending=request.form, conflicts=conflicts, target=c)
+        name = sessions[0].course.name
+        flash((f"Séance programmée : {name}." if len(sessions) == 1 else
+               f"{len(sessions)} séances programmées : {name}, chaque semaine.")
+              + (" Les étudiants sont prévenus." if notify else ""), "success")
+        day = as_utc(sessions[0].starts_at).astimezone(zeus_service.school_tz()).date()
+        return redirect(url_for("zeus.calendar", vue=request.form.get("vue") or None, date=day.isoformat(),
+                                cohort=request.form.get("cohort") or None, classe=request.form.get("classe") or None,
+                                coach=request.form.get("coach") or None))
+    response = make_response(_calendar_page(request.args))
+    if request.args.get("vue") in zeus_calendar_service.VIEWS:  # the last view used comes back next time
+        response.set_cookie(zeus_calendar_service.VIEW_COOKIE, request.args["vue"],
+                            max_age=THEME_COOKIE_DAYS * 24 * 3600, samesite="Lax", secure=request.is_secure,
+                            httponly=True)
+    return response
+
+
+@bp.get("/calendrier.ics")
+def calendar_ics():
+    """What the view shows (sessions and activities, no birthdays), to import into a calendar app."""
+    view, scope = _calendar_context(request.args)
+    events, _ = zeus_calendar_service.collect(current_user, view, scope, birthdays=False, status=False)
+    response = make_response(zeus_calendar_service.to_ics(events, f"Zeus · {view.title}"))
+    response.headers["Content-Type"] = "text/calendar; charset=utf-8"
+    response.headers["Content-Disposition"] = f'attachment; filename="zeus-{view.kind}-{view.anchor.isoformat()}.ics"'
+    return response
 
 
 # ---- sessions and roll calls
@@ -498,6 +557,24 @@ def _session(session_id: int) -> ZeusSession:
     return s
 
 
+def _session_page(s: ZeusSession, edit=None, conflicts=None, error=None):
+    """The session (roll call, or the student's presence); its edit form shown again with conflicts or an error."""
+    can_call = zeus_service.can_call(current_user, s)
+    can_manage = zeus_service.can_schedule(current_user, s.course.cohort, s.klass)
+    form = None
+    if can_manage:
+        cohort = s.course.cohort
+        classes, full = zeus_service.schedulable(current_user, cohort)
+        form = {"classes": classes, "full": full, "courses": zeus_service.courses_of(cohort),
+                "coaches": zeus_service.cohort_coaches(cohort)}
+    return allow_camera(make_response(render_template(
+        "zeus/session.html", s=s, present={m.enrollment_id for m in s.marks}, can_call=can_call,
+        can_manage=can_manage, form=form, values=edit or zeus_calendar_service.session_values(s),
+        conflicts=conflicts, error=error, show_edit=edit is not None, day=zeus_calendar_service.local_day(s),
+        qr=zeus_service.call_qr(s) if can_call and request.args.get("appel") == "qr" else None,
+        me=zeus_service.student_enrollment(current_user))))
+
+
 @bp.route("/seances/<int:session_id>", methods=["GET", "POST"])
 def session(session_id: int):
     s = _session(session_id)
@@ -505,23 +582,36 @@ def session(session_id: int):
     if request.method == "POST":
         if not can_call:
             abort(403)
-        if request.form.get("action") == "delete":
-            if not zeus_service.can_schedule(current_user, s.course.cohort, s.klass):
-                abort(403)
-            zeus_service.delete_session(s)
-            flash("Séance supprimée.", "success")
-            return redirect(url_for("zeus.calendar", cohort=s.course.cohort_id))
+        action, notify = request.form.get("action"), request.form.get("notify") == "1"
+        if action in ("edit", "delete"):
+            cohort = s.course.cohort
+            if not zeus_service.can_schedule(current_user, cohort, s.klass) or (
+                    action == "edit" and not zeus_service.can_schedule(
+                        current_user, cohort, zeus_service.form_class(cohort, request.form))):
+                abort(403)  # edit: on the session's class and on the one it moves to
+        if action == "delete":
+            day, cohort_id = zeus_calendar_service.local_day(s), s.course.cohort_id
+            zeus_service.delete_session(s, current_user, notify=notify)
+            flash("Séance supprimée." + (" Les étudiants sont prévenus." if notify else ""), "success")
+            return redirect(url_for("zeus.calendar", date=day.isoformat(), cohort=cohort_id))
+        if action == "edit":
+            force = request.form.get("force") == "1"
+            try:
+                conflicts = zeus_service.update_session(s, request.form, current_user, notify=notify, force=force)
+            except BusinessError as exc:
+                db.session.rollback()
+                return _session_page(s, edit=request.form, error=str(exc))
+            if conflicts and not force:
+                return _session_page(s, edit=request.form, conflicts=conflicts)
+            flash("Séance enregistrée." + (" Les étudiants sont prévenus." if notify else ""), "success")
+            return redirect(url_for("zeus.session", session_id=s.id))
         n = zeus_service.save_roll_call(s, set(request.form.getlist("present", type=int)), current_user)
         flash(f"Appel enregistré : {n} présent(s) sur {len(s.expected)}.", "success")
         return redirect(url_for("zeus.session", session_id=s.id))
-    present = {m.enrollment_id for m in s.marks}
     if can_call and request.args.get("partial"):  # roll call by QR code: refreshed every 10 s
-        return render_template("zeus/_call_live.html", s=s, present=present, qr=zeus_service.call_qr(s))
-    return allow_camera(make_response(render_template(
-        "zeus/session.html", s=s, present=present, can_call=can_call,
-        can_manage=zeus_service.can_schedule(current_user, s.course.cohort, s.klass),
-        qr=zeus_service.call_qr(s) if can_call and request.args.get("appel") == "qr" else None,
-        me=zeus_service.student_enrollment(current_user))))
+        return render_template("zeus/_call_live.html", s=s, present={m.enrollment_id for m in s.marks},
+                               qr=zeus_service.call_qr(s))
+    return _session_page(s)
 
 
 @bp.post("/seances/<int:session_id>/scan")

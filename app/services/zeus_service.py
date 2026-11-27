@@ -1,11 +1,12 @@
 """Zeus mode: who may enter, classes and invitations, courses, scheduled sessions, roll calls (DFS matricule)."""
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import segno
 from flask import url_for
 from markupsafe import Markup
 from sqlalchemy import or_, select
+from sqlalchemy.orm import selectinload
 
 from app.extensions import db
 from app.models import (Cohort, Enrollment, User, ZeusAttendance, ZeusClass, ZeusClassCoach, ZeusClassMember,
@@ -18,6 +19,10 @@ from app.services.candidate_service import BusinessError, decode_matricule
 from app.utils import as_utc, utcnow
 
 DESK_ROLES = (ROLE_ADMIN, ROLE_RECEPTION, ROLE_RESIDENCE)  # every cohort, read (desk: registrations)
+WEEKDAYS = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche")
+MAX_SESSION_HOURS = 24
+MAX_REPEAT = 20  # weekly copies of a new session, at most
+MIN_YEAR, MAX_YEAR = 2000, 2100  # dates outside: today (no overflow on prev / next)
 
 
 # ---- mode and access
@@ -98,6 +103,12 @@ def can_teach_class(user, klass: ZeusClass) -> bool:
 def can_schedule(user, cohort: Cohort, klass: ZeusClass | None = None) -> bool:
     """Programme a session: for the whole cohort (cohort level), or for a class one manages."""
     return can_manage(user, cohort) or (klass is not None and can_manage_class(user, klass))
+
+
+def schedulable(user, cohort: Cohort) -> tuple[list[ZeusClass], bool]:
+    """Where the user may programme sessions in the cohort: (the classes, the whole cohort too?)."""
+    full = can_manage(user, cohort)
+    return [k for k in classes_of(cohort) if full or can_manage_class(user, k)], full
 
 
 def can_call(user, session: ZeusSession) -> bool:
@@ -325,28 +336,170 @@ def courses_of(cohort: Cohort) -> list[ZeusCourse]:
                               .order_by(ZeusCourse.name)).all()
 
 
-def create_session(cohort: Cohort, form, user) -> ZeusSession:
-    course = db.session.get(ZeusCourse, form.get("course_id", 0, type=int))
-    if course is None or course.cohort_id != cohort.id:
+def school_tz() -> ZoneInfo:
+    return ZoneInfo(settings_service.get("timezone") or "UTC")
+
+
+def form_class(cohort: Cohort, form) -> ZeusClass | None:
+    """The class chosen in a session form, among the cohort's (None: whole cohort, or an unknown id)."""
+    raw = (form.get("class_id") or "").strip()
+    return next((k for k in classes_of(cohort) if str(k.id) == raw), None) if raw else None
+
+
+def _session_fields(cohort: Cohort, form) -> dict:
+    """The fields of a session form, checked (create and edit share them). Times in UTC."""
+    course = next((c for c in courses_of(cohort) if c.id == form.get("course_id", type=int)), None)
+    if course is None:
         raise BusinessError("Choisissez un cours de la cohorte.")
-    class_id = form.get("class_id", type=int)
-    if class_id and class_id not in {k.id for k in classes_of(cohort)}:
+    klass = form_class(cohort, form)
+    if klass is None and (form.get("class_id") or "").strip():
         raise BusinessError("Choisissez une classe de la cohorte.")
     starts, ends = local_datetime(form.get("starts_at", "")), local_datetime(form.get("ends_at", ""))
     if not starts or not ends or ends <= starts:
         raise BusinessError("Indiquez le début et la fin de la séance (la fin après le début).")
-    session = ZeusSession(course=course, class_id=class_id or None, starts_at=starts, ends_at=ends,
-                          room=form.get("room", "").strip()[:100],
-                          coach_id=_coach_id(cohort, form) or course.coach_id, created_by=user.id)
-    db.session.add(session)
+    if ends - starts > timedelta(hours=MAX_SESSION_HOURS):
+        raise BusinessError(f"Une séance dure au plus {MAX_SESSION_HOURS} heures.")
+    coach_id = _coach_id(cohort, form) or course.coach_id
+    return {"course": course, "klass": klass, "starts": starts, "ends": ends,
+            "room": form.get("room", "").strip()[:100], "coach": db.session.get(User, coach_id) if coach_id else None}
+
+
+def slot_label(starts: datetime, ends: datetime, weekday: bool = True) -> str:
+    """« mardi 24/11/2026, 08:00–12:00 » in the school's time zone."""
+    tz = school_tz()
+    s, e = as_utc(starts).astimezone(tz), as_utc(ends).astimezone(tz)
+    end = e.strftime("%H:%M") if e.date() == s.date() else e.strftime("%d/%m %H:%M")
+    return (f"{WEEKDAYS[s.weekday()]} " if weekday else "") + f"{s:%d/%m/%Y}, {s:%H:%M}–{end}"
+
+
+def session_conflicts(user, slots: list[tuple[datetime, datetime]], cohort: Cohort, klass: ZeusClass | None,
+                      coach: User | None, room: str, exclude_id: int | None = None) -> list[str]:
+    """Sessions overlapping one of the slots (back-to-back is fine) with the same students (same class, or either
+    for the whole cohort), the same coach or the same room (any cohort). A session of a cohort the user cannot see
+    is never named."""
+    if not slots:
+        return []
+    lo, hi = min(s for s, _ in slots), max(e for _, e in slots)
+    rows = db.session.scalars(select(ZeusSession).where(
+        ZeusSession.starts_at < hi.astimezone(timezone.utc), ZeusSession.ends_at > lo.astimezone(timezone.utc))
+        .options(selectinload(ZeusSession.course), selectinload(ZeusSession.klass), selectinload(ZeusSession.coach))
+        .order_by(ZeusSession.starts_at)).all()
+    room_key = (room or "").strip().casefold()
+    visible = {c.id for c in cohorts_for(user)}
+    found = []
+    for other in rows:
+        start, end = as_utc(other.starts_at), as_utc(other.ends_at)
+        if other.id == exclude_id or not any(start < b and end > a for a, b in slots):
+            continue
+        reasons = []
+        if other.course.cohort_id == cohort.id and (klass is None or other.class_id in (None, klass.id)):
+            reasons.append("mêmes étudiants")
+        if coach is not None and other.coach_id == coach.id:
+            reasons.append(f"même coach ({coach.display_name})")
+        if room_key and (other.room or "").strip().casefold() == room_key:
+            reasons.append(f"même salle ({other.room.strip()})")
+        if reasons:
+            what = (f"{other.course.name} ({'classe ' + other.klass.name if other.klass else 'toute la cohorte'})"
+                    if other.course.cohort_id in visible else "Une séance d'une autre cohorte")
+            found.append(f"{what}, {slot_label(start, end)} : {', '.join(reasons)}.")
+    return found
+
+
+def _describe(starts, ends, klass, room, coach) -> str:
+    parts = [slot_label(starts, ends), f"classe {klass.name}" if klass else "toute la cohorte"]
+    parts += [f"salle {room}"] if room else []
+    parts += [coach.display_name] if coach else []
+    return " · ".join(parts)
+
+
+def _notify(session: ZeusSession, kind: str, user, before: str | None = None, series: list | None = None,
+            klass: ZeusClass | None | bool = False) -> ZeusNotification:
+    """In-app notification of a schedule change to the session's class (or whole cohort); klass: another audience
+    (the former class of a moved session). Scheduling rights cover writing to that audience."""
+    title = {"created": "Séance programmée", "updated": "Séance modifiée", "deleted": "Séance annulée"}[kind]
+    audience = session.klass if klass is False else klass
+    now = _describe(session.starts_at, session.ends_at, session.klass, session.room, session.coach)
+    if series and len(series) > 1:
+        tz = school_tz()
+        first, last = (as_utc(s.starts_at).astimezone(tz) for s in (series[0], series[-1]))
+        end = as_utc(series[0].ends_at).astimezone(tz)
+        lines = [f"Chaque {WEEKDAYS[first.weekday()]}, {first:%H:%M}–{end:%H:%M}, du {first:%d/%m} au "
+                 f"{last:%d/%m/%Y} ({len(series)} séances)."]
+        lines += [f"Classe {session.klass.name}" if session.klass else "Toute la cohorte"]
+        lines += [f"Salle {session.room}"] if session.room else []
+        lines += [f"Coach : {session.coach.display_name}"] if session.coach else []
+    elif kind == "updated":
+        lines = [f"Avant : {before}", f"Maintenant : {now}"]
+    else:
+        lines = [now]
+    n = ZeusNotification(cohort=session.course.cohort, klass=audience, title=f"{title} : {session.course.name}"[:150],
+                         body="\n".join(lines), created_by=user.id)
+    db.session.add(n)
     db.session.flush()
-    audit_service.log("zeus_update", session, {"course": course.name, "starts_at": starts.isoformat()})
+    audit_service.log("zeus_update", n, {"notification": n.title, "to": n.target_label})
+    return n
+
+
+def create_sessions(cohort: Cohort, form, user, notify: bool = False,
+                    force: bool = False) -> tuple[list[ZeusSession], list[str]]:
+    """A session, and `repeat` weekly copies (same local time, DST-safe). Overlaps with other sessions: nothing is
+    saved unless forced; returns (the sessions saved, the conflicts)."""
+    f = _session_fields(cohort, form)
+    repeat = max(0, min(form.get("repeat", 0, type=int) or 0, MAX_REPEAT))
+    tz = school_tz()
+    local_start, local_end = f["starts"].astimezone(tz), f["ends"].astimezone(tz)
+    slots = [((local_start + timedelta(weeks=n)).astimezone(timezone.utc),
+              (local_end + timedelta(weeks=n)).astimezone(timezone.utc)) for n in range(repeat + 1)]
+    conflicts = session_conflicts(user, slots, cohort, f["klass"], f["coach"], f["room"])
+    if conflicts and not force:
+        return [], conflicts
+    sessions = [ZeusSession(course=f["course"], klass=f["klass"], starts_at=a, ends_at=b, room=f["room"],
+                            coach=f["coach"], created_by=user.id) for a, b in slots]
+    db.session.add_all(sessions)
+    db.session.flush()
+    for s in sessions:
+        details = {"course": f["course"].name, "starts_at": s.starts_at.isoformat()}
+        if conflicts:
+            details["forced"] = conflicts[:5]
+        audit_service.log("zeus_update", s, details)
+    if notify:
+        _notify(sessions[0], "created", user, series=sessions)
     db.session.commit()
-    return session
+    return sessions, conflicts
 
 
-def delete_session(session: ZeusSession) -> None:
-    audit_service.log("zeus_update", session.course, {"session_deleted": session.starts_at.isoformat()})
+def update_session(session: ZeusSession, form, user, notify: bool = False, force: bool = False) -> list[str]:
+    """Course, class, times, coach, room. The class stays once a roll call was taken. Overlaps: nothing is saved
+    unless forced. A class change notifies the former audience too."""
+    cohort = session.course.cohort
+    f = _session_fields(cohort, form)
+    if session.marks and f["klass"] != session.klass:
+        raise BusinessError("Un appel a déjà été fait : la séance ne peut plus changer de classe.")
+    conflicts = session_conflicts(user, [(f["starts"], f["ends"])], cohort, f["klass"], f["coach"], f["room"],
+                                  exclude_id=session.id)
+    if conflicts and not force:
+        return conflicts
+    before = _describe(session.starts_at, session.ends_at, session.klass, session.room, session.coach)
+    old_klass = session.klass
+    session.course, session.klass, session.coach = f["course"], f["klass"], f["coach"]
+    session.starts_at, session.ends_at, session.room = f["starts"], f["ends"], f["room"]
+    after = _describe(session.starts_at, session.ends_at, session.klass, session.room, session.coach)
+    details = {"course": session.course.name, "before": before, "after": after}
+    if conflicts:
+        details["forced"] = conflicts[:5]
+    audit_service.log("zeus_update", session, details)
+    if notify and before != after:
+        _notify(session, "updated", user, before=before)
+        if old_klass != session.klass:
+            _notify(session, "updated", user, before=before, klass=old_klass)
+    db.session.commit()
+    return conflicts
+
+
+def delete_session(session: ZeusSession, user, notify: bool = False) -> None:
+    if notify:  # before the delete: the notification names the course and the class
+        _notify(session, "deleted", user)
+    audit_service.log("zeus_update", session.course, {"session_deleted": as_utc(session.starts_at).isoformat()})
     db.session.delete(session)
     db.session.commit()
 
@@ -364,26 +517,46 @@ def week_overview(user, week: datetime) -> dict:
             "callable": {s.id for s in todays if can_call(user, s)}}
 
 
+def parse_day(value: str | None, default: date) -> date:
+    """A YYYY-MM-DD date of the URL; the default when missing, invalid or out of 2000-2100."""
+    try:
+        day = date.fromisoformat((value or "")[:10])
+    except ValueError:
+        return default
+    return day if MIN_YEAR <= day.year <= MAX_YEAR else default
+
+
 def week_start(value: str | None) -> datetime:
     """Monday 00:00 (school time zone) of the week of `value` (YYYY-MM-DD), this week by default."""
-    tz = ZoneInfo(settings_service.get("timezone") or "UTC")
-    try:
-        day = datetime.fromisoformat(value).date() if value else datetime.now(tz).date()
-    except ValueError:
-        day = datetime.now(tz).date()
+    tz = school_tz()
+    day = parse_day(value, datetime.now(tz).date())
     day -= timedelta(days=day.weekday())
     return datetime(day.year, day.month, day.day, tzinfo=tz)
 
 
-def sessions_for(user, start: datetime, end: datetime, cohort: Cohort | None = None) -> list[ZeusSession]:
-    """The sessions of [start, end) the user may see: his cohorts; a student, those of his classes or the cohort."""
-    cohorts = [c for c in cohorts_for(user) if cohort is None or c.id == cohort.id]
+def sessions_for(user, start: datetime, end: datetime, cohort: Cohort | None = None, klass: ZeusClass | None = None,
+                 coach_id: int | None = None, overlap: bool = False,
+                 cohorts: list[Cohort] | None = None) -> list[ZeusSession]:
+    """The sessions starting in [start, end) the user may see (overlap: the sessions crossing it): his cohorts; a
+    student, those of his classes or the cohort. klass: that class's sessions and its cohort's whole-cohort ones;
+    coach_id: the sessions he gives. cohorts: cohorts_for(user), when the caller already has it."""
+    cohorts = [c for c in (cohorts_for(user) if cohorts is None else cohorts) if cohort is None or c.id == cohort.id]
     if not cohorts:
         return []
-    rows = db.session.scalars(select(ZeusSession).join(ZeusCourse).where(
-        ZeusCourse.cohort_id.in_([c.id for c in cohorts]),
-        ZeusSession.starts_at >= start.astimezone(timezone.utc), ZeusSession.starts_at < end.astimezone(timezone.utc))
-        .order_by(ZeusSession.starts_at)).all()
+    start, end = start.astimezone(timezone.utc), end.astimezone(timezone.utc)
+    stmt = select(ZeusSession).join(ZeusCourse).where(ZeusCourse.cohort_id.in_([c.id for c in cohorts]))
+    if overlap:
+        stmt = stmt.where(ZeusSession.starts_at < end, ZeusSession.ends_at > start)
+    else:
+        stmt = stmt.where(ZeusSession.starts_at >= start, ZeusSession.starts_at < end)
+    if klass is not None:
+        stmt = stmt.where(ZeusCourse.cohort_id == klass.cohort_id,
+                          or_(ZeusSession.class_id == klass.id, ZeusSession.class_id.is_(None)))
+    if coach_id:
+        stmt = stmt.where(ZeusSession.coach_id == coach_id)
+    rows = db.session.scalars(stmt.options(
+        selectinload(ZeusSession.course).selectinload(ZeusCourse.cohort), selectinload(ZeusSession.klass),
+        selectinload(ZeusSession.coach)).order_by(ZeusSession.starts_at, ZeusSession.id)).all()
     e = student_enrollment(user)
     if e:
         mine = {k.id for k in classes_for_student(e)}

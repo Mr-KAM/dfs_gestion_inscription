@@ -1,0 +1,37 @@
+{# Month view: Monday first, the whole weeks of the month. A cell lists its first items (by time, then all day, then
+   the birthdays), « +N » and its day number open the day view. Phones: the whole cell opens the day, coloured dots
+   say what it holds (zeus.css). #}
+{% set DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'] %}
+{% macro chip(seg) -%}
+  {%- set e = seg.event -%}
+  {%- if e.kind == 'course' -%}
+  <a class="zeus-mchip is-course" href="{{ url_for('zeus.session', session_id=e.obj.id) }}" title="{{ e.title }} · {{ seg.label }}{{ ' · ' ~ e.status[1] if e.status }}">
+    {%- if seg.start_min or seg.end_min %}<time>{{ seg.label[:5] }}</time> {% endif %}{{ e.title }}</a>
+  {%- elif e.kind == 'activity' -%}
+  <a class="zeus-mchip is-activity" href="{{ url_for('direction.activities', week=e.start.strftime('%Y-%m-%d')) }}" title="{{ e.title }} · {{ seg.label }}">
+    {%- if seg.start_min or seg.end_min %}<time>{{ seg.label[:5] }}</time> {% endif %}{{ e.title }}</a>
+  {%- else -%}
+  <span class="zeus-mchip is-birthday"><i class="bi bi-cake2" aria-hidden="true"></i> {{ e.title }}</span>
+  {%- endif -%}
+{%- endmacro %}
+<div class="zeus-month-wrap">
+<table class="zeus-month">
+  <thead><tr>{% for d in DAYS %}<th scope="col"><abbr title="{{ d }}">{{ d[:3] }}</abbr></th>{% endfor %}</tr></thead>
+  <tbody>
+  {% for row in days | batch(7) %}<tr>
+    {% for day in row %}{% set iso = day.date.isoformat() %}{% set chips = day.chips %}
+    <td class="{{ 'is-out' if day.date.month != view.anchor.month }} {{ 'is-today' if day.date == today }} {{ 'is-weekend' if day.date.weekday() > 4 }}">
+      <a class="zeus-mday" href="{{ url_for('zeus.calendar', vue='jour', date=iso, **keep) }}"
+         aria-label="{{ DAYS[day.date.weekday()] }} {{ day.date.strftime('%d/%m') }}{{ ' : %d élément(s)' | format(chips | length) if chips }}">
+        <b>{{ day.date.day }}</b>{% if chips %}<span class="zeus-mdots" aria-hidden="true">{% for k in day.kinds %}<i class="is-{{ k }}"></i>{% endfor %}</span>{% endif %}</a>
+      {% if chips %}<div class="zeus-mitems">
+        {% for seg in chips[:month_chips] %}{{ chip(seg) }}{% endfor %}
+        {% if chips | length > month_chips %}<a class="zeus-mmore" href="{{ url_for('zeus.calendar', vue='jour', date=iso, **keep) }}">+{{ chips | length - month_chips }} autre(s)</a>{% endif %}
+      </div>{% endif %}
+      {% if slots %}<button type="button" class="zeus-slot is-month" data-slot="{{ iso }}T08:00" tabindex="-1" aria-hidden="true" title="Programmer ce jour"><i class="bi bi-plus-lg"></i></button>{% endif %}
+    </td>
+    {% endfor %}
+  </tr>{% endfor %}
+  </tbody>
+</table>
+</div>
